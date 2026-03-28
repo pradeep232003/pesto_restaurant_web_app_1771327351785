@@ -270,67 +270,70 @@ const AdminSiteSettings = () => {
                   const loc = locationData(setting.location_id);
                   return (
                     <div key={setting.location_id} data-testid={`site-card-${setting.location_id}`} className="bg-card rounded-xl shadow-warm overflow-hidden">
-                      <div className="p-6">
+                      <div className="p-4 sm:p-6">
                         {/* Header */}
-                        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                          <div>
-                            <h3 className="font-heading font-bold text-lg text-foreground">{locationName(setting.location_id)}</h3>
+                        <div className="flex items-start justify-between gap-3 mb-4">
+                          <div className="min-w-0">
+                            <h3 className="font-heading font-bold text-base sm:text-lg text-foreground truncate">{locationName(setting.location_id)}</h3>
                             <p className="text-xs text-muted-foreground mt-0.5">
                               {setting.manual_override ? 'Manual override active' : 'Following auto-schedule'}
                             </p>
                           </div>
-                          <div className="flex items-center gap-3 flex-wrap">
-                            {/* Wallet toggle */}
-                            <div className="flex items-center gap-2">
-                              <button
-                                data-testid={`wallet-toggle-${setting.location_id}`}
-                                onClick={() => handleWalletToggle(setting.location_id, loc?.wallet_enabled)}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                  loc?.wallet_enabled ? 'bg-emerald-500' : 'bg-gray-300'
-                                }`}
-                              >
-                                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                                  loc?.wallet_enabled ? 'translate-x-6' : 'translate-x-1'
-                                }`} />
-                              </button>
-                              <span className={`text-xs font-body font-medium ${loc?.wallet_enabled ? 'text-emerald-600' : 'text-muted-foreground'}`}>
-                                Wallet
-                              </span>
-                            </div>
-                            {/* Override toggle */}
+                          <button
+                            data-testid={`delete-location-${setting.location_id}`}
+                            onClick={() => handleDeleteLocation(setting.location_id)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
+                            title="Deactivate location"
+                          >
+                            <Icon name="Trash2" size={16} />
+                          </button>
+                        </div>
+
+                        {/* Controls row */}
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 mb-4">
+                          {/* Wallet toggle */}
+                          <div className="flex items-center gap-2">
                             <button
-                              data-testid={`override-toggle-${setting.location_id}`}
-                              onClick={() => handleOverrideToggle(setting.location_id, setting.manual_override)}
-                              className={`px-3 py-1.5 rounded-full text-xs font-body font-medium transition-all ${
-                                setting.manual_override ? 'bg-amber-100 text-amber-700' : 'bg-muted text-muted-foreground'
+                              data-testid={`wallet-toggle-${setting.location_id}`}
+                              onClick={() => handleWalletToggle(setting.location_id, loc?.wallet_enabled)}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                loc?.wallet_enabled ? 'bg-emerald-500' : 'bg-gray-300'
                               }`}
                             >
-                              {setting.manual_override ? 'Manual' : 'Auto'}
+                              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                                loc?.wallet_enabled ? 'translate-x-6' : 'translate-x-1'
+                              }`} />
                             </button>
-                            {/* Main ordering toggle */}
+                            <span className={`text-xs font-body font-medium ${loc?.wallet_enabled ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                              Wallet
+                            </span>
+                          </div>
+                          {/* Override toggle */}
+                          <button
+                            data-testid={`override-toggle-${setting.location_id}`}
+                            onClick={() => handleOverrideToggle(setting.location_id, setting.manual_override)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-body font-medium transition-all ${
+                              setting.manual_override ? 'bg-amber-100 text-amber-700' : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {setting.manual_override ? 'Manual' : 'Auto'}
+                          </button>
+                          {/* Main ordering toggle */}
+                          <div className="flex items-center gap-2">
                             <button
                               data-testid={`ordering-toggle-${setting.location_id}`}
                               onClick={() => handleToggle(setting.location_id)}
-                              className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
+                              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
                                 setting.ordering_enabled ? 'bg-green-500' : 'bg-gray-300'
                               }`}
                             >
-                              <span className={`inline-block h-6 w-6 rounded-full bg-white shadow transition-transform ${
-                                setting.ordering_enabled ? 'translate-x-7' : 'translate-x-1'
+                              <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                                setting.ordering_enabled ? 'translate-x-6' : 'translate-x-1'
                               }`} />
                             </button>
                             <span className={`text-sm font-body font-medium ${setting.ordering_enabled ? 'text-green-600' : 'text-red-500'}`}>
                               {setting.ordering_enabled ? 'Open' : 'Closed'}
                             </span>
-                            {/* Delete button */}
-                            <button
-                              data-testid={`delete-location-${setting.location_id}`}
-                              onClick={() => handleDeleteLocation(setting.location_id)}
-                              className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-all"
-                              title="Deactivate location"
-                            >
-                              <Icon name="Trash2" size={16} />
-                            </button>
                           </div>
                         </div>
 

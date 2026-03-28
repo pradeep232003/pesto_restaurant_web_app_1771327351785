@@ -179,12 +179,12 @@ const ResidentBalance = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl lg:text-3xl font-heading font-bold flex items-center gap-3">
-                  <Icon name="Wallet" size={32} />
-                  Resident Prepaid Balance
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-heading font-bold flex items-center gap-2 sm:gap-3">
+                  <Icon name="Wallet" size={24} className="shrink-0" />
+                  <span>Resident Prepaid Balance</span>
                 </h1>
-                <p className="text-sm opacity-80 mt-1 font-body">
-                  Manage prepaid balances for Oakmere and Willowmere residents
+                <p className="text-xs sm:text-sm opacity-80 mt-1 font-body">
+                  Manage prepaid balances for wallet-enabled sites
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -324,6 +324,7 @@ const ResidentBalance = () => {
                   <ResidentCard
                     key={resident.id}
                     resident={resident}
+                    locationName={walletLocations.find(l => l.id === resident.location)?.name}
                     onEdit={handleEditResident}
                     onDelete={handleDeleteResident}
                     onTopUp={handleTopUp}

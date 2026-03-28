@@ -148,28 +148,28 @@ const TransactionReport = () => {
         {/* Page Header */}
         <section className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-6 no-print">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
               <button
                 onClick={() => navigate('/admin/residents')}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors shrink-0"
               >
-                <Icon name="ArrowLeft" size={24} />
+                <Icon name="ArrowLeft" size={20} />
               </button>
-              <div className="flex-1">
-                <h1 className="text-2xl lg:text-3xl font-heading font-bold flex items-center gap-3">
-                  <Icon name="BarChart3" size={32} />
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-heading font-bold flex items-center gap-2 sm:gap-3">
+                  <Icon name="BarChart3" size={24} className="hidden sm:block" />
                   Transaction Report
                 </h1>
-                <p className="text-sm opacity-80 mt-1">
-                  View and filter all transactions across locations
+                <p className="text-xs sm:text-sm opacity-80 mt-1 truncate">
+                  View and filter all transactions
                 </p>
               </div>
               <button
                 onClick={handlePrint}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-indigo-600 rounded-lg font-medium hover:bg-white/90 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 bg-white text-indigo-600 rounded-lg text-sm font-medium hover:bg-white/90 transition-colors shrink-0"
               >
-                <Icon name="Printer" size={18} />
-                <span>Print Report</span>
+                <Icon name="Printer" size={16} />
+                <span className="hidden sm:inline">Print Report</span>
               </button>
             </div>
           </div>
@@ -299,7 +299,7 @@ const TransactionReport = () => {
 
             {/* Transactions Table */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden print:shadow-none print:border-2">
-              <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
+              <div className="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-100">
                 <h3 className="font-semibold text-gray-900">
                   Transactions ({transactions.length})
                 </h3>
@@ -315,60 +315,97 @@ const TransactionReport = () => {
                   <p className="text-gray-500">No transactions found matching your filters</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-100">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Resident</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Location</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Type</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Description</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Amount</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Balance</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {transactions.map((t) => (
-                        <tr key={t.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                            {formatDate(t.created_at)}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">{t.resident_name}</p>
-                              <p className="text-xs text-gray-500">#{t.residence_number}</p>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">
-                            {walletLocations.find(l => l.id === t.resident_location)?.name || t.resident_location}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
+                <>
+                  {/* Desktop Table */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 border-b border-gray-100">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Resident</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Location</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Type</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Description</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Amount</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {transactions.map((t) => (
+                          <tr key={t.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                              {formatDate(t.created_at)}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">{t.resident_name}</p>
+                                <p className="text-xs text-gray-500">#{t.residence_number}</p>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-600">
+                              {walletLocations.find(l => l.id === t.resident_location)?.name || t.resident_location}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
+                                t.transaction_type === 'topup' 
+                                  ? 'bg-emerald-100 text-emerald-700' 
+                                  : 'bg-rose-100 text-rose-700'
+                              }`}>
+                                <Icon name={t.transaction_type === 'topup' ? 'Plus' : 'Minus'} size={12} />
+                                {t.transaction_type === 'topup' ? 'Top Up' : 'Purchase'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
+                              {t.description || '-'}
+                            </td>
+                            <td className={`px-4 py-3 text-sm font-semibold text-right whitespace-nowrap ${
+                              t.amount > 0 ? 'text-emerald-600' : 'text-rose-600'
+                            }`}>
+                              {t.amount > 0 ? '+' : ''}£{Math.abs(t.amount).toFixed(2)}
+                            </td>
+                            <td className="px-4 py-3 text-sm font-medium text-right text-gray-900 whitespace-nowrap">
+                              £{(t.balance_after || 0).toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Cards */}
+                  <div className="md:hidden divide-y divide-gray-100">
+                    {transactions.map((t) => (
+                      <div key={t.id} className="p-4 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900">{t.resident_name}</p>
+                            <p className="text-xs text-gray-500">#{t.residence_number} · {walletLocations.find(l => l.id === t.resident_location)?.name || t.resident_location}</p>
+                          </div>
+                          <span className={`text-sm font-bold whitespace-nowrap ${
+                            t.amount > 0 ? 'text-emerald-600' : 'text-rose-600'
+                          }`}>
+                            {t.amount > 0 ? '+' : ''}£{Math.abs(t.amount).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
                               t.transaction_type === 'topup' 
                                 ? 'bg-emerald-100 text-emerald-700' 
                                 : 'bg-rose-100 text-rose-700'
                             }`}>
-                              <Icon name={t.transaction_type === 'topup' ? 'Plus' : 'Minus'} size={12} />
+                              <Icon name={t.transaction_type === 'topup' ? 'Plus' : 'Minus'} size={10} />
                               {t.transaction_type === 'topup' ? 'Top Up' : 'Purchase'}
                             </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
-                            {t.description || '-'}
-                          </td>
-                          <td className={`px-4 py-3 text-sm font-semibold text-right whitespace-nowrap ${
-                            t.amount > 0 ? 'text-emerald-600' : 'text-rose-600'
-                          }`}>
-                            {t.amount > 0 ? '+' : ''}£{Math.abs(t.amount).toFixed(2)}
-                          </td>
-                          <td className="px-4 py-3 text-sm font-medium text-right text-gray-900 whitespace-nowrap">
-                            £{(t.balance_after || 0).toFixed(2)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                            {t.description && <span className="text-xs text-gray-500 truncate max-w-[120px]">{t.description}</span>}
+                          </div>
+                          <span className="text-xs text-gray-500">Bal: £{(t.balance_after || 0).toFixed(2)}</span>
+                        </div>
+                        <p className="text-xs text-gray-400">{formatDate(t.created_at)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           </div>

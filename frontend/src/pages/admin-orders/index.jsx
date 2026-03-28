@@ -83,8 +83,8 @@ const AdminOrders = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl lg:text-3xl font-heading font-bold">Order Management</h1>
-                <p className="text-sm opacity-80 mt-1">Manage incoming collection orders</p>
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-heading font-bold">Order Management</h1>
+                <p className="text-xs sm:text-sm opacity-80 mt-1">Manage incoming collection orders</p>
               </div>
             </div>
           </div>

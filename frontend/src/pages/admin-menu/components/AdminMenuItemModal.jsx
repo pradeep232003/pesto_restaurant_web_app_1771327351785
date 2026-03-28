@@ -217,7 +217,7 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
           </div>
 
           {/* Price Row */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-body font-semibold text-foreground mb-1.5">
                 Resident Price (R) <span className="text-destructive">*</span>
@@ -342,7 +342,7 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
           </div>
 
           {/* Tags & Prep Time Row */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-body font-semibold text-foreground mb-1.5">Tags (comma-separated)</label>
               <input

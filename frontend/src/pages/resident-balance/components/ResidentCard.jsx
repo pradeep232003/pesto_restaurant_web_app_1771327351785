@@ -1,12 +1,7 @@
 import React from 'react';
 import Icon from '../../../components/AppIcon';
 
-const LOCATION_NAMES = {
-  'oakmere-handforth': 'Oakmere',
-  'willowmere-middlewich': 'Willowmere',
-};
-
-const ResidentCard = ({ resident, onEdit, onDelete, onTopUp, onPurchase, onViewHistory }) => {
+const ResidentCard = ({ resident, onEdit, onDelete, onTopUp, onPurchase, onViewHistory, locationName }) => {
   const balance = resident.balance || 0;
   const isLowBalance = balance < 10 && balance > 0;
   const isZeroBalance = balance === 0;
@@ -21,7 +16,7 @@ const ResidentCard = ({ resident, onEdit, onDelete, onTopUp, onPurchase, onViewH
               #{resident.residence_number}
             </span>
             <span className="text-xs text-gray-500">
-              {LOCATION_NAMES[resident.location] || resident.location}
+              {locationName || resident.location}
             </span>
           </div>
           <div className="flex items-center gap-1">

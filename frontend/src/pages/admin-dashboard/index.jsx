@@ -106,17 +106,20 @@ const AdminDashboard = () => {
         ) : (
           <div className="divide-y divide-border">
             {recentOrders.map(order => (
-              <div key={order.id} className="px-6 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                <div className="flex items-center gap-4">
-                  <span className="font-mono font-bold text-sm text-primary">{order.order_number}</span>
-                  <span className="text-sm text-muted-foreground">{order.customer_name}</span>
+              <div key={order.id} className="px-4 sm:px-6 py-3 hover:bg-muted/30 transition-colors">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                    <span className="font-mono font-bold text-xs sm:text-sm text-primary shrink-0">{order.order_number}</span>
+                    <span className="text-sm text-muted-foreground truncate hidden sm:inline">{order.customer_name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                    <span className="font-heading font-bold text-sm">{'\u00A3'}{order.total?.toFixed(2)}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-body font-medium ${STATUS_COLORS[order.status] || 'bg-muted'}`}>
+                      {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-heading font-bold text-sm">{'\u00A3'}{order.total?.toFixed(2)}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-body font-medium ${STATUS_COLORS[order.status] || 'bg-muted'}`}>
-                    {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
-                  </span>
-                </div>
+                <span className="text-xs text-muted-foreground sm:hidden">{order.customer_name}</span>
               </div>
             ))}
           </div>

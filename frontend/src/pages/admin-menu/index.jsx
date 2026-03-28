@@ -216,8 +216,8 @@ const AdminMenuManagement = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl lg:text-3xl font-heading font-bold">Menu Management</h1>
-                <p className="text-sm opacity-80 mt-1 font-body">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-heading font-bold">Menu Management</h1>
+                <p className="text-xs sm:text-sm opacity-80 mt-1 font-body">
                   Logged in as <span className="font-semibold">{user?.email}</span>
                 </p>
               </div>
@@ -225,10 +225,10 @@ const AdminMenuManagement = () => {
                 <button
                   onClick={handleAddNew}
                   data-testid="add-menu-item-btn"
-                  className="inline-flex items-center space-x-2 px-5 py-2.5 bg-white text-primary rounded-lg font-body font-semibold hover:bg-white/90 transition-all duration-200 hover:scale-105 shadow-sm"
+                  className="inline-flex items-center space-x-1.5 sm:space-x-2 px-3 sm:px-5 py-2 sm:py-2.5 bg-white text-primary rounded-lg font-body font-semibold hover:bg-white/90 transition-all duration-200 shadow-sm text-sm sm:text-base"
                 >
-                  <Icon name="Plus" size={18} />
-                  <span>Add Menu Item</span>
+                  <Icon name="Plus" size={16} />
+                  <span>Add Item</span>
                 </button>
               </div>
             </div>
