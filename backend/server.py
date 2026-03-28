@@ -9,7 +9,6 @@ from bson import ObjectId
 import os
 import asyncio
 import resend
-import shutil
 from pathlib import Path
 from typing import List, Optional
 from pydantic import BaseModel, EmailStr
@@ -21,15 +20,6 @@ from PIL import Image as PILImage
 import io
 
 app = FastAPI(title="Pesto Restaurant API")
-
-# Create uploads directory and thumbnail subdirectory
-UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-THUMB_DIR = UPLOAD_DIR / "thumbnails"
-THUMB_DIR.mkdir(parents=True, exist_ok=True)
-
-# Mount static files for serving uploaded images
-app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 # Resend email configuration
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
@@ -74,6 +64,7 @@ transactions_collection = db["transactions"]
 customers_collection = db["customers"]
 orders_collection = db["orders"]
 site_settings_collection = db["site_settings"]
+images_collection = db["images"]
 
 # JWT Configuration
 JWT_SECRET = os.environ.get("JWT_SECRET", "fallback-secret-change-in-production")
@@ -705,60 +696,77 @@ async def admin_delete_menu_item(item_id: str, user: dict = Depends(get_admin_us
     menu_items_collection.delete_one({"id": item_id})
     return {"message": "Menu item deleted successfully", "id": item_id}
 
-def generate_thumbnail(file_path: Path, thumb_path: Path, size=(400, 400)):
-    """Generate a consistent square thumbnail from an uploaded image."""
+import base64
+
+def generate_thumbnail_bytes(image_bytes, size=(400, 400)):
+    """Generate a consistent square thumbnail from image bytes. Returns JPEG bytes."""
     try:
-        with PILImage.open(file_path) as img:
+        with PILImage.open(io.BytesIO(image_bytes)) as img:
             img = img.convert("RGB")
-            # Center crop to square
             w, h = img.size
             min_dim = min(w, h)
             left = (w - min_dim) // 2
             top = (h - min_dim) // 2
             img = img.crop((left, top, left + min_dim, top + min_dim))
             img = img.resize(size, PILImage.LANCZOS)
-            img.save(thumb_path, "JPEG", quality=85, optimize=True)
-        return True
+            buf = io.BytesIO()
+            img.save(buf, "JPEG", quality=85, optimize=True)
+            return buf.getvalue()
     except Exception:
-        return False
+        return None
 
 
 @app.post("/api/admin/menu-items/{item_id}/upload-image")
 async def admin_upload_menu_image(item_id: str, file: UploadFile = File(...), user: dict = Depends(get_admin_user)):
-    """Admin: Upload an image for a menu item, auto-generates thumbnail"""
+    """Admin: Upload an image for a menu item, stores in MongoDB"""
     existing = menu_items_collection.find_one({"id": item_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Menu item not found")
     
-    # Validate file type
     allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
     if file.content_type not in allowed_types:
         raise HTTPException(status_code=400, detail="Invalid file type. Allowed: JPEG, PNG, WebP, GIF")
     
-    # Generate unique filename
-    file_ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
-    unique_filename = f"{item_id}_{uuid.uuid4().hex[:8]}.{file_ext}"
-    thumb_filename = f"{item_id}_{uuid.uuid4().hex[:8]}_thumb.jpg"
-    file_path = UPLOAD_DIR / unique_filename
-    thumb_path = THUMB_DIR / thumb_filename
-    
-    # Save original file
-    try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save image: {str(e)}")
+    # Read file bytes
+    file_bytes = await file.read()
     
     # Generate thumbnail
-    thumb_url = None
-    if generate_thumbnail(file_path, thumb_path):
-        thumb_url = f"/api/uploads/thumbnails/{thumb_filename}"
+    thumb_bytes = generate_thumbnail_bytes(file_bytes)
     
-    # Update menu item with new image URL and thumbnail
-    image_url = f"/api/uploads/{unique_filename}"
+    # Store in MongoDB
+    image_id = f"{item_id}_{uuid.uuid4().hex[:8]}"
+    thumb_id = f"{image_id}_thumb"
+    
+    # Remove old images for this item
+    images_collection.delete_many({"item_id": item_id})
+    
+    # Store original
+    images_collection.insert_one({
+        "image_id": image_id,
+        "item_id": item_id,
+        "content_type": file.content_type,
+        "data": base64.b64encode(file_bytes).decode("utf-8"),
+        "type": "original",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    
+    # Store thumbnail
+    if thumb_bytes:
+        images_collection.insert_one({
+            "image_id": thumb_id,
+            "item_id": item_id,
+            "content_type": "image/jpeg",
+            "data": base64.b64encode(thumb_bytes).decode("utf-8"),
+            "type": "thumbnail",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    
+    image_url = f"/api/images/{image_id}"
+    thumb_url = f"/api/images/{thumb_id}" if thumb_bytes else image_url
+    
     update_fields = {
         "image_url": image_url,
-        "thumbnail_url": thumb_url or image_url,
+        "thumbnail_url": thumb_url,
         "show_image": True,
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
@@ -768,7 +776,7 @@ async def admin_upload_menu_image(item_id: str, file: UploadFile = File(...), us
     return {
         "message": "Image uploaded successfully",
         "image_url": image_url,
-        "thumbnail_url": thumb_url or image_url,
+        "thumbnail_url": thumb_url,
         "item": serialize_doc(updated_item)
     }
 
@@ -790,25 +798,16 @@ async def admin_toggle_image_visibility(item_id: str, user: dict = Depends(get_a
     updated_item = menu_items_collection.find_one({"id": item_id})
     return serialize_doc(updated_item)
 
-# Serve uploaded images through API
-@app.get("/api/uploads/thumbnails/{filename}")
-async def get_uploaded_thumbnail(filename: str):
-    """Serve uploaded thumbnail images"""
-    file_path = THUMB_DIR / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Thumbnail not found")
-    from fastapi.responses import FileResponse
-    return FileResponse(file_path)
-
-@app.get("/api/uploads/{filename}")
-async def get_uploaded_image(filename: str):
-    """Serve uploaded images"""
-    file_path = UPLOAD_DIR / filename
-    if not file_path.exists():
+# Serve images from MongoDB
+@app.get("/api/images/{image_id}")
+async def get_image(image_id: str):
+    """Serve an image stored in MongoDB"""
+    from fastapi.responses import Response
+    doc = images_collection.find_one({"image_id": image_id})
+    if not doc:
         raise HTTPException(status_code=404, detail="Image not found")
-    
-    from fastapi.responses import FileResponse
-    return FileResponse(file_path)
+    image_bytes = base64.b64decode(doc["data"])
+    return Response(content=image_bytes, media_type=doc.get("content_type", "image/jpeg"), headers={"Cache-Control": "public, max-age=31536000"})
 
 
 # ============== RESIDENT PREPAID BALANCE SYSTEM ==============

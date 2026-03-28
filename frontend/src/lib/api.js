@@ -143,9 +143,9 @@ class ApiService {
     const formData = new FormData();
     formData.append('file', file);
     
-    const response = await fetch(`/api/admin/menu-items/${itemId}/upload-image`, {
+    const response = await fetch(`${API_BASE_URL}/api/admin/menu-items/${itemId}/upload-image`, {
       method: 'POST',
-      credentials: 'same-origin',
+      credentials: API_BASE_URL ? 'include' : 'same-origin',
       body: formData,
     });
     
