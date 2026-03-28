@@ -212,104 +212,89 @@ const AdminMenuManagement = () => {
     <div className="min-h-screen bg-background">
       <main>
         {/* Page Header */}
-        <section className="bg-primary text-primary-foreground py-6 lg:py-8">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section className="py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-heading font-bold">Menu Management</h1>
-                <p className="text-xs sm:text-sm opacity-80 mt-1 font-body">
-                  Logged in as <span className="font-semibold">{user?.email}</span>
+                <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Menu</h1>
+                <p className="text-sm mt-1" style={{ color: '#86868B' }}>
+                  {user?.email}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleAddNew}
-                  data-testid="add-menu-item-btn"
-                  className="inline-flex items-center space-x-1.5 sm:space-x-2 px-3 sm:px-5 py-2 sm:py-2.5 bg-white text-primary rounded-lg font-body font-semibold hover:bg-white/90 transition-all duration-200 shadow-sm text-sm sm:text-base"
-                >
-                  <Icon name="Plus" size={16} />
-                  <span>Add Item</span>
-                </button>
-              </div>
+              <button
+                onClick={handleAddNew}
+                data-testid="add-menu-item-btn"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200"
+                style={{ background: '#1D1D1F', color: '#FFFFFF', fontFamily: 'Outfit, sans-serif' }}
+              >
+                <Icon name="Plus" size={16} />
+                Add Item
+              </button>
             </div>
           </div>
         </section>
 
-        <section className="py-8">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <section className="pb-8 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto space-y-5">
 
-            {/* Success / Error Messages */}
+            {/* Messages */}
             {successMsg && (
-              <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center space-x-2">
-                <Icon name="CheckCircle" size={18} color="#16a34a" />
-                <p className="text-sm font-body text-green-700">{successMsg}</p>
+              <div className="p-4 rounded-2xl text-sm flex items-center gap-2" style={{ background: 'rgba(52,199,89,0.08)', color: '#34C759' }}>
+                <Icon name="CheckCircle" size={16} />
+                {successMsg}
               </div>
             )}
             {error && (
-              <div className="bg-destructive/10 border border-destructive/20 rounded-xl px-4 py-3 flex items-center space-x-2">
-                <Icon name="AlertCircle" size={18} color="var(--color-destructive)" />
-                <p className="text-sm font-body text-destructive">{error}</p>
+              <div className="p-4 rounded-2xl text-sm flex items-center gap-2" style={{ background: 'rgba(255,59,48,0.08)', color: '#FF3B30' }}>
+                <Icon name="AlertCircle" size={16} />
+                {error}
               </div>
             )}
 
-            {/* Location Selector */}
-            <div className="bg-card rounded-xl shadow-warm px-4 py-4">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="flex items-center space-x-2 shrink-0">
-                  <Icon name="MapPin" size={20} color="var(--color-primary)" />
-                  <span className="font-heading font-semibold text-foreground text-base">Cafe Location</span>
-                </div>
-                <div className="flex-1">
-                  <select
-                    value={selectedLocationId}
-                    onChange={(e) => setSelectedLocationId(e?.target?.value)}
-                    className="w-full sm:max-w-sm px-4 py-2.5 rounded-lg border border-border bg-background text-foreground font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors duration-200 cursor-pointer"
-                  >
-                    {locations?.map(loc => (
-                      <option key={loc?.id} value={loc?.id}>{loc?.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="hidden sm:flex items-center space-x-1.5 bg-primary/10 text-primary px-3 py-1.5 rounded-full text-sm font-body shrink-0">
-                  <Icon name="UtensilsCrossed" size={13} />
-                  <span>{menuItems?.length} items</span>
-                </div>
-              </div>
+            {/* Location + Category */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <select
+                value={selectedLocationId}
+                onChange={(e) => setSelectedLocationId(e?.target?.value)}
+                className="appearance-none px-4 py-2.5 rounded-full text-sm font-medium cursor-pointer outline-none sm:max-w-xs"
+                style={{ background: '#FFFFFF', color: '#1D1D1F', border: 'none', fontFamily: 'Outfit, sans-serif' }}
+              >
+                {locations?.map(loc => (
+                  <option key={loc?.id} value={loc?.id}>{loc?.name}</option>
+                ))}
+              </select>
+              <span className="text-xs px-3 py-1.5 rounded-full" style={{ background: 'rgba(0,122,255,0.08)', color: '#007AFF' }}>
+                {menuItems?.length} items
+              </span>
             </div>
 
-            {/* Category Filter Tabs */}
-            <div className="bg-card rounded-xl shadow-warm px-4 py-3">
-              <div className="flex flex-wrap gap-2">
+            {/* Category Pills */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setActiveCategory('all')}
+                className="px-4 py-2 rounded-full text-sm font-medium transition-all duration-200"
+                style={{
+                  background: activeCategory === 'all' ? '#1D1D1F' : 'transparent',
+                  color: activeCategory === 'all' ? '#FFFFFF' : '#86868B',
+                  fontFamily: 'Outfit, sans-serif',
+                }}
+              >
+                All <span className="ml-1 opacity-60">{categoryCounts?.all}</span>
+              </button>
+              {MENU_CATEGORIES?.map(cat => (
                 <button
-                  onClick={() => setActiveCategory('all')}
-                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-body font-medium transition-all duration-200 ${
-                    activeCategory === 'all' ?'bg-primary text-primary-foreground shadow-md' :'bg-muted text-foreground hover:bg-primary/10 hover:text-primary'
-                  }`}
+                  key={cat?.id}
+                  onClick={() => setActiveCategory(cat?.id)}
+                  className="px-4 py-2 rounded-full text-sm font-medium transition-all duration-200"
+                  style={{
+                    background: activeCategory === cat?.id ? '#1D1D1F' : 'transparent',
+                    color: activeCategory === cat?.id ? '#FFFFFF' : '#86868B',
+                    fontFamily: 'Outfit, sans-serif',
+                  }}
                 >
-                  <Icon name="Grid3X3" size={14} />
-                  <span>All</span>
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeCategory === 'all' ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-primary/10 text-primary'}`}>
-                    {categoryCounts?.all}
-                  </span>
+                  {cat?.name} <span className="ml-1 opacity-60">{categoryCounts?.[cat?.id] || 0}</span>
                 </button>
-                {MENU_CATEGORIES?.map(cat => (
-                  <button
-                    key={cat?.id}
-                    onClick={() => setActiveCategory(cat?.id)}
-                    className={`inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-body font-medium transition-all duration-200 ${
-                      activeCategory === cat?.id
-                        ? 'bg-primary text-primary-foreground shadow-md'
-                        : 'bg-muted text-foreground hover:bg-primary/10 hover:text-primary'
-                    }`}
-                  >
-                    <Icon name={cat?.icon} size={14} />
-                    <span>{cat?.name}</span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeCategory === cat?.id ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-primary/10 text-primary'}`}>
-                      {categoryCounts?.[cat?.id] || 0}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              ))}
             </div>
 
             {/* Menu Table */}

@@ -278,6 +278,13 @@ class ApiService {
     });
   }
 
+  async customerVerify(customerId, otp) {
+    return this.fetch('/api/customer/verify', {
+      method: 'POST',
+      body: JSON.stringify({ customer_id: customerId, otp, type: 'email' }),
+    });
+  }
+
   async customerVerify(customerId, otp, type = 'email') {
     return this.fetch('/api/customer/verify', {
       method: 'POST',

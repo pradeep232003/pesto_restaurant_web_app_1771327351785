@@ -172,45 +172,41 @@ const ResidentBalance = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen" style={{ background: '#F5F5F7' }}>
       <main>
-        {/* Page Header */}
-        <section className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white py-6 lg:py-8">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-heading font-bold flex items-center gap-2 sm:gap-3">
-                  <Icon name="Wallet" size={24} className="shrink-0" />
-                  <span>Resident Prepaid Balance</span>
-                </h1>
-                <p className="text-xs sm:text-sm opacity-80 mt-1 font-body">
-                  Manage prepaid balances for wallet-enabled sites
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleAddResident}
-                  data-testid="add-resident-btn"
-                  className="inline-flex items-center space-x-2 px-5 py-2.5 bg-white text-emerald-600 rounded-lg font-body font-semibold hover:bg-white/90 transition-all duration-200 shadow-sm"
-                >
-                  <Icon name="UserPlus" size={18} />
-                  <span>Add Resident</span>
-                </button>
-                <button
-                  onClick={() => navigate('/admin/transactions')}
-                  data-testid="view-reports-btn"
-                  className="inline-flex items-center space-x-2 px-4 py-2.5 bg-white/10 text-white rounded-lg font-body hover:bg-white/20 transition-all duration-200"
-                >
-                  <Icon name="FileText" size={18} />
-                  <span className="hidden sm:inline">Reports</span>
-                </button>
-              </div>
+        <section className="py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Wallets</h1>
+              <p className="text-sm mt-1" style={{ color: '#86868B' }}>
+                Manage prepaid balances for wallet-enabled sites
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleAddResident}
+                data-testid="add-resident-btn"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all"
+                style={{ background: '#1D1D1F', color: '#FFFFFF', fontFamily: 'Outfit, sans-serif' }}
+              >
+                <Icon name="UserPlus" size={16} />
+                Add Resident
+              </button>
+              <button
+                onClick={() => navigate('/admin/transactions')}
+                data-testid="view-reports-btn"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all"
+                style={{ background: '#FFFFFF', color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
+              >
+                <Icon name="FileText" size={16} />
+                <span className="hidden sm:inline">Reports</span>
+              </button>
             </div>
           </div>
         </section>
 
-        <section className="py-8">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <section className="pb-8 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto space-y-5">
             {/* Summary Cards */}
             {summary && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

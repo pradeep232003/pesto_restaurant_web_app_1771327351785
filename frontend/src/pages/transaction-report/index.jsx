@@ -133,7 +133,7 @@ const TransactionReport = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen" style={{ background: '#F5F5F7' }}>
       <style>{`
         @media print {
           .no-print { display: none !important; }
@@ -146,32 +146,29 @@ const TransactionReport = () => {
 
       <main className="print:pt-0">
         {/* Page Header */}
-        <section className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-6 no-print">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <button
-                onClick={() => navigate('/admin/residents')}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors shrink-0"
-              >
-                <Icon name="ArrowLeft" size={20} />
-              </button>
-              <div className="flex-1 min-w-0">
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-heading font-bold flex items-center gap-2 sm:gap-3">
-                  <Icon name="BarChart3" size={24} className="hidden sm:block" />
-                  Transaction Report
-                </h1>
-                <p className="text-xs sm:text-sm opacity-80 mt-1 truncate">
-                  View and filter all transactions
-                </p>
-              </div>
-              <button
-                onClick={handlePrint}
-                className="inline-flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 bg-white text-indigo-600 rounded-lg text-sm font-medium hover:bg-white/90 transition-colors shrink-0"
-              >
-                <Icon name="Printer" size={16} />
-                <span className="hidden sm:inline">Print Report</span>
-              </button>
+        <section className="py-6 lg:py-8 px-4 sm:px-6 lg:px-8 no-print">
+          <div className="max-w-7xl mx-auto flex items-center gap-3 sm:gap-4">
+            <button
+              onClick={() => navigate('/admin/residents')}
+              className="p-2 rounded-xl transition-colors shrink-0"
+              style={{ color: '#86868B' }}
+            >
+              <Icon name="ArrowLeft" size={20} />
+            </button>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Reports</h1>
+              <p className="text-sm mt-0.5 truncate" style={{ color: '#86868B' }}>
+                View and filter all transactions
+              </p>
             </div>
+            <button
+              onClick={handlePrint}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-medium transition-all shrink-0"
+              style={{ background: '#1D1D1F', color: '#FFFFFF', fontFamily: 'Outfit, sans-serif' }}
+            >
+              <Icon name="Printer" size={14} />
+              <span className="hidden sm:inline">Print</span>
+            </button>
           </div>
         </section>
 

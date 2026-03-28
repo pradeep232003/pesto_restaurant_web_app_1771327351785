@@ -1463,45 +1463,54 @@ async def customer_register(data: CustomerRegister, response: Response):
         except Exception:
             pass
     
-    # Auto-verify if no keys available (dev mode)
-    if not resend_key:
-        customers_collection.update_one({"id": customer_id}, {"$set": {"email_verified": True, "phone_verified": True}})
-    
-    # Create token
-    token = jwt.encode({"sub": customer_id, "email": email, "type": "customer_access", "exp": datetime.now(timezone.utc) + timedelta(days=30)}, JWT_SECRET, algorithm=JWT_ALGORITHM)
-    response.set_cookie("customer_token", token, httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE, max_age=60*60*24*30)
-    
+    # Do NOT auto-issue JWT until verified
     return {
-        "message": "Registration successful",
+        "message": "Registration successful. Please verify your email.",
         "customer_id": customer_id,
-        "token": token,
         "password": password_raw,
         "email_sent": email_sent,
-        "auto_verified": not resend_key,
-        "needs_verification": bool(resend_key),
+        "needs_verification": True,
+        "verification_code": otp_email if not email_sent else None,
     }
 
 
 @app.post("/api/customer/verify")
-async def customer_verify(request: Request):
-    """Verify customer email or phone OTP"""
+async def customer_verify(request: Request, response: Response):
+    """Verify customer email OTP and issue JWT"""
     body = await request.json()
     customer_id = body.get("customer_id")
     otp = body.get("otp")
-    verify_type = body.get("type", "email")  # "email" or "phone"
-    
+    verify_type = body.get("type", "email")
+
     customer = customers_collection.find_one({"id": customer_id})
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
-    
+
     field = f"otp_{verify_type}"
     if customer.get(field) != otp:
         raise HTTPException(status_code=400, detail="Invalid verification code")
-    
+
     verified_field = f"{verify_type}_verified"
-    customers_collection.update_one({"id": customer_id}, {"$set": {verified_field: True, field: None}})
-    
-    return {"message": f"{verify_type.capitalize()} verified successfully"}
+    customers_collection.update_one(
+        {"id": customer_id},
+        {"$set": {verified_field: True, "phone_verified": True, field: None}},
+    )
+
+    # Issue JWT now that email is verified
+    token = jwt.encode(
+        {"sub": customer_id, "email": customer["email"], "type": "customer_access",
+         "exp": datetime.now(timezone.utc) + timedelta(days=30)},
+        JWT_SECRET, algorithm=JWT_ALGORITHM,
+    )
+    response.set_cookie(
+        "customer_token", token,
+        httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE, max_age=60*60*24*30,
+    )
+
+    safe = {k: v for k, v in customer.items() if k not in ("_id", "password_hash", "otp_email", "otp_phone")}
+    safe["email_verified"] = True
+    safe["phone_verified"] = True
+    return {"message": "Email verified successfully", "token": token, "customer": safe}
 
 
 @app.post("/api/customer/login")

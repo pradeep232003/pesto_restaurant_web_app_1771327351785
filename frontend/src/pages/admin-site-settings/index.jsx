@@ -152,29 +152,28 @@ const AdminSiteSettings = () => {
   const locationData = (id) => locations.find(l => l.id === id);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen" style={{ background: '#F5F5F7' }}>
       <main>
-        <section className="bg-primary text-primary-foreground py-6 lg:py-8">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h1 className="text-2xl lg:text-3xl font-heading font-bold">Site Settings</h1>
-                <p className="text-sm opacity-80 mt-1">Manage locations, ordering hours, and resident wallets</p>
-              </div>
-              <button
-                data-testid="add-location-btn"
-                onClick={() => setShowAddForm(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm font-body font-medium transition-all"
-              >
-                <Icon name="Plus" size={16} />
-                Add Location
-              </button>
+        <section className="py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Settings</h1>
+              <p className="text-sm mt-1" style={{ color: '#86868B' }}>Manage locations, hours, and resident wallets</p>
             </div>
+            <button
+              data-testid="add-location-btn"
+              onClick={() => setShowAddForm(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all"
+              style={{ background: '#1D1D1F', color: '#FFFFFF', fontFamily: 'Outfit, sans-serif' }}
+            >
+              <Icon name="Plus" size={16} />
+              Add Location
+            </button>
           </div>
         </section>
 
-        <section className="py-6">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <section className="pb-6 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto space-y-5">
             {successMsg && (
               <div data-testid="success-message" className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center gap-2">
                 <Icon name="CheckCircle" size={18} color="#16a34a" />

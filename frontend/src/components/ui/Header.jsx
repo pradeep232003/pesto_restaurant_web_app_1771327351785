@@ -79,20 +79,12 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
   };
 
   const handleSignIn = () => {
-    if (onAccountClick) {
-      onAccountClick('login');
-    } else {
-      navigate('/login');
-    }
+    navigate('/customer-auth', { state: { tab: 'login' } });
     setIsMobileMenuOpen(false);
   };
 
   const handleSignUp = () => {
-    if (onAccountClick) {
-      onAccountClick('register');
-    } else {
-      navigate('/register');
-    }
+    navigate('/customer-auth', { state: { tab: 'register' } });
     setIsMobileMenuOpen(false);
   };
 

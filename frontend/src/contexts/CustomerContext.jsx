@@ -36,11 +36,7 @@ export const CustomerProvider = ({ children }) => {
 
   const register = async (name, email, phone) => {
     const data = await api.customerRegister(name, email, phone);
-    if (data.token) {
-      setToken(data.token);
-      localStorage.setItem('customer_token', data.token);
-    }
-    await fetchMe();
+    // JWT is no longer issued at registration - only after email verification
     return data;
   };
 

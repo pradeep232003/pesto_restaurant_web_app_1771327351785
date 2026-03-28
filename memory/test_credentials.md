@@ -1,13 +1,12 @@
 # Test Credentials
 
-## Admin
+## Admin Account
 - Email: admin@jollys.com
 - Password: Admin123!
+- Role: admin
 
-## Customer (Test)
-- Email: testuser999@test.com
-- Password: d5409ac77915
-
-## Google OAuth
-- Handled by Emergent Auth (auth.emergentagent.com)
-- No separate credentials needed - uses Google account
+## Auth Endpoints
+- POST /api/auth/login
+- POST /api/auth/logout
+- GET /api/auth/me
+- POST /api/auth/refresh

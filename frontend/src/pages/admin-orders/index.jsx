@@ -77,25 +77,21 @@ const AdminOrders = () => {
   const locationName = (id) => locations.find(l => l.id === id)?.name || id;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen" style={{ background: '#F5F5F7' }}>
       <main>
-        <section className="bg-primary text-primary-foreground py-6 lg:py-8">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-heading font-bold">Order Management</h1>
-                <p className="text-xs sm:text-sm opacity-80 mt-1">Manage incoming collection orders</p>
-              </div>
-            </div>
+        <section className="py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto">
+            <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Orders</h1>
+            <p className="text-sm mt-1" style={{ color: '#86868B' }}>Manage incoming collection orders</p>
           </div>
         </section>
 
-        <section className="py-6">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <section className="pb-6 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto space-y-5">
             {successMsg && (
-              <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center gap-2">
-                <Icon name="CheckCircle" size={18} color="#16a34a" />
-                <p className="text-sm text-green-700">{successMsg}</p>
+              <div className="p-4 rounded-2xl text-sm flex items-center gap-2" style={{ background: 'rgba(52,199,89,0.08)', color: '#34C759' }}>
+                <Icon name="CheckCircle" size={16} />
+                {successMsg}
               </div>
             )}
             {error && (
