@@ -13,11 +13,14 @@ class ApiService {
     });
     
     if (!response.ok) {
-      throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `API Error: ${response.status} ${response.statusText}`);
     }
     
     return response.json();
   }
+
+  // ============== PUBLIC ENDPOINTS ==============
 
   // Locations
   async getLocations() {
@@ -28,7 +31,7 @@ class ApiService {
     return this.fetch(`/api/locations/${slug}`);
   }
 
-  // Menu Items
+  // Menu Items (Public)
   async getMenuItems(locationId = null, category = null) {
     const params = new URLSearchParams();
     if (locationId) params.append('location_id', locationId);
@@ -48,6 +51,47 @@ class ApiService {
     params.append('limit', limit.toString());
     
     return this.fetch(`/api/featured-items?${params.toString()}`);
+  }
+
+  // ============== ADMIN ENDPOINTS ==============
+
+  // Get all menu items for admin (including unavailable)
+  async adminGetMenuItems(locationId = null) {
+    const params = new URLSearchParams();
+    if (locationId) params.append('location_id', locationId);
+    
+    const queryString = params.toString();
+    return this.fetch(`/api/admin/menu-items${queryString ? `?${queryString}` : ''}`);
+  }
+
+  // Create a new menu item
+  async adminCreateMenuItem(itemData) {
+    return this.fetch('/api/admin/menu-items', {
+      method: 'POST',
+      body: JSON.stringify(itemData),
+    });
+  }
+
+  // Update an existing menu item
+  async adminUpdateMenuItem(itemId, itemData) {
+    return this.fetch(`/api/admin/menu-items/${itemId}`, {
+      method: 'PUT',
+      body: JSON.stringify(itemData),
+    });
+  }
+
+  // Toggle menu item availability
+  async adminToggleAvailability(itemId) {
+    return this.fetch(`/api/admin/menu-items/${itemId}/availability`, {
+      method: 'PATCH',
+    });
+  }
+
+  // Delete a menu item
+  async adminDeleteMenuItem(itemId) {
+    return this.fetch(`/api/admin/menu-items/${itemId}`, {
+      method: 'DELETE',
+    });
   }
 }
 

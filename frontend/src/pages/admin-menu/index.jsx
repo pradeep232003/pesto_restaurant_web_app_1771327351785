@@ -31,7 +31,8 @@ const AdminMenuManagement = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.getMenuItems(locationSlug);
+      // Use admin endpoint to get all items including unavailable ones
+      const data = await api.adminGetMenuItems(locationSlug);
       setMenuItems(data || []);
     } catch (err) {
       setError(err?.message);
@@ -45,19 +46,42 @@ const AdminMenuManagement = () => {
     fetchMenuItems(selectedLocationId);
   }, [selectedLocationId, fetchMenuItems]);
 
-  const getLocationId = async (slug) => {
-    // Location ID is the same as slug in our MongoDB setup
-    return slug;
-  };
-
   const handleSaveItem = async (formData) => {
     setSaving(true);
     setError(null);
     try {
-      // Note: Full CRUD operations require backend API endpoints
-      // For now, show a message that admin features need backend implementation
-      setError('Admin write operations require backend API implementation. Read-only mode active.');
-      setTimeout(() => setError(null), 5000);
+      const payload = {
+        location_id: selectedLocationId,
+        name: formData?.name,
+        subtitle: formData?.subtitle || null,
+        description: formData?.description || null,
+        price: parseFloat(formData?.price),
+        original_price: formData?.originalPrice ? parseFloat(formData?.originalPrice) : null,
+        image_url: formData?.imageUrl || null,
+        image_alt: formData?.imageAlt || null,
+        category: formData?.categories?.[0] || 'mains',
+        categories: formData?.categories || [],
+        dietary: formData?.dietary || [],
+        tags: formData?.tags || [],
+        featured: formData?.featured || false,
+        prep_time: parseInt(formData?.prepTime) || 15,
+        is_available: formData?.isAvailable !== false,
+      };
+
+      if (editingItem) {
+        // Update existing item
+        await api.adminUpdateMenuItem(editingItem?.id, payload);
+        setSuccessMsg('Item updated successfully!');
+      } else {
+        // Create new item
+        await api.adminCreateMenuItem(payload);
+        setSuccessMsg('Item added successfully!');
+      }
+
+      await fetchMenuItems(selectedLocationId);
+      setIsModalOpen(false);
+      setEditingItem(null);
+      setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
       setError(err?.message);
     } finally {
@@ -69,9 +93,10 @@ const AdminMenuManagement = () => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
     setError(null);
     try {
-      // Note: Delete operations require backend API implementation
-      setError('Admin write operations require backend API implementation. Read-only mode active.');
-      setTimeout(() => setError(null), 5000);
+      await api.adminDeleteMenuItem(itemId);
+      setSuccessMsg('Item deleted successfully!');
+      await fetchMenuItems(selectedLocationId);
+      setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
       setError(err?.message);
     }
@@ -79,9 +104,8 @@ const AdminMenuManagement = () => {
 
   const handleToggleAvailability = async (item) => {
     try {
-      // Note: Update operations require backend API implementation
-      setError('Admin write operations require backend API implementation. Read-only mode active.');
-      setTimeout(() => setError(null), 5000);
+      await api.adminToggleAvailability(item?.id);
+      await fetchMenuItems(selectedLocationId);
     } catch (err) {
       setError(err?.message);
     }

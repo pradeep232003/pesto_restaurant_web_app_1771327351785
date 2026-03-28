@@ -245,11 +245,137 @@ class PestoAPITester:
             404
         )
 
+    # ============== ADMIN CRUD TESTS ==============
+    
+    def test_admin_get_menu_items(self):
+        """Test admin get all menu items (including unavailable)"""
+        success, response = self.run_test(
+            "Admin Get All Menu Items",
+            "GET",
+            "/api/admin/menu-items",
+            200,
+            expected_fields=["id", "location_id", "name", "price", "is_available"]
+        )
+        
+        if success and isinstance(response, list):
+            print(f"   Found {len(response)} admin menu items")
+            # Check if we have both available and unavailable items
+            available_items = [item for item in response if item.get('is_available', True)]
+            unavailable_items = [item for item in response if not item.get('is_available', True)]
+            print(f"   Available: {len(available_items)}, Unavailable: {len(unavailable_items)}")
+        
+        return success, response
+
+    def test_admin_get_menu_items_by_location(self, location_id):
+        """Test admin get menu items filtered by location"""
+        success, response = self.run_test(
+            f"Admin Get Menu Items by Location ({location_id})",
+            "GET",
+            f"/api/admin/menu-items?location_id={location_id}",
+            200,
+            expected_fields=["id", "location_id", "name", "price", "is_available"]
+        )
+        
+        if success and isinstance(response, list):
+            print(f"   Found {len(response)} admin items for location {location_id}")
+        
+        return success, response
+
+    def test_admin_create_menu_item(self):
+        """Test creating a new menu item via admin API"""
+        test_item = {
+            "location_id": "timperley-altrincham",
+            "name": "Test Admin Item",
+            "subtitle": "Created via admin API test",
+            "description": "This is a test item created by the admin CRUD test suite",
+            "price": 15.99,
+            "original_price": 18.99,
+            "image_url": "https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b",
+            "image_alt": "Test food item",
+            "category": "mains",
+            "categories": ["lunch", "dinner", "mains"],
+            "dietary": ["vegetarian"],
+            "tags": ["test", "admin"],
+            "featured": True,
+            "prep_time": 20,
+            "is_available": True
+        }
+        
+        success, response = self.run_test(
+            "Admin Create Menu Item",
+            "POST",
+            "/api/admin/menu-items",
+            200,  # Backend returns 200 instead of 201
+            data=test_item,
+            expected_fields=["id", "name", "price", "location_id"]
+        )
+        
+        if success and 'id' in response:
+            print(f"   Successfully created item with ID: {response['id']}")
+            return success, response
+        
+        return success, response
+
+    def test_admin_update_menu_item(self, item_id):
+        """Test updating an existing menu item via admin API"""
+        update_data = {
+            "name": "Updated Test Admin Item",
+            "price": 17.99,
+            "description": "This item has been updated via admin API test",
+            "featured": False
+        }
+        
+        success, response = self.run_test(
+            f"Admin Update Menu Item ({item_id})",
+            "PUT",
+            f"/api/admin/menu-items/{item_id}",
+            200,
+            data=update_data,
+            expected_fields=["id", "name", "price"]
+        )
+        
+        if success and response.get('name') == "Updated Test Admin Item":
+            print(f"   ✅ Item successfully updated")
+        
+        return success, response
+
+    def test_admin_toggle_availability(self, item_id):
+        """Test toggling menu item availability via admin API"""
+        success, response = self.run_test(
+            f"Admin Toggle Availability ({item_id})",
+            "PATCH",
+            f"/api/admin/menu-items/{item_id}/availability",
+            200,
+            expected_fields=["id", "is_available"]
+        )
+        
+        if success:
+            availability = response.get('is_available')
+            print(f"   ✅ Availability toggled to: {availability}")
+        
+        return success, response
+
+    def test_admin_delete_menu_item(self, item_id):
+        """Test deleting a menu item via admin API"""
+        success, response = self.run_test(
+            f"Admin Delete Menu Item ({item_id})",
+            "DELETE",
+            f"/api/admin/menu-items/{item_id}",
+            200,
+            expected_fields=["message", "id"]
+        )
+        
+        if success and response.get('id') == item_id:
+            print(f"   ✅ Item successfully deleted")
+        
+        return success, response
+
 def main():
-    print("🍽️  Starting Pesto Restaurant API Tests (MongoDB Integration)")
-    print("=" * 60)
+    print("🍽️  Starting Pesto Restaurant API Tests (MongoDB Integration + Admin CRUD)")
+    print("=" * 70)
     
     tester = PestoAPITester()
+    created_item_id = None
     
     # Test 1: Health Check
     health_success, health_data = tester.test_health_check()
@@ -293,15 +419,41 @@ def main():
     # Test 9: 404 endpoints
     tester.test_404_endpoints()
     
+    # ============== ADMIN CRUD TESTS ==============
+    print("\n" + "🔧 ADMIN CRUD TESTS" + "=" * 50)
+    
+    # Test 10: Admin get all menu items
+    admin_menu_success, admin_menu_data = tester.test_admin_get_menu_items()
+    
+    # Test 11: Admin get menu items by location
+    if admin_menu_success and location_id:
+        tester.test_admin_get_menu_items_by_location(location_id)
+    
+    # Test 12: Admin create menu item
+    create_success, create_data = tester.test_admin_create_menu_item()
+    if create_success and 'id' in create_data:
+        created_item_id = create_data['id']
+        
+        # Test 13: Admin update menu item
+        tester.test_admin_update_menu_item(created_item_id)
+        
+        # Test 14: Admin toggle availability
+        tester.test_admin_toggle_availability(created_item_id)
+        
+        # Test 15: Admin delete menu item
+        tester.test_admin_delete_menu_item(created_item_id)
+    else:
+        print("⚠️  Skipping update/toggle/delete tests due to failed creation")
+    
     # Print summary
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 70)
     print(f"📊 Test Summary:")
     print(f"   Tests Run: {tester.tests_run}")
     print(f"   Tests Passed: {tester.tests_passed}")
     print(f"   Success Rate: {(tester.tests_passed/tester.tests_run*100):.1f}%")
     
     if tester.tests_passed == tester.tests_run:
-        print("🎉 All tests passed! MongoDB integration is working correctly.")
+        print("🎉 All tests passed! MongoDB integration and Admin CRUD are working correctly.")
         return 0
     else:
         print(f"⚠️  {tester.tests_run - tester.tests_passed} tests failed.")

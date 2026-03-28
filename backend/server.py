@@ -189,3 +189,121 @@ async def get_featured_items(location_id: Optional[str] = None, limit: int = 8):
     
     items = list(menu_items_collection.find(query).limit(limit))
     return [serialize_doc(item) for item in items]
+
+
+# ============== ADMIN CRUD ENDPOINTS ==============
+
+class MenuItemCreate(BaseModel):
+    location_id: str
+    name: str
+    subtitle: Optional[str] = None
+    description: Optional[str] = None
+    price: float
+    original_price: Optional[float] = None
+    image_url: Optional[str] = None
+    image_alt: Optional[str] = None
+    category: str = "mains"
+    categories: List[str] = []
+    dietary: List[str] = []
+    tags: List[str] = []
+    featured: bool = False
+    prep_time: int = 15
+    is_available: bool = True
+
+class MenuItemUpdate(BaseModel):
+    name: Optional[str] = None
+    subtitle: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    original_price: Optional[float] = None
+    image_url: Optional[str] = None
+    image_alt: Optional[str] = None
+    category: Optional[str] = None
+    categories: Optional[List[str]] = None
+    dietary: Optional[List[str]] = None
+    tags: Optional[List[str]] = None
+    featured: Optional[bool] = None
+    prep_time: Optional[int] = None
+    is_available: Optional[bool] = None
+
+@app.get("/api/admin/menu-items")
+async def admin_get_menu_items(location_id: Optional[str] = None):
+    """Admin: Get all menu items (including unavailable) for a location"""
+    query = {}
+    if location_id:
+        query["location_id"] = location_id
+    
+    items = list(menu_items_collection.find(query).sort("name", 1))
+    return [serialize_doc(item) for item in items]
+
+@app.post("/api/admin/menu-items")
+async def admin_create_menu_item(item: MenuItemCreate):
+    """Admin: Create a new menu item"""
+    # Generate a unique ID
+    import uuid
+    item_id = str(uuid.uuid4())[:8]
+    
+    item_dict = item.model_dump()
+    item_dict["id"] = item_id
+    item_dict["rating"] = 4.0
+    item_dict["review_count"] = 0
+    item_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    
+    result = menu_items_collection.insert_one(item_dict)
+    
+    # Fetch and return the created item
+    created_item = menu_items_collection.find_one({"_id": result.inserted_id})
+    return serialize_doc(created_item)
+
+@app.put("/api/admin/menu-items/{item_id}")
+async def admin_update_menu_item(item_id: str, item: MenuItemUpdate):
+    """Admin: Update an existing menu item"""
+    # Check if item exists
+    existing = menu_items_collection.find_one({"id": item_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+    
+    # Build update dict with only provided fields
+    update_data = {k: v for k, v in item.model_dump().items() if v is not None}
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    menu_items_collection.update_one(
+        {"id": item_id},
+        {"$set": update_data}
+    )
+    
+    # Fetch and return the updated item
+    updated_item = menu_items_collection.find_one({"id": item_id})
+    return serialize_doc(updated_item)
+
+@app.patch("/api/admin/menu-items/{item_id}/availability")
+async def admin_toggle_availability(item_id: str):
+    """Admin: Toggle menu item availability"""
+    existing = menu_items_collection.find_one({"id": item_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+    
+    new_availability = not existing.get("is_available", True)
+    
+    menu_items_collection.update_one(
+        {"id": item_id},
+        {"$set": {"is_available": new_availability, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    updated_item = menu_items_collection.find_one({"id": item_id})
+    return serialize_doc(updated_item)
+
+@app.delete("/api/admin/menu-items/{item_id}")
+async def admin_delete_menu_item(item_id: str):
+    """Admin: Delete a menu item"""
+    existing = menu_items_collection.find_one({"id": item_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+    
+    menu_items_collection.delete_one({"id": item_id})
+    return {"message": "Menu item deleted successfully", "id": item_id}
+
