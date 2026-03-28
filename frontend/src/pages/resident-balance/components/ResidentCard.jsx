@@ -46,6 +46,12 @@ const ResidentCard = ({ resident, onEdit, onDelete, onTopUp, onPurchase, onViewH
       {/* Body */}
       <div className="p-4">
         <h3 className="text-lg font-semibold text-gray-900 mb-1">{resident.name}</h3>
+        {resident.email && (
+          <p className="text-xs text-gray-400 flex items-center gap-1 mb-1">
+            <Icon name="Mail" size={12} />
+            {resident.email}
+          </p>
+        )}
         {resident.about && (
           <p className="text-sm text-gray-500 mb-3 line-clamp-2">{resident.about}</p>
         )}

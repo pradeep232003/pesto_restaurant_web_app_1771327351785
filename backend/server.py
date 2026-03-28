@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
 from bson import ObjectId
 import os
+import asyncio
+import resend
 from typing import List, Optional
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timezone, timedelta
@@ -14,6 +16,12 @@ import jwt
 import uuid
 
 app = FastAPI(title="Pesto Restaurant API")
+
+# Resend email configuration
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
 
 # CORS middleware - allow all origins with credentials through specific pattern
 app.add_middleware(
@@ -606,11 +614,13 @@ class ResidentCreate(BaseModel):
     residence_number: str
     name: str
     location: str  # "oakmere-handforth" or "willowmere-middlewich"
+    email: Optional[str] = None
     about: Optional[str] = None
 
 class ResidentUpdate(BaseModel):
     name: Optional[str] = None
     location: Optional[str] = None
+    email: Optional[str] = None
     about: Optional[str] = None
 
 class TransactionCreate(BaseModel):
@@ -618,6 +628,7 @@ class TransactionCreate(BaseModel):
     transaction_type: str  # "topup" or "purchase"
     amount: float
     description: Optional[str] = None
+    send_receipt: bool = False
 
 # Resident Endpoints
 @app.get("/api/admin/residents")
@@ -652,6 +663,7 @@ async def create_resident(resident: ResidentCreate, user: dict = Depends(get_adm
         "residence_number": resident.residence_number,
         "name": resident.name,
         "location": resident.location,
+        "email": resident.email,
         "about": resident.about,
         "balance": 0.0,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -717,6 +729,7 @@ async def create_transaction(transaction: TransactionCreate, user: dict = Depend
     
     # Create transaction record
     transaction_id = str(uuid.uuid4())[:8]
+    created_at = datetime.now(timezone.utc)
     transaction_dict = {
         "id": transaction_id,
         "resident_id": transaction.resident_id,
@@ -725,8 +738,9 @@ async def create_transaction(transaction: TransactionCreate, user: dict = Depend
         "balance_before": current_balance,
         "balance_after": new_balance,
         "description": transaction.description,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "created_by": user.get("email", "admin")
+        "created_at": created_at.isoformat(),
+        "created_by": user.get("email", "admin"),
+        "receipt_sent": False
     }
     
     transactions_collection.insert_one(transaction_dict)
@@ -734,13 +748,185 @@ async def create_transaction(transaction: TransactionCreate, user: dict = Depend
     # Update resident balance
     residents_collection.update_one(
         {"id": transaction.resident_id},
-        {"$set": {"balance": new_balance, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {"balance": new_balance, "updated_at": created_at.isoformat()}}
     )
+    
+    # Send email receipt if requested
+    email_sent = False
+    email_error = None
+    if transaction.send_receipt and resident.get("email"):
+        try:
+            email_sent = await send_transaction_receipt(
+                resident_email=resident["email"],
+                resident_name=resident["name"],
+                residence_number=resident["residence_number"],
+                transaction_type=transaction.transaction_type,
+                amount=amount,
+                description=transaction.description,
+                new_balance=new_balance,
+                transaction_date=created_at
+            )
+            if email_sent:
+                transactions_collection.update_one(
+                    {"id": transaction_id},
+                    {"$set": {"receipt_sent": True, "receipt_sent_at": datetime.now(timezone.utc).isoformat()}}
+                )
+        except Exception as e:
+            email_error = str(e)
     
     return {
         "transaction": serialize_doc(transactions_collection.find_one({"id": transaction_id})),
-        "new_balance": new_balance
+        "new_balance": new_balance,
+        "receipt_sent": email_sent,
+        "receipt_error": email_error
     }
+
+# Email receipt helper
+async def send_transaction_receipt(
+    resident_email: str,
+    resident_name: str,
+    residence_number: str,
+    transaction_type: str,
+    amount: float,
+    description: str,
+    new_balance: float,
+    transaction_date: datetime
+) -> bool:
+    """Send email receipt for a transaction"""
+    if not RESEND_API_KEY:
+        return False
+    
+    is_topup = transaction_type == "topup"
+    formatted_date = transaction_date.strftime("%d %B %Y at %H:%M")
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+            <!-- Header -->
+            <tr>
+                <td style="background: linear-gradient(135deg, {'#10b981' if is_topup else '#f43f5e'}, {'#059669' if is_topup else '#e11d48'}); padding: 30px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 24px;">
+                        {'💰 Top Up Receipt' if is_topup else '🛒 Purchase Receipt'}
+                    </h1>
+                    <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">
+                        Jolly's Kafe - Prepaid Balance
+                    </p>
+                </td>
+            </tr>
+            
+            <!-- Content -->
+            <tr>
+                <td style="padding: 30px;">
+                    <p style="color: #374151; font-size: 16px; margin: 0 0 20px 0;">
+                        Dear <strong>{resident_name}</strong>,
+                    </p>
+                    <p style="color: #6b7280; font-size: 14px; margin: 0 0 25px 0;">
+                        {'Your prepaid balance has been topped up.' if is_topup else 'A purchase has been made from your prepaid balance.'}
+                    </p>
+                    
+                    <!-- Transaction Details Box -->
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f9fafb; border-radius: 8px; margin-bottom: 25px;">
+                        <tr>
+                            <td style="padding: 20px;">
+                                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                                    <tr>
+                                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                            <span style="color: #6b7280; font-size: 14px;">Date</span>
+                                        </td>
+                                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                            <span style="color: #111827; font-size: 14px; font-weight: 600;">{formatted_date}</span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                            <span style="color: #6b7280; font-size: 14px;">Residence</span>
+                                        </td>
+                                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                            <span style="color: #111827; font-size: 14px; font-weight: 600;">#{residence_number}</span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                            <span style="color: #6b7280; font-size: 14px;">Type</span>
+                                        </td>
+                                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                            <span style="color: {'#10b981' if is_topup else '#f43f5e'}; font-size: 14px; font-weight: 600;">
+                                                {'Top Up' if is_topup else 'Purchase'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {f'''<tr>
+                                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                            <span style="color: #6b7280; font-size: 14px;">Description</span>
+                                        </td>
+                                        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                            <span style="color: #111827; font-size: 14px;">{description}</span>
+                                        </td>
+                                    </tr>''' if description else ''}
+                                    <tr>
+                                        <td style="padding: 12px 0;">
+                                            <span style="color: #6b7280; font-size: 16px; font-weight: 600;">Amount</span>
+                                        </td>
+                                        <td style="padding: 12px 0; text-align: right;">
+                                            <span style="color: {'#10b981' if is_topup else '#f43f5e'}; font-size: 24px; font-weight: 700;">
+                                                {'+' if is_topup else '-'}£{amount:.2f}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                    
+                    <!-- New Balance Box -->
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #ecfdf5; border: 2px solid #10b981; border-radius: 8px;">
+                        <tr>
+                            <td style="padding: 20px; text-align: center;">
+                                <p style="color: #065f46; font-size: 14px; margin: 0 0 5px 0; text-transform: uppercase; letter-spacing: 1px;">
+                                    Current Balance
+                                </p>
+                                <p style="color: #047857; font-size: 32px; font-weight: 700; margin: 0;">
+                                    £{new_balance:.2f}
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+            
+            <!-- Footer -->
+            <tr>
+                <td style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+                    <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                        This is an automated receipt from Jolly's Kafe.<br>
+                        Please keep this email for your records.
+                    </p>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+    
+    params = {
+        "from": SENDER_EMAIL,
+        "to": [resident_email],
+        "subject": f"{'Top Up' if is_topup else 'Purchase'} Receipt - £{amount:.2f} - Jolly's Kafe",
+        "html": html_content
+    }
+    
+    try:
+        await asyncio.to_thread(resend.Emails.send, params)
+        return True
+    except Exception as e:
+        print(f"Failed to send receipt email: {e}")
+        return False
 
 @app.get("/api/admin/transactions")
 async def get_transactions(

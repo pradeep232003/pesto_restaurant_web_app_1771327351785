@@ -173,7 +173,13 @@ class ApiService {
   async createTransaction(transactionData) {
     return this.fetch('/api/admin/transactions', {
       method: 'POST',
-      body: JSON.stringify(transactionData),
+      body: JSON.stringify({
+        resident_id: transactionData.resident_id,
+        transaction_type: transactionData.transaction_type,
+        amount: transactionData.amount,
+        description: transactionData.description || null,
+        send_receipt: transactionData.send_receipt || false,
+      }),
     });
   }
 

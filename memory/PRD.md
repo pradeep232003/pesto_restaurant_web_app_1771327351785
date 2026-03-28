@@ -28,7 +28,7 @@ Set up and deploy the Pesto Restaurant Web App from GitHub repository to the Eme
 
 ### Phase 4: Resident Prepaid Balance System (Jan 2026)
 - ✅ **Resident Profiles**
-  - Store residence number (unique), name/initials, location, notes
+  - Store residence number (unique), name/initials, location, email (optional), notes
   - CRUD operations (create, read, update, delete)
   - Filter by location (Oakmere / Willowmere)
   - Search by name or residence number
@@ -42,6 +42,7 @@ Set up and deploy the Pesto Restaurant Web App from GitHub repository to the Eme
   - Record purchases with amount deduction
   - Prevents purchases if balance insufficient
   - Description/notes for each transaction
+  - Optional email receipt on request (Resend integration)
 
 - ✅ **Transaction History**
   - Date & time of each transaction

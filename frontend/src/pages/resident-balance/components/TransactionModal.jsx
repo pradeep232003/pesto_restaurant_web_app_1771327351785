@@ -4,12 +4,14 @@ import Icon from '../../../components/AppIcon';
 const TransactionModal = ({ resident, transactionType, paymentMethod = 'cash', onSave, onClose }) => {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [sendReceipt, setSendReceipt] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const isTopUp = transactionType === 'topup';
   const isCash = paymentMethod === 'cash';
   const currentBalance = resident.balance || 0;
+  const hasEmail = !!resident.email;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -37,6 +39,7 @@ const TransactionModal = ({ resident, transactionType, paymentMethod = 'cash', o
         transaction_type: transactionType,
         amount: amountValue,
         description: transactionDescription,
+        send_receipt: sendReceipt && hasEmail,
       });
     } catch (err) {
       setError(err.message || 'Transaction failed');
@@ -117,6 +120,12 @@ const TransactionModal = ({ resident, transactionType, paymentMethod = 'cash', o
             <div>
               <p className="font-semibold text-gray-900">{resident.name}</p>
               <p className="text-sm text-gray-500">#{resident.residence_number}</p>
+              {resident.email && (
+                <p className="text-xs text-gray-400 flex items-center gap-1">
+                  <Icon name="Mail" size={12} />
+                  {resident.email}
+                </p>
+              )}
             </div>
             <div className="ml-auto text-right">
               <p className="text-xs text-gray-500">Current Balance</p>
@@ -167,6 +176,36 @@ const TransactionModal = ({ resident, transactionType, paymentMethod = 'cash', o
               data-testid="transaction-description-input"
               className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             />
+          </div>
+
+          {/* Email Receipt Checkbox */}
+          <div className={`p-3 rounded-lg border ${hasEmail ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={sendReceipt}
+                onChange={(e) => setSendReceipt(e.target.checked)}
+                disabled={!hasEmail}
+                data-testid="send-receipt-checkbox"
+                className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+              />
+              <div className="flex-1">
+                <span className={`font-medium ${hasEmail ? 'text-gray-900' : 'text-gray-400'}`}>
+                  Send email receipt
+                </span>
+                {hasEmail ? (
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Receipt will be sent to {resident.email}
+                  </p>
+                ) : (
+                  <p className="text-xs text-amber-600 mt-0.5 flex items-center gap-1">
+                    <Icon name="AlertTriangle" size={12} />
+                    No email address on file
+                  </p>
+                )}
+              </div>
+              <Icon name="Mail" size={20} className={hasEmail ? 'text-blue-500' : 'text-gray-300'} />
+            </label>
           </div>
 
           {/* Balance Preview */}
