@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../../components/ui/Header';
 import Icon from '../../components/AppIcon';
-import { supabase } from '../../lib/supabase';
+import api from '../../lib/api';
 import { LOCATIONS } from '../../contexts/LocationContext';
 import AdminMenuItemModal from './components/AdminMenuItemModal';
 import AdminMenuTable from './components/AdminMenuTable';
@@ -31,16 +31,7 @@ const AdminMenuManagement = () => {
     setLoading(true);
     setError(null);
     try {
-      const { data: locationData, error: locErr } = await supabase?.from('locations')?.select('id')?.eq('slug', locationSlug)?.single();
-
-      if (locErr) {
-        if (locErr?.code === 'PGRST116') { setMenuItems([]); setLoading(false); return; }
-        throw locErr;
-      }
-
-      const { data, error: itemsErr } = await supabase?.from('menu_items')?.select('*')?.eq('location_id', locationData?.id)?.order('name', { ascending: true });
-
-      if (itemsErr) throw itemsErr;
+      const data = await api.getMenuItems(locationSlug);
       setMenuItems(data || []);
     } catch (err) {
       setError(err?.message);
@@ -55,48 +46,18 @@ const AdminMenuManagement = () => {
   }, [selectedLocationId, fetchMenuItems]);
 
   const getLocationId = async (slug) => {
-    const { data, error } = await supabase?.from('locations')?.select('id')?.eq('slug', slug)?.single();
-    if (error) throw error;
-    return data?.id;
+    // Location ID is the same as slug in our MongoDB setup
+    return slug;
   };
 
   const handleSaveItem = async (formData) => {
     setSaving(true);
     setError(null);
     try {
-      const locationId = await getLocationId(selectedLocationId);
-      const payload = {
-        location_id: locationId,
-        name: formData?.name,
-        subtitle: formData?.subtitle || null,
-        description: formData?.description || null,
-        price: parseFloat(formData?.price),
-        original_price: formData?.originalPrice ? parseFloat(formData?.originalPrice) : null,
-        image_url: formData?.imageUrl || null,
-        image_alt: formData?.imageAlt || null,
-        category: formData?.categories?.[0] || 'mains',
-        categories: formData?.categories || [],
-        dietary: formData?.dietary || [],
-        tags: formData?.tags || [],
-        featured: formData?.featured || false,
-        prep_time: parseInt(formData?.prepTime) || 15,
-        is_available: formData?.isAvailable !== false,
-      };
-
-      if (editingItem) {
-        const { error: updateErr } = await supabase?.from('menu_items')?.update(payload)?.eq('id', editingItem?.id);
-        if (updateErr) throw updateErr;
-        setSuccessMsg('Item updated successfully!');
-      } else {
-        const { error: insertErr } = await supabase?.from('menu_items')?.insert(payload);
-        if (insertErr) throw insertErr;
-        setSuccessMsg('Item added successfully!');
-      }
-
-      await fetchMenuItems(selectedLocationId);
-      setIsModalOpen(false);
-      setEditingItem(null);
-      setTimeout(() => setSuccessMsg(''), 3000);
+      // Note: Full CRUD operations require backend API endpoints
+      // For now, show a message that admin features need backend implementation
+      setError('Admin write operations require backend API implementation. Read-only mode active.');
+      setTimeout(() => setError(null), 5000);
     } catch (err) {
       setError(err?.message);
     } finally {
@@ -108,11 +69,9 @@ const AdminMenuManagement = () => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
     setError(null);
     try {
-      const { error: delErr } = await supabase?.from('menu_items')?.delete()?.eq('id', itemId);
-      if (delErr) throw delErr;
-      setSuccessMsg('Item deleted successfully!');
-      await fetchMenuItems(selectedLocationId);
-      setTimeout(() => setSuccessMsg(''), 3000);
+      // Note: Delete operations require backend API implementation
+      setError('Admin write operations require backend API implementation. Read-only mode active.');
+      setTimeout(() => setError(null), 5000);
     } catch (err) {
       setError(err?.message);
     }
@@ -120,9 +79,9 @@ const AdminMenuManagement = () => {
 
   const handleToggleAvailability = async (item) => {
     try {
-      const { error: updateErr } = await supabase?.from('menu_items')?.update({ is_available: !item?.is_available })?.eq('id', item?.id);
-      if (updateErr) throw updateErr;
-      await fetchMenuItems(selectedLocationId);
+      // Note: Update operations require backend API implementation
+      setError('Admin write operations require backend API implementation. Read-only mode active.');
+      setTimeout(() => setError(null), 5000);
     } catch (err) {
       setError(err?.message);
     }

@@ -4,7 +4,7 @@ import Header from '../../components/ui/Header';
 import BrowseByCategoryWithFilters from './components/BrowseByCategoryWithFilters';
 import MenuGrid from './components/MenuGrid';
 import Icon from '../../components/AppIcon';
-import { supabase } from '../../lib/supabase';
+import api from '../../lib/api';
 import { useLocation2, LOCATIONS } from '../../contexts/LocationContext';
 
 const MenuCatalog = () => {
@@ -44,21 +44,8 @@ const MenuCatalog = () => {
     setLoading(true);
     setFetchError(null);
     try {
-      // First get the location id
-      const { data: locationData, error: locationError } = await supabase?.from('locations')?.select('id')?.eq('slug', locationSlug)?.single();
-
-      if (locationError) {
-        if (locationError?.code === 'PGRST116') {
-          setMenuItems([]);
-          setLoading(false);
-          return;
-        }
-        throw locationError;
-      }
-
-      const { data, error } = await supabase?.from('menu_items')?.select('*')?.eq('location_id', locationData?.id)?.eq('is_available', true)?.order('name', { ascending: true });
-
-      if (error) throw error;
+      // Fetch menu items from MongoDB API
+      const data = await api.getMenuItems(locationSlug);
 
       const mapped = (data || [])?.map(item => ({
         id: item?.id,
