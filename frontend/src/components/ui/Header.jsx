@@ -431,7 +431,7 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
               )}
             </button>
             <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              onClick={(e) => { e.stopPropagation(); setIsMobileMenuOpen(!isMobileMenuOpen); }}
               className="mobile-menu-button p-2 rounded-lg text-foreground hover:text-primary hover:bg-muted transition-all duration-200"
             >
               <Icon name={isMobileMenuOpen ? 'X' : 'Menu'} size={20} />
