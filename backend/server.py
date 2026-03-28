@@ -23,7 +23,7 @@ import io
 app = FastAPI(title="Pesto Restaurant API")
 
 # Create uploads directory and thumbnail subdirectory
-UPLOAD_DIR = Path("/app/backend/uploads")
+UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 THUMB_DIR = UPLOAD_DIR / "thumbnails"
 THUMB_DIR.mkdir(parents=True, exist_ok=True)
@@ -1587,8 +1587,10 @@ async def admin_toggle_ordering(location_id: str, user: dict = Depends(get_admin
 
 
 # ============== SERVE FRONTEND (PRODUCTION) ==============
-# In production (Docker/Railway), serve the built React frontend
+# In production (Docker/Railway), serve the built React frontend if available
 FRONTEND_BUILD_DIR = Path(__file__).resolve().parent.parent / "frontend" / "build"
+if not FRONTEND_BUILD_DIR.exists():
+    FRONTEND_BUILD_DIR = Path(__file__).resolve().parent / "frontend" / "build"
 if FRONTEND_BUILD_DIR.exists():
     from fastapi.responses import FileResponse
 
