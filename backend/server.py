@@ -1534,6 +1534,71 @@ async def customer_logout(response: Response):
     return {"message": "Logged out"}
 
 
+# ============== GOOGLE OAUTH (EMERGENT AUTH) ==============
+
+@app.post("/api/customer/auth/google-session")
+async def customer_google_session(request: Request, response: Response):
+    """Exchange Emergent Auth session_id for a customer session"""
+    import httpx
+    body = await request.json()
+    session_id = body.get("session_id")
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id required")
+
+    # Call Emergent Auth to get user data
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+            headers={"X-Session-ID": session_id},
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+
+    google_data = resp.json()
+    email = google_data["email"].lower().strip()
+    name = google_data.get("name", email.split("@")[0])
+    picture = google_data.get("picture", "")
+
+    # Find or create customer
+    existing = customers_collection.find_one({"email": email})
+    if existing:
+        # Update name/picture if changed
+        customers_collection.update_one(
+            {"email": email},
+            {"$set": {"name": name, "picture": picture, "google_linked": True}},
+        )
+        customer_id = existing["id"]
+    else:
+        customer_id = str(uuid.uuid4())
+        customers_collection.insert_one({
+            "id": customer_id,
+            "name": name,
+            "email": email,
+            "phone": "",
+            "password_hash": "",
+            "email_verified": True,
+            "phone_verified": False,
+            "google_linked": True,
+            "picture": picture,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    # Issue JWT
+    token = jwt.encode(
+        {"sub": customer_id, "email": email, "type": "customer_access",
+         "exp": datetime.now(timezone.utc) + timedelta(days=30)},
+        JWT_SECRET, algorithm=JWT_ALGORITHM,
+    )
+    response.set_cookie(
+        "customer_token", token,
+        httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE, max_age=60*60*24*30,
+    )
+
+    customer = customers_collection.find_one({"id": customer_id})
+    safe = {k: v for k, v in customer.items() if k not in ("_id", "password_hash", "otp_email", "otp_phone")}
+    return {"message": "Google login successful", "token": token, "customer": safe}
+
+
 # ============== ORDER SYSTEM ==============
 
 @app.get("/api/site-status/{location_id}")

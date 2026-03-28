@@ -271,6 +271,13 @@ class ApiService {
     return this.fetch('/api/customer/logout', { method: 'POST' });
   }
 
+  async customerGoogleSession(sessionId) {
+    return this.fetch('/api/customer/auth/google-session', {
+      method: 'POST',
+      body: JSON.stringify({ session_id: sessionId }),
+    });
+  }
+
   async customerVerify(customerId, otp, type = 'email') {
     return this.fetch('/api/customer/verify', {
       method: 'POST',

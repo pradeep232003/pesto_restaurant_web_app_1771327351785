@@ -9,10 +9,12 @@ export const CustomerProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('customer_token'));
 
   const fetchMe = useCallback(async () => {
-    if (!token) { setLoading(false); return; }
+    const currentToken = localStorage.getItem('customer_token');
+    if (!currentToken) { setLoading(false); return; }
     try {
-      const data = await api.customerGetMe(token);
+      const data = await api.customerGetMe(currentToken);
       setCustomer(data);
+      setToken(currentToken);
     } catch {
       setCustomer(null);
       setToken(null);
@@ -20,9 +22,17 @@ export const CustomerProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
-  useEffect(() => { fetchMe(); }, [fetchMe]);
+  useEffect(() => {
+    // CRITICAL: If returning from OAuth callback, skip the /me check.
+    // AuthCallback will exchange the session_id and establish the session first.
+    if (window.location.hash?.includes('session_id=')) {
+      setLoading(false);
+      return;
+    }
+    fetchMe();
+  }, [fetchMe]);
 
   const register = async (name, email, phone) => {
     const data = await api.customerRegister(name, email, phone);
