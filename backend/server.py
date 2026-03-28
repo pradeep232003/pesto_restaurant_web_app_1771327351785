@@ -60,6 +60,9 @@ users_collection = db["users"]
 login_attempts_collection = db["login_attempts"]
 residents_collection = db["residents"]
 transactions_collection = db["transactions"]
+customers_collection = db["customers"]
+orders_collection = db["orders"]
+site_settings_collection = db["site_settings"]
 
 # JWT Configuration
 JWT_SECRET = os.environ.get("JWT_SECRET", "fallback-secret-change-in-production")
@@ -266,6 +269,36 @@ class UserResponse(BaseModel):
     name: str
     role: str
 
+# ============== CUSTOMER & ORDER MODELS ==============
+
+class CustomerRegister(BaseModel):
+    name: str
+    email: EmailStr
+    phone: str
+
+class CustomerLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class OrderItem(BaseModel):
+    menu_item_id: str
+    name: str
+    price: float
+    quantity: int
+
+class OrderCreate(BaseModel):
+    location_id: str
+    items: List[OrderItem]
+    special_instructions: Optional[str] = None
+
+class OrderStatusUpdate(BaseModel):
+    status: str  # pending, confirmed, preparing, ready, collected, cancelled
+
+class SiteSettingsUpdate(BaseModel):
+    ordering_enabled: Optional[bool] = None
+    manual_override: Optional[bool] = None
+    opening_hours: Optional[dict] = None  # {"monday": {"open": "08:00", "close": "17:00"}, ...}
+
 # ============== HELPERS ==============
 
 def serialize_doc(doc):
@@ -292,6 +325,12 @@ async def startup_event():
     # Create indexes
     users_collection.create_index("email", unique=True)
     login_attempts_collection.create_index("identifier")
+    customers_collection.create_index("email", unique=True)
+    customers_collection.create_index("phone")
+    orders_collection.create_index("order_number", unique=True)
+    orders_collection.create_index("customer_id")
+    orders_collection.create_index("location_id")
+    site_settings_collection.create_index("location_id", unique=True)
     
     # Seed locations and menu if empty
     if locations_collection.count_documents({}) == 0:
@@ -299,6 +338,9 @@ async def startup_event():
     
     # Seed admin user
     seed_admin()
+    
+    # Seed default site settings
+    seed_site_settings()
 
 def seed_admin():
     """Seed admin user from environment variables"""
@@ -337,6 +379,29 @@ def seed_admin():
         f.write("- POST /api/auth/logout\n")
         f.write("- GET /api/auth/me\n")
         f.write("- POST /api/auth/refresh\n")
+
+def seed_site_settings():
+    """Seed default site settings for all locations"""
+    default_hours = {
+        "monday": {"open": "08:00", "close": "17:00"},
+        "tuesday": {"open": "08:00", "close": "17:00"},
+        "wednesday": {"open": "08:00", "close": "17:00"},
+        "thursday": {"open": "08:00", "close": "17:00"},
+        "friday": {"open": "08:00", "close": "18:00"},
+        "saturday": {"open": "09:00", "close": "16:00"},
+        "sunday": {"open": "10:00", "close": "15:00"},
+    }
+    location_ids = ["timperley-altrincham", "howe-bridge-atherton", "chaddesden-derby", "oakmere-handforth", "willowmere-middlewich"]
+    for loc_id in location_ids:
+        if site_settings_collection.find_one({"location_id": loc_id}) is None:
+            site_settings_collection.insert_one({
+                "location_id": loc_id,
+                "ordering_enabled": True,
+                "manual_override": False,
+                "opening_hours": default_hours,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            })
+    print("Site settings seeded")
 
 def seed_data():
     """Seed the database with restaurant data"""
@@ -1154,4 +1219,368 @@ async def get_balance_summary(location: Optional[str] = None, user: dict = Depen
         "residents_zero_balance": residents_zero_balance,
         "location": location or "all"
     }
+
+
+# ============== CUSTOMER AUTH SYSTEM ==============
+
+import random
+import string
+
+def generate_otp():
+    return ''.join(random.choices(string.digits, k=6))
+
+def generate_order_number():
+    return f"JK-{uuid.uuid4().hex[:6].upper()}"
+
+async def get_customer(request: Request) -> dict:
+    """Get current customer from token"""
+    token = request.cookies.get("customer_token")
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    if payload.get("type") != "customer_access":
+        raise HTTPException(status_code=401, detail="Invalid token type")
+    customer = customers_collection.find_one({"id": payload["sub"]})
+    if not customer:
+        raise HTTPException(status_code=401, detail="Customer not found")
+    return serialize_doc(customer)
+
+def is_site_open(location_id: str) -> dict:
+    """Check if a site is currently open for ordering"""
+    settings = site_settings_collection.find_one({"location_id": location_id})
+    if not settings:
+        return {"is_open": False, "reason": "Site not configured"}
+    
+    # Manual override takes priority
+    if settings.get("manual_override"):
+        return {"is_open": settings.get("ordering_enabled", False), "reason": "manual_override"}
+    
+    if not settings.get("ordering_enabled", True):
+        return {"is_open": False, "reason": "ordering_disabled"}
+    
+    # Check schedule
+    now = datetime.now(timezone.utc)
+    day_name = now.strftime("%A").lower()
+    hours = settings.get("opening_hours", {}).get(day_name)
+    if not hours:
+        return {"is_open": False, "reason": "closed_today"}
+    
+    try:
+        open_time = datetime.strptime(hours["open"], "%H:%M").time()
+        close_time = datetime.strptime(hours["close"], "%H:%M").time()
+        current_time = now.time()
+        if open_time <= current_time <= close_time:
+            return {"is_open": True, "reason": "within_hours", "closes_at": hours["close"]}
+        else:
+            return {"is_open": False, "reason": "outside_hours", "opens_at": hours["open"], "closes_at": hours["close"]}
+    except (KeyError, ValueError):
+        return {"is_open": False, "reason": "invalid_hours"}
+
+
+@app.post("/api/customer/register")
+async def customer_register(data: CustomerRegister, response: Response):
+    """Register a new customer"""
+    email = data.email.lower().strip()
+    phone = data.phone.strip()
+    
+    if customers_collection.find_one({"email": email}):
+        raise HTTPException(status_code=400, detail="Email already registered. Please login.")
+    
+    otp_email = generate_otp()
+    otp_phone = generate_otp()
+    password_raw = uuid.uuid4().hex[:12]
+    
+    customer_id = str(uuid.uuid4())
+    customer = {
+        "id": customer_id,
+        "name": data.name.strip(),
+        "email": email,
+        "phone": phone,
+        "password_hash": hash_password(password_raw),
+        "email_verified": False,
+        "phone_verified": False,
+        "otp_email": otp_email,
+        "otp_phone": otp_phone,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    customers_collection.insert_one(customer)
+    
+    # Try to send verification email
+    email_sent = False
+    resend_key = os.environ.get("RESEND_API_KEY")
+    if resend_key:
+        try:
+            resend.api_key = resend_key
+            resend.Emails.send({
+                "from": "Jolly's Kafe <onboarding@resend.dev>",
+                "to": [email],
+                "subject": "Verify your email - Jolly's Kafe",
+                "html": f"<h2>Welcome to Jolly's Kafe!</h2><p>Your email verification code is: <strong>{otp_email}</strong></p>"
+            })
+            email_sent = True
+        except Exception:
+            pass
+    
+    # Auto-verify if no keys available (dev mode)
+    if not resend_key:
+        customers_collection.update_one({"id": customer_id}, {"$set": {"email_verified": True, "phone_verified": True}})
+    
+    # Create token
+    token = jwt.encode({"sub": customer_id, "email": email, "type": "customer_access", "exp": datetime.now(timezone.utc) + timedelta(days=30)}, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    response.set_cookie("customer_token", token, httponly=True, samesite="lax", max_age=60*60*24*30)
+    
+    return {
+        "message": "Registration successful",
+        "customer_id": customer_id,
+        "token": token,
+        "password": password_raw,
+        "email_sent": email_sent,
+        "auto_verified": not resend_key,
+        "needs_verification": bool(resend_key),
+    }
+
+
+@app.post("/api/customer/verify")
+async def customer_verify(request: Request):
+    """Verify customer email or phone OTP"""
+    body = await request.json()
+    customer_id = body.get("customer_id")
+    otp = body.get("otp")
+    verify_type = body.get("type", "email")  # "email" or "phone"
+    
+    customer = customers_collection.find_one({"id": customer_id})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    field = f"otp_{verify_type}"
+    if customer.get(field) != otp:
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+    
+    verified_field = f"{verify_type}_verified"
+    customers_collection.update_one({"id": customer_id}, {"$set": {verified_field: True, field: None}})
+    
+    return {"message": f"{verify_type.capitalize()} verified successfully"}
+
+
+@app.post("/api/customer/login")
+async def customer_login(data: CustomerLogin, response: Response):
+    """Customer login"""
+    email = data.email.lower().strip()
+    customer = customers_collection.find_one({"email": email})
+    if not customer:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not verify_password(data.password, customer["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    token = jwt.encode({"sub": customer["id"], "email": email, "type": "customer_access", "exp": datetime.now(timezone.utc) + timedelta(days=30)}, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    response.set_cookie("customer_token", token, httponly=True, samesite="lax", max_age=60*60*24*30)
+    
+    safe = {k: v for k, v in customer.items() if k not in ("_id", "password_hash", "otp_email", "otp_phone")}
+    return {"message": "Login successful", "token": token, "customer": safe}
+
+
+@app.get("/api/customer/me")
+async def customer_me(customer: dict = Depends(get_customer)):
+    """Get current customer profile"""
+    safe = {k: v for k, v in customer.items() if k not in ("_id", "password_hash", "otp_email", "otp_phone")}
+    return safe
+
+
+@app.post("/api/customer/logout")
+async def customer_logout(response: Response):
+    response.delete_cookie("customer_token")
+    return {"message": "Logged out"}
+
+
+# ============== ORDER SYSTEM ==============
+
+@app.get("/api/site-status/{location_id}")
+async def get_site_status(location_id: str):
+    """Public: Check if a site is open for ordering"""
+    status = is_site_open(location_id)
+    settings = site_settings_collection.find_one({"location_id": location_id})
+    hours = settings.get("opening_hours", {}) if settings else {}
+    return {**status, "location_id": location_id, "opening_hours": hours}
+
+
+@app.post("/api/orders")
+async def create_order(order_data: OrderCreate, customer: dict = Depends(get_customer)):
+    """Create a new order (collection only)"""
+    # Check customer is verified
+    if not customer.get("email_verified") or not customer.get("phone_verified"):
+        raise HTTPException(status_code=403, detail="Please verify your email and phone before ordering")
+    
+    # Check site is open
+    status = is_site_open(order_data.location_id)
+    if not status["is_open"]:
+        raise HTTPException(status_code=400, detail=f"Ordering is currently closed for this location")
+    
+    # Validate items
+    if not order_data.items or len(order_data.items) == 0:
+        raise HTTPException(status_code=400, detail="Order must have at least one item")
+    
+    total = sum(item.price * item.quantity for item in order_data.items)
+    
+    order = {
+        "id": str(uuid.uuid4()),
+        "order_number": generate_order_number(),
+        "customer_id": customer["id"],
+        "customer_name": customer.get("name", ""),
+        "customer_email": customer.get("email", ""),
+        "customer_phone": customer.get("phone", ""),
+        "location_id": order_data.location_id,
+        "items": [item.dict() for item in order_data.items],
+        "total": round(total, 2),
+        "status": "pending",
+        "special_instructions": order_data.special_instructions,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "status_history": [{"status": "pending", "timestamp": datetime.now(timezone.utc).isoformat()}],
+    }
+    orders_collection.insert_one(order)
+    
+    safe_order = {k: v for k, v in order.items() if k != "_id"}
+    return {"message": "Order placed successfully! Please collect when ready.", "order": safe_order}
+
+
+@app.get("/api/orders/track/{order_number}")
+async def track_order(order_number: str):
+    """Public: Track order by order number"""
+    order = orders_collection.find_one({"order_number": order_number.upper()})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    safe = {k: v for k, v in order.items() if k != "_id"}
+    return safe
+
+
+@app.get("/api/customer/orders")
+async def customer_orders(customer: dict = Depends(get_customer)):
+    """Get all orders for current customer"""
+    orders = list(orders_collection.find({"customer_id": customer["id"]}).sort("created_at", -1))
+    return [serialize_doc(o) for o in orders]
+
+
+@app.get("/api/admin/orders")
+async def admin_list_orders(location_id: Optional[str] = None, status: Optional[str] = None, user: dict = Depends(get_admin_user)):
+    """Admin: List all orders with filters"""
+    query = {}
+    if location_id:
+        query["location_id"] = location_id
+    if status:
+        query["status"] = status
+    orders = list(orders_collection.find(query).sort("created_at", -1).limit(100))
+    return [serialize_doc(o) for o in orders]
+
+
+@app.patch("/api/admin/orders/{order_id}/status")
+async def admin_update_order_status(order_id: str, data: OrderStatusUpdate, user: dict = Depends(get_admin_user)):
+    """Admin: Update order status and notify customer when ready"""
+    valid_statuses = ["pending", "confirmed", "preparing", "ready", "collected", "cancelled"]
+    if data.status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
+    
+    order = orders_collection.find_one({"id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    history_entry = {"status": data.status, "timestamp": now, "updated_by": user.get("email")}
+    
+    orders_collection.update_one(
+        {"id": order_id},
+        {"$set": {"status": data.status, "updated_at": now}, "$push": {"status_history": history_entry}}
+    )
+    
+    # Send notifications when order is ready
+    if data.status == "ready":
+        customer_email = order.get("customer_email")
+        customer_phone = order.get("customer_phone")
+        order_number = order.get("order_number")
+        
+        # Email notification
+        resend_key = os.environ.get("RESEND_API_KEY")
+        if resend_key and customer_email:
+            try:
+                resend.api_key = resend_key
+                resend.Emails.send({
+                    "from": "Jolly's Kafe <onboarding@resend.dev>",
+                    "to": [customer_email],
+                    "subject": f"Your order {order_number} is ready for collection!",
+                    "html": f"<h2>Your order is ready!</h2><p>Order <strong>{order_number}</strong> is ready for collection at our location.</p><p>Please come and pick it up at your earliest convenience.</p>"
+                })
+            except Exception:
+                pass
+        
+        # SMS notification (Twilio)
+        twilio_sid = os.environ.get("TWILIO_ACCOUNT_SID")
+        twilio_token = os.environ.get("TWILIO_AUTH_TOKEN")
+        twilio_from = os.environ.get("TWILIO_PHONE_NUMBER")
+        if twilio_sid and twilio_token and twilio_from and customer_phone:
+            try:
+                from twilio.rest import Client as TwilioClient
+                twilio_client = TwilioClient(twilio_sid, twilio_token)
+                twilio_client.messages.create(
+                    body=f"Jolly's Kafe: Your order {order_number} is ready for collection!",
+                    from_=twilio_from,
+                    to=customer_phone
+                )
+            except Exception:
+                pass
+    
+    updated = orders_collection.find_one({"id": order_id})
+    return serialize_doc(updated)
+
+
+# ============== SITE SETTINGS ==============
+
+@app.get("/api/admin/site-settings")
+async def admin_get_site_settings(user: dict = Depends(get_admin_user)):
+    """Admin: Get all site settings"""
+    settings = list(site_settings_collection.find({}))
+    return [serialize_doc(s) for s in settings]
+
+
+@app.put("/api/admin/site-settings/{location_id}")
+async def admin_update_site_settings(location_id: str, data: SiteSettingsUpdate, user: dict = Depends(get_admin_user)):
+    """Admin: Update site settings for a location"""
+    existing = site_settings_collection.find_one({"location_id": location_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Site settings not found for this location")
+    
+    update_fields = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    if data.ordering_enabled is not None:
+        update_fields["ordering_enabled"] = data.ordering_enabled
+    if data.manual_override is not None:
+        update_fields["manual_override"] = data.manual_override
+    if data.opening_hours is not None:
+        update_fields["opening_hours"] = data.opening_hours
+    
+    site_settings_collection.update_one({"location_id": location_id}, {"$set": update_fields})
+    updated = site_settings_collection.find_one({"location_id": location_id})
+    return serialize_doc(updated)
+
+
+@app.patch("/api/admin/site-settings/{location_id}/toggle")
+async def admin_toggle_ordering(location_id: str, user: dict = Depends(get_admin_user)):
+    """Admin: Quick toggle ordering on/off for a location"""
+    existing = site_settings_collection.find_one({"location_id": location_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Site settings not found")
+    
+    new_enabled = not existing.get("ordering_enabled", True)
+    site_settings_collection.update_one(
+        {"location_id": location_id},
+        {"$set": {"ordering_enabled": new_enabled, "manual_override": True, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    updated = site_settings_collection.find_one({"location_id": location_id})
+    return serialize_doc(updated)
 

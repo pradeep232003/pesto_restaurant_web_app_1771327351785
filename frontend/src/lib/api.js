@@ -237,6 +237,97 @@ class ApiService {
     const queryString = params.toString();
     return this.fetch(`/api/admin/balance-summary${queryString ? `?${queryString}` : ''}`);
   }
+
+  // ============== CUSTOMER AUTH ==============
+
+  async customerRegister(name, email, phone) {
+    return this.fetch('/api/customer/register', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, phone }),
+    });
+  }
+
+  async customerLogin(email, password) {
+    return this.fetch('/api/customer/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  }
+
+  async customerGetMe(token) {
+    return this.fetch('/api/customer/me', {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+    });
+  }
+
+  async customerLogout() {
+    return this.fetch('/api/customer/logout', { method: 'POST' });
+  }
+
+  async customerVerify(customerId, otp, type = 'email') {
+    return this.fetch('/api/customer/verify', {
+      method: 'POST',
+      body: JSON.stringify({ customer_id: customerId, otp, type }),
+    });
+  }
+
+  // ============== ORDERS ==============
+
+  async createOrder(orderData, token) {
+    return this.fetch('/api/orders', {
+      method: 'POST',
+      body: JSON.stringify(orderData),
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+    });
+  }
+
+  async trackOrder(orderNumber) {
+    return this.fetch(`/api/orders/track/${orderNumber}`);
+  }
+
+  async getCustomerOrders(token) {
+    return this.fetch('/api/customer/orders', {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+    });
+  }
+
+  async adminGetOrders(locationId = null, status = null) {
+    const params = new URLSearchParams();
+    if (locationId) params.append('location_id', locationId);
+    if (status) params.append('status', status);
+    const qs = params.toString();
+    return this.fetch(`/api/admin/orders${qs ? `?${qs}` : ''}`);
+  }
+
+  async adminUpdateOrderStatus(orderId, status) {
+    return this.fetch(`/api/admin/orders/${orderId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  // ============== SITE SETTINGS ==============
+
+  async getSiteStatus(locationId) {
+    return this.fetch(`/api/site-status/${locationId}`);
+  }
+
+  async adminGetSiteSettings() {
+    return this.fetch('/api/admin/site-settings');
+  }
+
+  async adminUpdateSiteSettings(locationId, data) {
+    return this.fetch(`/api/admin/site-settings/${locationId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async adminToggleOrdering(locationId) {
+    return this.fetch(`/api/admin/site-settings/${locationId}/toggle`, {
+      method: 'PATCH',
+    });
+  }
 }
 
 export const api = new ApiService();

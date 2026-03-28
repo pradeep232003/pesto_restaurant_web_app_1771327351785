@@ -6,10 +6,12 @@ import MenuGrid from './components/MenuGrid';
 import Icon from '../../components/AppIcon';
 import api from '../../lib/api';
 import { useLocation2, LOCATIONS } from '../../contexts/LocationContext';
+import { useCustomer } from '../../contexts/CustomerContext';
 
 const MenuCatalog = () => {
   const navigate = useNavigate();
   const { selectedLocation, setSelectedLocation } = useLocation2();
+  const { customer, logout: customerLogout } = useCustomer();
   const [activeCategory, setActiveCategory] = useState('all');
   const [filters, setFilters] = useState({
     dietary: '',
@@ -17,9 +19,10 @@ const MenuCatalog = () => {
     sortBy: 'name'
   });
   const [loading, setLoading] = useState(true);
-  const [cartCount, setCartCount] = useState(3);
+  const [cartItems, setCartItems] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [fetchError, setFetchError] = useState(null);
+  const [siteStatus, setSiteStatus] = useState(null);
 
   const categories = [
     { id: 'all', name: 'All Items', icon: 'Grid3X3', count: 0, featured: false },
@@ -80,7 +83,19 @@ const MenuCatalog = () => {
   useEffect(() => {
     fetchMenuItems(selectedLocation?.id);
     setActiveCategory('all');
+    // Fetch site status
+    if (selectedLocation?.id) {
+      api.getSiteStatus(selectedLocation.id).then(setSiteStatus).catch(() => setSiteStatus(null));
+    }
   }, [selectedLocation]);
+
+  // Load cart from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('cartItems');
+    if (saved) { try { setCartItems(JSON.parse(saved)); } catch {} }
+  }, []);
+
+  const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleCategoryChange = (categoryId) => {
     setActiveCategory(categoryId);
@@ -96,11 +111,18 @@ const MenuCatalog = () => {
   };
 
   const handleAddToCart = async (item) => {
-    console.log('Adding to cart:', item);
-    setCartCount((prev) => prev + 1);
-    return new Promise((resolve) => {
-      setTimeout(resolve, 500);
+    setCartItems(prev => {
+      const existing = prev.find(c => c.id === item.id);
+      let updated;
+      if (existing) {
+        updated = prev.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c);
+      } else {
+        updated = [...prev, { id: item.id, name: item.name, price: item.price, image: item.image, quantity: 1 }];
+      }
+      localStorage.setItem('cartItems', JSON.stringify(updated));
+      return updated;
     });
+    return new Promise((resolve) => setTimeout(resolve, 300));
   };
 
   const handleCartClick = () => {
@@ -108,8 +130,8 @@ const MenuCatalog = () => {
   };
 
   const handleAccountClick = (action) => {
-    if (action === 'login') navigate('/login');
-    if (action === 'register') navigate('/register');
+    if (action === 'login') navigate('/customer-auth');
+    if (action === 'register') navigate('/customer-auth');
     if (action === 'account') navigate('/user-account');
   };
 
@@ -170,6 +192,41 @@ const MenuCatalog = () => {
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Site Status & Ordering Info */}
+              <div className="flex flex-wrap items-center gap-3">
+                {siteStatus && (
+                  <div data-testid="site-status-banner" className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-body ${
+                    siteStatus.is_open ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'
+                  }`}>
+                    <div className={`w-2 h-2 rounded-full ${siteStatus.is_open ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                    <span className="font-medium">{siteStatus.is_open ? 'Online Ordering Open' : 'Online Ordering Closed'}</span>
+                    {siteStatus.closes_at && siteStatus.is_open && <span className="text-xs opacity-75">until {siteStatus.closes_at}</span>}
+                  </div>
+                )}
+                <button
+                  data-testid="track-order-link"
+                  onClick={() => navigate('/order-status')}
+                  className="px-4 py-2.5 rounded-lg text-sm font-body font-medium bg-card border border-border text-foreground hover:bg-muted transition-all flex items-center gap-1.5"
+                >
+                  <Icon name="Search" size={14} />
+                  Track Order
+                </button>
+                {customer ? (
+                  <span className="text-xs text-muted-foreground font-body">
+                    Hi, {customer.name?.split(' ')[0]}!
+                    <button onClick={customerLogout} className="text-primary ml-1 hover:underline">Logout</button>
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => navigate('/customer-auth')}
+                    className="px-4 py-2.5 rounded-lg text-sm font-body font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all flex items-center gap-1.5"
+                  >
+                    <Icon name="LogIn" size={14} />
+                    Login to Order
+                  </button>
+                )}
               </div>
 
               {/* Error state */}

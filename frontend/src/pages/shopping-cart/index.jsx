@@ -1,310 +1,286 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../../components/ui/Header';
-import CartItem from './components/CartItem';
-import OrderSummary from './components/OrderSummary';
-import EmptyCart from './components/EmptyCart';
-import PromoCodeSection from './components/PromoCodeSection';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
+import api from '../../lib/api';
 import { useLocation2 } from '../../contexts/LocationContext';
+import { useCustomer } from '../../contexts/CustomerContext';
 
 const ShoppingCart = () => {
   const navigate = useNavigate();
   const { selectedLocation } = useLocation2();
+  const { customer, token, isVerified } = useCustomer();
   const [cartItems, setCartItems] = useState([]);
-  const [appliedPromo, setAppliedPromo] = useState(null);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
-
-  // Mock cart data
-  const mockCartItems = [
-  {
-    id: 1,
-    name: "Classic Beef Burger",
-    price: 12.99,
-    quantity: 2,
-    image: "https://images.unsplash.com/photo-1585508718415-6d83666de492",
-    imageAlt: "Juicy beef burger with lettuce, tomato, and cheese on sesame bun",
-    customizations: ["Extra cheese", "No onions"],
-    specialRequests: "Medium rare patty"
-  },
-  {
-    id: 2,
-    name: "Margherita Pizza",
-    price: 16.99,
-    quantity: 1,
-    image: "https://images.unsplash.com/photo-1703784022146-b72677752ce5",
-    imageAlt: "Traditional margherita pizza with fresh basil, mozzarella, and tomato sauce",
-    customizations: ["Thin crust"],
-    specialRequests: null
-  },
-  {
-    id: 3,
-    name: "Caesar Salad",
-    price: 9.99,
-    quantity: 1,
-    image: "https://images.unsplash.com/photo-1598268013060-1f5baade2fc0",
-    imageAlt: "Fresh caesar salad with romaine lettuce, croutons, and parmesan cheese",
-    customizations: ["Extra dressing", "Add chicken"],
-    specialRequests: "Dressing on the side"
-  }];
-
-
-  // Available promo codes
-  const availablePromoCodes = {
-    'SAVE10': { code: 'SAVE10', discount: 0.10, description: '10% off your order', minOrder: 20 },
-    'FIRST20': { code: 'FIRST20', discount: 0.20, description: '20% off first order', minOrder: 25 },
-    'WELCOME15': { code: 'WELCOME15', discount: 0.15, description: '15% off welcome offer', minOrder: 15 }
-  };
+  const [siteStatus, setSiteStatus] = useState(null);
+  const [specialInstructions, setSpecialInstructions] = useState('');
+  const [orderSuccess, setOrderSuccess] = useState(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    // Load cart items from localStorage or use mock data
-    const savedCart = localStorage.getItem('cartItems');
-    if (savedCart) {
-      try {
-        setCartItems(JSON.parse(savedCart));
-      } catch (error) {
-        setCartItems(mockCartItems);
-      }
-    } else {
-      setCartItems(mockCartItems);
-    }
-
-    // Load applied promo
-    const savedPromo = localStorage.getItem('appliedPromo');
-    if (savedPromo) {
-      try {
-        setAppliedPromo(JSON.parse(savedPromo));
-      } catch (error) {
-        setAppliedPromo(null);
-      }
+    const saved = localStorage.getItem('cartItems');
+    if (saved) {
+      try { setCartItems(JSON.parse(saved)); } catch { setCartItems([]); }
     }
   }, []);
 
-  // Save cart to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('cartItems', JSON.stringify(cartItems));
   }, [cartItems]);
 
-  // Save promo to localStorage whenever it changes
+  // Check site status
   useEffect(() => {
-    if (appliedPromo) {
-      localStorage.setItem('appliedPromo', JSON.stringify(appliedPromo));
-    } else {
-      localStorage.removeItem('appliedPromo');
+    if (selectedLocation?.id) {
+      api.getSiteStatus(selectedLocation.id).then(setSiteStatus).catch(() => {});
     }
-  }, [appliedPromo]);
+  }, [selectedLocation]);
 
-  const handleUpdateQuantity = (itemId, newQuantity) => {
-    setCartItems((prevItems) =>
-    prevItems?.map((item) =>
-    item?.id === itemId ? { ...item, quantity: newQuantity } : item
-    )
-    );
+  const handleUpdateQuantity = (itemId, newQty) => {
+    if (newQty < 1) return;
+    setCartItems(prev => prev.map(item => item.id === itemId ? { ...item, quantity: newQty } : item));
   };
 
   const handleRemoveItem = (itemId) => {
-    setCartItems((prevItems) => prevItems?.filter((item) => item?.id !== itemId));
+    setCartItems(prev => prev.filter(item => item.id !== itemId));
   };
 
-  const handleModifyItem = (itemId) => {
-    // Navigate to menu with item modification
-    navigate(`/menu-catalog?modify=${itemId}`);
-  };
-
-  const handleApplyPromo = async (promoCode) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const promo = availablePromoCodes[promoCode];
-        const currentSubtotal = cartItems?.reduce((sum, item) => sum + item?.price * item?.quantity, 0);
-        if (promo && currentSubtotal >= promo.minOrder) {
-          setAppliedPromo(promo);
-          resolve({ success: true });
-        } else if (promo) {
-          resolve({
-            success: false,
-            message: `Minimum order of ${promo.minOrder} required`
-          });
-        } else {
-          resolve({
-            success: false,
-            message: 'Invalid promo code'
-          });
-        }
-      }, 1000);
-    });
-  };
-
-  const handleRemovePromo = () => {
-    setAppliedPromo(null);
-  };
+  const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleCheckout = async () => {
-    setIsCheckoutLoading(true);
+    if (!customer) {
+      navigate('/customer-auth');
+      return;
+    }
+    if (!isVerified) {
+      setError('Please verify your email and phone before ordering.');
+      return;
+    }
+    if (!siteStatus?.is_open) {
+      setError('Sorry, ordering is currently closed for this location.');
+      return;
+    }
 
-    // Simulate checkout process
-    setTimeout(() => {
+    setIsCheckoutLoading(true);
+    setError('');
+    try {
+      const orderData = {
+        location_id: selectedLocation?.id,
+        items: cartItems.map(item => ({
+          menu_item_id: item.id?.toString(),
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+        })),
+        special_instructions: specialInstructions || null,
+      };
+      const result = await api.createOrder(orderData, token);
+      setOrderSuccess(result.order);
+      setCartItems([]);
+      localStorage.removeItem('cartItems');
+    } catch (err) {
+      setError(err.message || 'Failed to place order');
+    } finally {
       setIsCheckoutLoading(false);
-      // Navigate to checkout page (would be implemented)
-      alert('Proceeding to checkout...\nThis would navigate to the payment page.');
-    }, 2000);
+    }
   };
 
-  // Calculate totals
-  const subtotal = cartItems?.reduce((sum, item) => sum + item?.price * item?.quantity, 0);
-  const discountAmount = appliedPromo ? subtotal * appliedPromo?.discount : 0;
-  const discountedSubtotal = subtotal - discountAmount;
-  const tax = discountedSubtotal * 0.08; // 8% tax
-  const deliveryFee = discountedSubtotal >= 30 ? 0 : 3.99; // Free delivery over $30
-  const total = discountedSubtotal + tax + deliveryFee;
-
-  const cartCount = cartItems?.reduce((sum, item) => sum + item?.quantity, 0);
-
-  if (cartItems?.length === 0) {
+  // Order success screen
+  if (orderSuccess) {
     return (
       <div className="min-h-screen bg-background">
-        <Header
-          cartCount={0}
-          onCartClick={() => {}}
-          onAccountClick={() => {}}
-          onSearch={() => {}}
-          onLogout={() => {}} />
-
+        <Header cartCount={0} onCartClick={() => {}} onAccountClick={() => {}} onSearch={() => {}} onLogout={() => {}} />
         <main className="pt-16">
-          <EmptyCart />
+          <div className="max-w-lg mx-auto px-4 py-16 text-center">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Icon name="CheckCircle" size={40} color="#16a34a" />
+            </div>
+            <h1 className="text-3xl font-heading font-bold text-foreground mb-2">Order Placed!</h1>
+            <p className="text-muted-foreground mb-6">Your order has been placed successfully. Please collect it when ready.</p>
+            <div className="bg-card rounded-xl shadow-warm p-6 mb-6">
+              <p className="text-sm text-muted-foreground mb-1">Order Number</p>
+              <p data-testid="checkout-order-number" className="text-3xl font-heading font-bold text-primary">{orderSuccess.order_number}</p>
+              <p className="text-sm text-muted-foreground mt-3">Total: <span className="font-bold text-foreground">{'\u00A3'}{orderSuccess.total?.toFixed(2)}</span></p>
+            </div>
+            <div className="flex flex-col gap-3">
+              <button
+                data-testid="track-my-order-btn"
+                onClick={() => navigate('/order-status')}
+                className="w-full py-3 bg-primary text-primary-foreground rounded-lg font-body font-medium hover:bg-primary/90 transition-all"
+              >
+                Track My Order
+              </button>
+              <button
+                onClick={() => navigate('/menu-catalog')}
+                className="w-full py-3 border border-border text-foreground rounded-lg font-body font-medium hover:bg-muted transition-all"
+              >
+                Continue Browsing
+              </button>
+            </div>
+            <div className="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <div className="flex items-center gap-2 justify-center">
+                <Icon name="MapPin" size={14} color="#d97706" />
+                <p className="text-xs text-amber-700 font-body">Collection only - no delivery available</p>
+              </div>
+            </div>
+          </div>
         </main>
-      </div>);
+      </div>
+    );
+  }
 
+  // Empty cart
+  if (cartItems.length === 0) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header cartCount={0} onCartClick={() => {}} onAccountClick={() => {}} onSearch={() => {}} onLogout={() => {}} />
+        <main className="pt-16">
+          <div className="max-w-lg mx-auto px-4 py-16 text-center">
+            <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+              <Icon name="ShoppingCart" size={32} color="var(--color-muted-foreground)" />
+            </div>
+            <h2 className="text-xl font-heading font-bold text-foreground mb-2">Your cart is empty</h2>
+            <p className="text-muted-foreground mb-6">Add some delicious items from our menu!</p>
+            <Button variant="default" onClick={() => navigate('/menu-catalog')} iconName="ArrowRight" iconPosition="right">
+              Browse Menu
+            </Button>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <Header
-        cartCount={cartCount}
-        onCartClick={() => {}}
-        onAccountClick={() => {}}
-        onSearch={() => {}}
-        onLogout={() => {}} />
-
+      <Header cartCount={cartCount} onCartClick={() => {}} onAccountClick={() => {}} onSearch={() => {}} onLogout={() => {}} />
       <main className="pt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Page Header */}
-          <div className="mb-8">
-            <div className="flex items-center space-x-3 mb-2">
-              <Icon name="ShoppingCart" size={28} className="text-primary" />
-              <h1 className="font-heading font-bold text-3xl text-foreground">
-                Shopping Cart
-              </h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <p className="font-body text-muted-foreground">
-                Review your order and proceed to checkout
-              </p>
-              {selectedLocation && (
-                <div className="flex items-center space-x-1.5 text-sm font-body text-primary bg-primary/10 rounded-full px-3 py-1">
-                  <Icon name="MapPin" size={13} />
-                  <span>{selectedLocation?.name}</span>
-                </div>
-              )}
-            </div>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+          <div className="flex items-center space-x-3 mb-6">
+            <Icon name="ShoppingCart" size={28} className="text-primary" />
+            <h1 className="font-heading font-bold text-2xl text-foreground">Your Cart</h1>
+            <span className="text-sm text-muted-foreground">({cartCount} items)</span>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Cart Items Section */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Cart Items Header */}
-              <div className="flex items-center justify-between">
-                <h2 className="font-heading font-bold text-xl text-foreground">
-                  Your Items ({cartCount})
-                </h2>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate('/menu-catalog')}
-                  iconName="Plus"
-                  iconPosition="left"
-                  iconSize={14}>
+          {/* Site status banner */}
+          {siteStatus && !siteStatus.is_open && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-6 flex items-center gap-2">
+              <Icon name="AlertTriangle" size={16} color="#dc2626" />
+              <p className="text-sm text-red-700 font-body">Ordering is currently closed for {selectedLocation?.name}. You can still browse but cannot place orders.</p>
+            </div>
+          )}
 
-                  Add More Items
-                </Button>
+          {error && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-xl px-4 py-3 mb-6 flex items-center gap-2">
+              <Icon name="AlertCircle" size={16} color="var(--color-destructive)" />
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Items */}
+            <div className="lg:col-span-2 space-y-3">
+              {cartItems.map(item => (
+                <div key={item.id} data-testid={`cart-item-${item.id}`} className="bg-card rounded-xl shadow-warm p-4 flex items-center gap-4">
+                  {item.image && (
+                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted shrink-0">
+                      <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-body font-semibold text-foreground text-sm truncate">{item.name}</p>
+                    <p className="text-primary font-heading font-bold text-sm">{'\u00A3'}{item.price.toFixed(2)}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-primary/10 transition-all">
+                      <Icon name="Minus" size={14} />
+                    </button>
+                    <span className="w-8 text-center font-body font-medium">{item.quantity}</span>
+                    <button onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-primary/10 transition-all">
+                      <Icon name="Plus" size={14} />
+                    </button>
+                    <button onClick={() => handleRemoveItem(item.id)} className="ml-2 p-2 text-muted-foreground hover:text-destructive transition-all">
+                      <Icon name="Trash2" size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {/* Special instructions */}
+              <div className="bg-card rounded-xl shadow-warm p-4">
+                <label className="block text-sm font-body font-semibold text-foreground mb-2">Special Instructions</label>
+                <textarea
+                  data-testid="special-instructions"
+                  value={specialInstructions}
+                  onChange={(e) => setSpecialInstructions(e.target.value)}
+                  placeholder="Any allergies or special requests..."
+                  rows={2}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+                />
               </div>
 
-              {/* Cart Items List */}
-              <div className="space-y-4">
-                {cartItems?.map((item) =>
-                <CartItem
-                  key={item?.id}
-                  item={item}
-                  onUpdateQuantity={handleUpdateQuantity}
-                  onRemove={handleRemoveItem}
-                  onModify={handleModifyItem} />
+              <button onClick={() => navigate('/menu-catalog')} className="text-sm text-primary font-body font-medium hover:underline">
+                <Icon name="ArrowLeft" size={14} className="inline mr-1" /> Add more items
+              </button>
+            </div>
 
+            {/* Order Summary */}
+            <div className="lg:col-span-1">
+              <div className="bg-card rounded-xl shadow-warm p-6 sticky top-20">
+                <h3 className="font-heading font-bold text-lg text-foreground mb-4">Order Summary</h3>
+                <div className="space-y-2 mb-4">
+                  {cartItems.map(item => (
+                    <div key={item.id} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">{item.quantity}x {item.name}</span>
+                      <span className="font-body font-medium">{'\u00A3'}{(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="border-t border-border pt-3 flex justify-between mb-6">
+                  <span className="font-body font-bold text-foreground">Total</span>
+                  <span className="font-heading font-bold text-primary text-xl">{'\u00A3'}{subtotal.toFixed(2)}</span>
+                </div>
+
+                {/* Collection-only notice */}
+                <div className="bg-amber-50 rounded-lg p-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Icon name="MapPin" size={14} color="#d97706" />
+                    <p className="text-xs text-amber-700 font-body font-medium">Collection only - no delivery</p>
+                  </div>
+                  {selectedLocation && <p className="text-xs text-amber-600 mt-1 ml-5">{selectedLocation.name}</p>}
+                </div>
+
+                {!customer ? (
+                  <button
+                    data-testid="checkout-login-btn"
+                    onClick={() => navigate('/customer-auth')}
+                    className="w-full py-3 bg-primary text-primary-foreground rounded-lg font-body font-medium hover:bg-primary/90 transition-all"
+                  >
+                    Login to Order
+                  </button>
+                ) : (
+                  <button
+                    data-testid="place-order-btn"
+                    onClick={handleCheckout}
+                    disabled={isCheckoutLoading || !siteStatus?.is_open}
+                    className="w-full py-3 bg-primary text-primary-foreground rounded-lg font-body font-medium hover:bg-primary/90 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {isCheckoutLoading ? 'Placing Order...' : (siteStatus?.is_open ? 'Place Collection Order' : 'Ordering Closed')}
+                  </button>
+                )}
+
+                {customer && (
+                  <p className="text-xs text-muted-foreground text-center mt-2">
+                    Ordering as {customer.name}
+                  </p>
                 )}
               </div>
-
-              {/* Promo Code Section */}
-              <PromoCodeSection
-                onApplyPromo={handleApplyPromo}
-                appliedPromo={appliedPromo}
-                onRemovePromo={handleRemovePromo} />
-
-
-              {/* Continue Shopping */}
-              <div className="pt-6 border-t border-border">
-                <Button
-                  variant="outline"
-                  onClick={() => navigate('/menu-catalog')}
-                  iconName="ArrowLeft"
-                  iconPosition="left">
-
-                  Continue Shopping
-                </Button>
-              </div>
-            </div>
-
-            {/* Order Summary Section */}
-            <div className="lg:col-span-1">
-              <OrderSummary
-                subtotal={subtotal}
-                tax={tax}
-                deliveryFee={deliveryFee}
-                discount={discountAmount}
-                total={total}
-                onCheckout={handleCheckout}
-                isLoading={isCheckoutLoading}
-                promoCode={appliedPromo?.code} />
-
             </div>
           </div>
-
-          {/* Mobile Checkout Button */}
-          <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 shadow-warm-lg">
-            <div className="flex items-center justify-between mb-3">
-              <span className="font-body text-muted-foreground">Total:</span>
-              <span className="font-heading font-bold text-xl text-primary">
-                ${total?.toFixed(2)}
-              </span>
-            </div>
-            <Button
-              variant="default"
-              size="lg"
-              fullWidth
-              loading={isCheckoutLoading}
-              onClick={handleCheckout}
-              iconName="CreditCard"
-              iconPosition="left"
-              className="bg-primary hover:bg-primary/90 text-primary-foreground">
-
-              Proceed to Checkout
-            </Button>
-          </div>
-
-          {/* Mobile Spacing */}
-          <div className="lg:hidden h-24"></div>
         </div>
       </main>
-    </div>);
-
+    </div>
+  );
 };
 
 export default ShoppingCart;

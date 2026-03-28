@@ -369,7 +369,7 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
                         <span>My Account</span>
                       </button>
                       <button
-                        onClick={() => { navigate('/order-tracking'); setIsUserDropdownOpen(false); }}
+                        onClick={() => { navigate('/order-status'); setIsUserDropdownOpen(false); }}
                         className="w-full flex items-center space-x-3 px-4 py-2 text-sm font-body text-foreground hover:bg-muted transition-colors duration-200"
                       >
                         <Icon name="Package" size={16} />
@@ -590,7 +590,7 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
                     <span>My Account</span>
                   </button>
                   <button
-                    onClick={() => { navigate('/order-tracking'); setIsMobileMenuOpen(false); }}
+                    onClick={() => { navigate('/order-status'); setIsMobileMenuOpen(false); }}
                     className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-body font-medium text-foreground hover:text-primary hover:bg-muted transition-all duration-200"
                   >
                     <Icon name="Package" size={20} />

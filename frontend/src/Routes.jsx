@@ -17,7 +17,12 @@ import AdminLogin from './pages/admin-login';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
+import CustomerAuth from './pages/customer-auth';
+import OrderStatus from './pages/order-status';
+import AdminOrders from './pages/admin-orders';
+import AdminSiteSettings from './pages/admin-site-settings';
 import { LocationProvider } from './contexts/LocationContext';
+import { CustomerProvider } from './contexts/CustomerContext';
 
 const Routes = () => {
   return (
@@ -25,6 +30,7 @@ const Routes = () => {
       <ErrorBoundary>
       <ScrollToTop />
       <LocationProvider>
+      <CustomerProvider>
       <RouterRoutes>
         {/* Public Routes */}
         <Route path="/" element={<HomeLanding />} />
@@ -37,16 +43,21 @@ const Routes = () => {
         <Route path="/menu-catalog" element={<MenuCatalog />} />
         <Route path="/table-reservation" element={<TableReservation />} />
         <Route path="/order-tracking" element={<OrderTracking />} />
+        <Route path="/customer-auth" element={<CustomerAuth />} />
+        <Route path="/order-status" element={<OrderStatus />} />
         
         {/* Admin Routes */}
         <Route path="/admin-login" element={<AdminLogin />} />
         <Route path="/admin-menu" element={<AdminMenuManagement />} />
+        <Route path="/admin-orders" element={<AdminOrders />} />
+        <Route path="/admin-site-settings" element={<AdminSiteSettings />} />
         <Route path="/resident-balance" element={<ResidentBalance />} />
         <Route path="/resident-history/:residentId" element={<ResidentHistory />} />
         <Route path="/transaction-report" element={<TransactionReport />} />
         
         <Route path="*" element={<NotFound />} />
       </RouterRoutes>
+      </CustomerProvider>
       </LocationProvider>
       </ErrorBoundary>
     </BrowserRouter>
