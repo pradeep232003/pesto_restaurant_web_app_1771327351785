@@ -236,7 +236,7 @@ async def admin_get_menu_items(location_id: Optional[str] = None):
     items = list(menu_items_collection.find(query).sort("name", 1))
     return [serialize_doc(item) for item in items]
 
-@app.post("/api/admin/menu-items")
+@app.post("/api/admin/menu-items", status_code=201)
 async def admin_create_menu_item(item: MenuItemCreate):
     """Admin: Create a new menu item"""
     # Generate a unique ID
