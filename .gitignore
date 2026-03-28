@@ -58,3 +58,7 @@ vite.config.*s.*
 # Environment files
 *.env
 *.env.*
+-e 
+# Environment files
+*.env
+*.env.*
