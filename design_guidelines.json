@@ -1,0 +1,99 @@
+{
+  "theme": "light",
+  "archetype": "Swiss & High-Contrast",
+  "design_concept": "Apple-style landing page. Hyper-minimalist, high-contrast monochrome with a focus on premium typography, generous negative space, and high-quality imagery. The emotional tone is authoritative, clean, and appetizing.",
+  "colors": {
+    "background": "#FBFBFD",
+    "surface": "#FFFFFF",
+    "text_primary": "#1D1D1F",
+    "text_secondary": "#86868B",
+    "accent": "#000000",
+    "accent_hover": "#333336",
+    "border": "rgba(0, 0, 0, 0.08)"
+  },
+  "typography": {
+    "heading_font": "Outfit",
+    "body_font": "Inter",
+    "h1": "text-5xl sm:text-6xl lg:text-7xl font-semibold tracking-tighter leading-tight text-[#1D1D1F]",
+    "h2": "text-4xl sm:text-5xl font-semibold tracking-tight text-[#1D1D1F]",
+    "h3": "text-2xl font-medium tracking-tight text-[#1D1D1F]",
+    "body": "text-base md:text-lg text-[#86868B] leading-relaxed",
+    "button": "text-sm font-medium tracking-wide"
+  },
+  "layout_and_spacing": {
+    "section_padding": "py-24 md:py-32 px-6 md:px-12",
+    "container_width": "max-w-7xl mx-auto",
+    "border_radius": "rounded-[2rem]"
+  },
+  "surfaces": {
+    "glassmorphism": "bg-white/70 backdrop-blur-2xl border border-white/40 shadow-sm",
+    "solid_card": "bg-white rounded-[2rem] shadow-[0_4px_24px_rgba(0,0,0,0.04)] overflow-hidden"
+  },
+  "motion": {
+    "fade_up": {
+      "initial": { "opacity": 0, "y": 40 },
+      "whileInView": { "opacity": 1, "y": 0 },
+      "viewport": { "once": true, "margin": "-100px" },
+      "transition": { "duration": 0.8, "ease": [0.16, 1, 0.3, 1] }
+    },
+    "image_scale": {
+      "initial": { "scale": 1.05 },
+      "whileInView": { "scale": 1 },
+      "transition": { "duration": 1.2, "ease": [0.16, 1, 0.3, 1] }
+    }
+  },
+  "components": {
+    "button_primary": "bg-[#1D1D1F] hover:bg-[#333336] text-white rounded-full px-8 py-4 transition-colors duration-300",
+    "button_secondary": "bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#1D1D1F] rounded-full px-8 py-4 transition-colors duration-300"
+  },
+  "media": {
+    "hero_background": "/background.jpg",
+    "menu_items": [
+      { "name": "English Breakfast", "url": "/item-menu-1.jpg" },
+      { "name": "Chicken Burger", "url": "/item-menu-2.jpg" },
+      { "name": "Sunday Roast", "url": "/item-menu-3.jpg" },
+      { "name": "Hot Drinks", "url": "/item-menu-4.jpg" },
+      { "name": "Desserts", "url": "/item-menu-5.jpg" },
+      { "name": "Specials", "url": "/item-menu-6.jpg" }
+    ],
+    "fallback_images": [
+      { "category": "interior", "url": "https://images.unsplash.com/photo-1750040970096-31907e42d6a5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwY2FmZSUyMGludGVyaW9yfGVufDB8fHx8MTc3NDczMzEzOXww&ixlib=rb-4.1.0&q=85" },
+      { "category": "coffee", "url": "https://images.pexels.com/photos/7471292/pexels-photo-7471292.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940" }
+    ]
+  },
+  "sections": [
+    {
+      "name": "Hero",
+      "layout": "Centered massive typography over subtle off-white background. The text should sit above a massive rounded-[2rem] hero image container.",
+      "instructions": "Use H1 for 'Welcome to Jolly's Kafe'. Subtitle in text-secondary. Two pill buttons (Primary and Secondary). Add Framer Motion stagger for entrance. The hero image (/background.jpg) should be large, edge-to-edge or max-w-7xl with rounded-[2rem] and smooth parallax or subtle zoom-in."
+    },
+    {
+      "name": "Menu Preview",
+      "layout": "Apple-style Bento Grid (Tetris Mode).",
+      "instructions": "Use CSS Grid (grid-cols-1 md:grid-cols-8 lg:grid-cols-12 gap-6). Cards should use the 'solid_card' surface. Images (/item-menu-1.jpg etc.) should fill the card backgrounds completely (object-cover), and food titles should be placed inside a small glassmorphism pill at the bottom left of each card."
+    },
+    {
+      "name": "Why Choose Us",
+      "layout": "Minimalist Feature Grid (1x4 or 2x2).",
+      "instructions": "Use lucide-react icons (ChefHat, Leaf, Clock, Heart). Icons should be black, large, stroke-width 1.5. No cards—just pure text and icon floating on the off-white background with generous spacing."
+    },
+    {
+      "name": "Testimonials",
+      "layout": "Clean, large typographic quotes.",
+      "instructions": "Use massive text for quotes (e.g. 'The best roast in Manchester.') with author name below in secondary text. Keep it extremely minimal. No borders, just pure white/off-white background."
+    },
+    {
+      "name": "Newsletter & Footer",
+      "layout": "Centred form inside a soft gray rounded-[2rem] box.",
+      "instructions": "Input should have no visible border, just bg-white inside the gray container. Button is a solid black pill. Footer links should be arranged in clean Apple-style columns with secondary text colors."
+    }
+  ],
+  "instructions_to_main_agent": [
+    "Install 'lucide-react' and 'framer-motion' if not present.",
+    "Ensure 'Outfit' font is loaded from Google Fonts in index.html for headings. Example: <link href=\"https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap\" rel=\"stylesheet\">",
+    "Remove any existing purple gradients or floating emojis. The page must be strictly Apple-like: #FBFBFD background, pure white cards, #1D1D1F text.",
+    "Make heavy use of framer-motion for smooth, slow 'fade-up' and 'scale' animations as elements come into view.",
+    "Images MUST use the provided paths (e.g., /item-menu-1.jpg, /background.jpg). Ensure they have rounded-[2rem] corners where appropriate. Use object-cover to make them look premium.",
+    "Apply `data-testid` attributes on all interactive elements (buttons, inputs) for testing purposes."
+  ]
+}
