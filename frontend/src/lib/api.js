@@ -131,6 +131,32 @@ class ApiService {
     });
   }
 
+  // Upload image for a menu item
+  async adminUploadMenuImage(itemId, file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await fetch(`/api/admin/menu-items/${itemId}/upload-image`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Upload failed: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+
+  // Toggle image visibility for a menu item
+  async adminToggleImageVisibility(itemId) {
+    return this.fetch(`/api/admin/menu-items/${itemId}/toggle-image`, {
+      method: 'PATCH',
+    });
+  }
+
   // ============== RESIDENT PREPAID BALANCE ENDPOINTS ==============
 
   // Get all residents

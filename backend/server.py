@@ -1,13 +1,16 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, Request, Response, Depends
+from fastapi import FastAPI, HTTPException, Request, Response, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pymongo import MongoClient
 from bson import ObjectId
 import os
 import asyncio
 import resend
+import shutil
+from pathlib import Path
 from typing import List, Optional
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timezone, timedelta
@@ -16,6 +19,13 @@ import jwt
 import uuid
 
 app = FastAPI(title="Pesto Restaurant API")
+
+# Create uploads directory
+UPLOAD_DIR = Path("/app/backend/uploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+# Mount static files for serving uploaded images
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 # Resend email configuration
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
@@ -214,6 +224,7 @@ class MenuItemCreate(BaseModel):
     original_price: Optional[float] = None
     image_url: Optional[str] = None
     image_alt: Optional[str] = None
+    show_image: bool = True
     category: str = "mains"
     categories: List[str] = []
     dietary: List[str] = []
@@ -230,6 +241,7 @@ class MenuItemUpdate(BaseModel):
     original_price: Optional[float] = None
     image_url: Optional[str] = None
     image_alt: Optional[str] = None
+    show_image: Optional[bool] = None
     category: Optional[str] = None
     categories: Optional[List[str]] = None
     dietary: Optional[List[str]] = None
@@ -605,6 +617,73 @@ async def admin_delete_menu_item(item_id: str, user: dict = Depends(get_admin_us
     
     menu_items_collection.delete_one({"id": item_id})
     return {"message": "Menu item deleted successfully", "id": item_id}
+
+@app.post("/api/admin/menu-items/{item_id}/upload-image")
+async def admin_upload_menu_image(item_id: str, file: UploadFile = File(...), user: dict = Depends(get_admin_user)):
+    """Admin: Upload an image for a menu item"""
+    existing = menu_items_collection.find_one({"id": item_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+    
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Invalid file type. Allowed: JPEG, PNG, WebP, GIF")
+    
+    # Generate unique filename
+    file_ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+    unique_filename = f"{item_id}_{uuid.uuid4().hex[:8]}.{file_ext}"
+    file_path = UPLOAD_DIR / unique_filename
+    
+    # Save file
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save image: {str(e)}")
+    
+    # Update menu item with new image URL
+    image_url = f"/api/uploads/{unique_filename}"
+    menu_items_collection.update_one(
+        {"id": item_id},
+        {"$set": {"image_url": image_url, "show_image": True, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    updated_item = menu_items_collection.find_one({"id": item_id})
+    return {
+        "message": "Image uploaded successfully",
+        "image_url": image_url,
+        "item": serialize_doc(updated_item)
+    }
+
+@app.patch("/api/admin/menu-items/{item_id}/toggle-image")
+async def admin_toggle_image_visibility(item_id: str, user: dict = Depends(get_admin_user)):
+    """Admin: Toggle show/hide image for a menu item"""
+    existing = menu_items_collection.find_one({"id": item_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+    
+    current_show = existing.get("show_image", True)
+    new_show = not current_show
+    
+    menu_items_collection.update_one(
+        {"id": item_id},
+        {"$set": {"show_image": new_show, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    updated_item = menu_items_collection.find_one({"id": item_id})
+    return serialize_doc(updated_item)
+
+# Serve uploaded images through API
+@app.get("/api/uploads/{filename}")
+async def get_uploaded_image(filename: str):
+    """Serve uploaded images"""
+    file_path = UPLOAD_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    from fastapi.responses import FileResponse
+    return FileResponse(file_path)
 
 
 # ============== RESIDENT PREPAID BALANCE SYSTEM ==============
