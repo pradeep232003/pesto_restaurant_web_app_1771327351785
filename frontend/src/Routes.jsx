@@ -14,6 +14,9 @@ import TableReservation from './pages/table-reservation';
 import OrderTracking from './pages/order-tracking';
 import AdminMenuManagement from './pages/admin-menu';
 import AdminLogin from './pages/admin-login';
+import ResidentBalance from './pages/resident-balance';
+import ResidentHistory from './pages/resident-history';
+import TransactionReport from './pages/transaction-report';
 import { LocationProvider } from './contexts/LocationContext';
 
 const Routes = () => {
@@ -23,7 +26,7 @@ const Routes = () => {
       <ScrollToTop />
       <LocationProvider>
       <RouterRoutes>
-        {/* Define your route here */}
+        {/* Public Routes */}
         <Route path="/" element={<HomeLanding />} />
         <Route path="/shopping-cart" element={<ShoppingCart />} />
         <Route path="/home-landing" element={<HomeLanding />} />
@@ -34,8 +37,14 @@ const Routes = () => {
         <Route path="/menu-catalog" element={<MenuCatalog />} />
         <Route path="/table-reservation" element={<TableReservation />} />
         <Route path="/order-tracking" element={<OrderTracking />} />
+        
+        {/* Admin Routes */}
         <Route path="/admin-login" element={<AdminLogin />} />
         <Route path="/admin-menu" element={<AdminMenuManagement />} />
+        <Route path="/resident-balance" element={<ResidentBalance />} />
+        <Route path="/resident-history/:residentId" element={<ResidentHistory />} />
+        <Route path="/transaction-report" element={<TransactionReport />} />
+        
         <Route path="*" element={<NotFound />} />
       </RouterRoutes>
       </LocationProvider>

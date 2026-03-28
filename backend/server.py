@@ -37,6 +37,8 @@ locations_collection = db["locations"]
 menu_items_collection = db["menu_items"]
 users_collection = db["users"]
 login_attempts_collection = db["login_attempts"]
+residents_collection = db["residents"]
+transactions_collection = db["transactions"]
 
 # JWT Configuration
 JWT_SECRET = os.environ.get("JWT_SECRET", "fallback-secret-change-in-production")
@@ -596,3 +598,252 @@ async def admin_delete_menu_item(item_id: str, user: dict = Depends(get_admin_us
     
     menu_items_collection.delete_one({"id": item_id})
     return {"message": "Menu item deleted successfully", "id": item_id}
+
+
+# ============== RESIDENT PREPAID BALANCE SYSTEM ==============
+
+# Pydantic models for Residents
+class ResidentCreate(BaseModel):
+    residence_number: str
+    name: str
+    location: str  # "oakmere-handforth" or "willowmere-middlewich"
+    about: Optional[str] = None
+
+class ResidentUpdate(BaseModel):
+    name: Optional[str] = None
+    location: Optional[str] = None
+    about: Optional[str] = None
+
+class TransactionCreate(BaseModel):
+    resident_id: str
+    transaction_type: str  # "topup" or "purchase"
+    amount: float
+    description: Optional[str] = None
+
+# Resident Endpoints
+@app.get("/api/admin/residents")
+async def get_residents(location: Optional[str] = None, user: dict = Depends(get_admin_user)):
+    """Get all residents, optionally filtered by location"""
+    query = {}
+    if location:
+        query["location"] = location
+    
+    residents = list(residents_collection.find(query).sort("residence_number", 1))
+    return [serialize_doc(r) for r in residents]
+
+@app.get("/api/admin/residents/{resident_id}")
+async def get_resident(resident_id: str, user: dict = Depends(get_admin_user)):
+    """Get a single resident by ID"""
+    resident = residents_collection.find_one({"id": resident_id})
+    if not resident:
+        raise HTTPException(status_code=404, detail="Resident not found")
+    return serialize_doc(resident)
+
+@app.post("/api/admin/residents", status_code=201)
+async def create_resident(resident: ResidentCreate, user: dict = Depends(get_admin_user)):
+    """Create a new resident"""
+    # Check if residence number already exists
+    existing = residents_collection.find_one({"residence_number": resident.residence_number})
+    if existing:
+        raise HTTPException(status_code=400, detail="Residence number already exists")
+    
+    resident_id = str(uuid.uuid4())[:8]
+    resident_dict = {
+        "id": resident_id,
+        "residence_number": resident.residence_number,
+        "name": resident.name,
+        "location": resident.location,
+        "about": resident.about,
+        "balance": 0.0,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    residents_collection.insert_one(resident_dict)
+    return serialize_doc(residents_collection.find_one({"id": resident_id}))
+
+@app.put("/api/admin/residents/{resident_id}")
+async def update_resident(resident_id: str, resident: ResidentUpdate, user: dict = Depends(get_admin_user)):
+    """Update an existing resident"""
+    existing = residents_collection.find_one({"id": resident_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Resident not found")
+    
+    update_data = {k: v for k, v in resident.model_dump().items() if v is not None}
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    residents_collection.update_one({"id": resident_id}, {"$set": update_data})
+    return serialize_doc(residents_collection.find_one({"id": resident_id}))
+
+@app.delete("/api/admin/residents/{resident_id}")
+async def delete_resident(resident_id: str, user: dict = Depends(get_admin_user)):
+    """Delete a resident"""
+    existing = residents_collection.find_one({"id": resident_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Resident not found")
+    
+    # Also delete all transactions for this resident
+    transactions_collection.delete_many({"resident_id": resident_id})
+    residents_collection.delete_one({"id": resident_id})
+    return {"message": "Resident deleted successfully", "id": resident_id}
+
+# Transaction Endpoints
+@app.post("/api/admin/transactions", status_code=201)
+async def create_transaction(transaction: TransactionCreate, user: dict = Depends(get_admin_user)):
+    """Create a new transaction (top-up or purchase)"""
+    # Get resident
+    resident = residents_collection.find_one({"id": transaction.resident_id})
+    if not resident:
+        raise HTTPException(status_code=404, detail="Resident not found")
+    
+    current_balance = resident.get("balance", 0.0)
+    
+    # Calculate new balance
+    if transaction.transaction_type == "topup":
+        amount = abs(transaction.amount)
+        new_balance = current_balance + amount
+    elif transaction.transaction_type == "purchase":
+        amount = abs(transaction.amount)
+        new_balance = current_balance - amount
+        if new_balance < 0:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Insufficient balance. Current balance: £{current_balance:.2f}, Purchase amount: £{amount:.2f}"
+            )
+    else:
+        raise HTTPException(status_code=400, detail="Invalid transaction type. Use 'topup' or 'purchase'")
+    
+    # Create transaction record
+    transaction_id = str(uuid.uuid4())[:8]
+    transaction_dict = {
+        "id": transaction_id,
+        "resident_id": transaction.resident_id,
+        "transaction_type": transaction.transaction_type,
+        "amount": amount if transaction.transaction_type == "topup" else -amount,
+        "balance_before": current_balance,
+        "balance_after": new_balance,
+        "description": transaction.description,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": user.get("email", "admin")
+    }
+    
+    transactions_collection.insert_one(transaction_dict)
+    
+    # Update resident balance
+    residents_collection.update_one(
+        {"id": transaction.resident_id},
+        {"$set": {"balance": new_balance, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {
+        "transaction": serialize_doc(transactions_collection.find_one({"id": transaction_id})),
+        "new_balance": new_balance
+    }
+
+@app.get("/api/admin/transactions")
+async def get_transactions(
+    resident_id: Optional[str] = None,
+    location: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    transaction_type: Optional[str] = None,
+    user: dict = Depends(get_admin_user)
+):
+    """Get transactions with optional filters"""
+    query = {}
+    
+    if resident_id:
+        query["resident_id"] = resident_id
+    
+    if location:
+        # Get all resident IDs for this location
+        residents_at_location = list(residents_collection.find({"location": location}, {"id": 1}))
+        resident_ids = [r["id"] for r in residents_at_location]
+        if resident_ids:
+            query["resident_id"] = {"$in": resident_ids}
+        else:
+            return []
+    
+    if transaction_type:
+        query["transaction_type"] = transaction_type
+    
+    if start_date or end_date:
+        date_query = {}
+        if start_date:
+            date_query["$gte"] = start_date
+        if end_date:
+            # Add end of day to include the entire end date
+            date_query["$lte"] = end_date + "T23:59:59"
+        if date_query:
+            query["created_at"] = date_query
+    
+    transactions = list(transactions_collection.find(query).sort("created_at", -1))
+    
+    # Enrich with resident info
+    result = []
+    for t in transactions:
+        resident = residents_collection.find_one({"id": t["resident_id"]})
+        t_serialized = serialize_doc(t)
+        if resident:
+            t_serialized["resident_name"] = resident.get("name", "Unknown")
+            t_serialized["residence_number"] = resident.get("residence_number", "Unknown")
+            t_serialized["resident_location"] = resident.get("location", "Unknown")
+        result.append(t_serialized)
+    
+    return result
+
+@app.get("/api/admin/residents/{resident_id}/transactions")
+async def get_resident_transactions(
+    resident_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    user: dict = Depends(get_admin_user)
+):
+    """Get all transactions for a specific resident"""
+    resident = residents_collection.find_one({"id": resident_id})
+    if not resident:
+        raise HTTPException(status_code=404, detail="Resident not found")
+    
+    query = {"resident_id": resident_id}
+    
+    if start_date or end_date:
+        date_query = {}
+        if start_date:
+            date_query["$gte"] = start_date
+        if end_date:
+            date_query["$lte"] = end_date + "T23:59:59"
+        if date_query:
+            query["created_at"] = date_query
+    
+    transactions = list(transactions_collection.find(query).sort("created_at", -1))
+    
+    return {
+        "resident": serialize_doc(resident),
+        "transactions": [serialize_doc(t) for t in transactions]
+    }
+
+@app.get("/api/admin/balance-summary")
+async def get_balance_summary(location: Optional[str] = None, user: dict = Depends(get_admin_user)):
+    """Get summary of all balances"""
+    query = {}
+    if location:
+        query["location"] = location
+    
+    residents = list(residents_collection.find(query))
+    
+    total_balance = sum(r.get("balance", 0) for r in residents)
+    total_residents = len(residents)
+    residents_with_balance = len([r for r in residents if r.get("balance", 0) > 0])
+    residents_zero_balance = len([r for r in residents if r.get("balance", 0) == 0])
+    
+    return {
+        "total_balance": round(total_balance, 2),
+        "total_residents": total_residents,
+        "residents_with_balance": residents_with_balance,
+        "residents_zero_balance": residents_zero_balance,
+        "location": location or "all"
+    }
+

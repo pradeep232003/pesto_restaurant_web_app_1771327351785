@@ -129,6 +129,81 @@ class ApiService {
       method: 'DELETE',
     });
   }
+
+  // ============== RESIDENT PREPAID BALANCE ENDPOINTS ==============
+
+  // Get all residents
+  async getResidents(location = null) {
+    const params = new URLSearchParams();
+    if (location) params.append('location', location);
+    const queryString = params.toString();
+    return this.fetch(`/api/admin/residents${queryString ? `?${queryString}` : ''}`);
+  }
+
+  // Get single resident
+  async getResident(residentId) {
+    return this.fetch(`/api/admin/residents/${residentId}`);
+  }
+
+  // Create resident
+  async createResident(residentData) {
+    return this.fetch('/api/admin/residents', {
+      method: 'POST',
+      body: JSON.stringify(residentData),
+    });
+  }
+
+  // Update resident
+  async updateResident(residentId, residentData) {
+    return this.fetch(`/api/admin/residents/${residentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(residentData),
+    });
+  }
+
+  // Delete resident
+  async deleteResident(residentId) {
+    return this.fetch(`/api/admin/residents/${residentId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Create transaction (top-up or purchase)
+  async createTransaction(transactionData) {
+    return this.fetch('/api/admin/transactions', {
+      method: 'POST',
+      body: JSON.stringify(transactionData),
+    });
+  }
+
+  // Get transactions with filters
+  async getTransactions(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.resident_id) params.append('resident_id', filters.resident_id);
+    if (filters.location) params.append('location', filters.location);
+    if (filters.start_date) params.append('start_date', filters.start_date);
+    if (filters.end_date) params.append('end_date', filters.end_date);
+    if (filters.transaction_type) params.append('transaction_type', filters.transaction_type);
+    const queryString = params.toString();
+    return this.fetch(`/api/admin/transactions${queryString ? `?${queryString}` : ''}`);
+  }
+
+  // Get resident's transactions
+  async getResidentTransactions(residentId, filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.start_date) params.append('start_date', filters.start_date);
+    if (filters.end_date) params.append('end_date', filters.end_date);
+    const queryString = params.toString();
+    return this.fetch(`/api/admin/residents/${residentId}/transactions${queryString ? `?${queryString}` : ''}`);
+  }
+
+  // Get balance summary
+  async getBalanceSummary(location = null) {
+    const params = new URLSearchParams();
+    if (location) params.append('location', location);
+    const queryString = params.toString();
+    return this.fetch(`/api/admin/balance-summary${queryString ? `?${queryString}` : ''}`);
+  }
 }
 
 export const api = new ApiService();
