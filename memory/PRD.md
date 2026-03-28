@@ -34,7 +34,7 @@ Set up and deploy the Pesto Restaurant Web App from GitHub repository to the Eme
   - Search by name or residence number
 
 - ✅ **Prepaid Wallet System**
-  - Top-up balance functionality
+  - Cash and Card top-up buttons (Card ready for future Stripe integration)
   - Running balance per resident
   - Real-time balance updates
 

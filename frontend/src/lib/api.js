@@ -1,5 +1,6 @@
 // API service for connecting to MongoDB backend
-const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.REACT_APP_BACKEND_URL || '';
+// Use empty string to make relative API calls through the proxy
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 // Helper to format API error details
 function formatApiErrorDetail(detail) {
@@ -16,7 +17,7 @@ class ApiService {
     const url = `${API_BASE_URL}${endpoint}`;
     const response = await fetch(url, {
       ...options,
-      credentials: 'include', // Include cookies for auth
+      credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,

@@ -31,6 +31,7 @@ const ResidentBalance = () => {
   const [editingResident, setEditingResident] = useState(null);
   const [selectedResident, setSelectedResident] = useState(null);
   const [transactionType, setTransactionType] = useState('topup');
+  const [paymentMethod, setPaymentMethod] = useState('cash');
 
   // Redirect to login if not authenticated as admin
   useEffect(() => {
@@ -120,9 +121,10 @@ const ResidentBalance = () => {
     }
   };
 
-  const handleTopUp = (resident) => {
+  const handleTopUp = (resident, method = 'cash') => {
     setSelectedResident(resident);
     setTransactionType('topup');
+    setPaymentMethod(method);
     setIsTransactionModalOpen(true);
   };
 
@@ -369,6 +371,7 @@ const ResidentBalance = () => {
         <TransactionModal
           resident={selectedResident}
           transactionType={transactionType}
+          paymentMethod={paymentMethod}
           onSave={handleSaveTransaction}
           onClose={() => {
             setIsTransactionModalOpen(false);

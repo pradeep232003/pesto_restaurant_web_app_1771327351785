@@ -15,12 +15,11 @@ import uuid
 
 app = FastAPI(title="Pesto Restaurant API")
 
-# CORS middleware - use specific origin for credentials
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+# CORS middleware - allow all origins with credentials through specific pattern
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_URL, "http://localhost:3000"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

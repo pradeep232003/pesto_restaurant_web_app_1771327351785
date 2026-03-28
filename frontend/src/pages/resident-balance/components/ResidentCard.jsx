@@ -75,14 +75,22 @@ const ResidentCard = ({ resident, onEdit, onDelete, onTopUp, onPurchase, onViewH
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           <button
-            onClick={() => onTopUp(resident)}
-            data-testid={`topup-btn-${resident.id}`}
+            onClick={() => onTopUp(resident, 'cash')}
+            data-testid={`topup-cash-btn-${resident.id}`}
             className="flex flex-col items-center gap-1 p-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
           >
-            <Icon name="Plus" size={18} />
-            <span className="text-xs font-medium">Top Up</span>
+            <Icon name="Banknote" size={18} />
+            <span className="text-xs font-medium">Cash</span>
+          </button>
+          <button
+            onClick={() => onTopUp(resident, 'card')}
+            data-testid={`topup-card-btn-${resident.id}`}
+            className="flex flex-col items-center gap-1 p-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Icon name="CreditCard" size={18} />
+            <span className="text-xs font-medium">Card</span>
           </button>
           <button
             onClick={() => onPurchase(resident)}

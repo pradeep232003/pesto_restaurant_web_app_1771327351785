@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import Icon from '../../../components/AppIcon';
 
-const TransactionModal = ({ resident, transactionType, onSave, onClose }) => {
+const TransactionModal = ({ resident, transactionType, paymentMethod = 'cash', onSave, onClose }) => {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const isTopUp = transactionType === 'topup';
+  const isCash = paymentMethod === 'cash';
   const currentBalance = resident.balance || 0;
 
   const handleSubmit = async (e) => {
@@ -27,11 +28,15 @@ const TransactionModal = ({ resident, transactionType, onSave, onClose }) => {
 
     setLoading(true);
     try {
+      const transactionDescription = isTopUp 
+        ? description || `${isCash ? 'Cash' : 'Card'} top-up`
+        : description || null;
+      
       await onSave({
         resident_id: resident.id,
         transaction_type: transactionType,
         amount: amountValue,
-        description: description || null,
+        description: transactionDescription,
       });
     } catch (err) {
       setError(err.message || 'Transaction failed');
@@ -44,6 +49,19 @@ const TransactionModal = ({ resident, transactionType, onSave, onClose }) => {
     ? currentBalance + (parseFloat(amount) || 0)
     : currentBalance - (parseFloat(amount) || 0);
 
+  // Header colors based on transaction type and payment method
+  const headerGradient = !isTopUp 
+    ? 'bg-gradient-to-r from-rose-600 to-red-600'
+    : isCash 
+      ? 'bg-gradient-to-r from-emerald-600 to-green-600'
+      : 'bg-gradient-to-r from-blue-600 to-indigo-600';
+
+  const buttonColor = !isTopUp 
+    ? 'bg-rose-600 hover:bg-rose-700'
+    : isCash 
+      ? 'bg-emerald-600 hover:bg-emerald-700'
+      : 'bg-blue-600 hover:bg-blue-700';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
@@ -52,17 +70,43 @@ const TransactionModal = ({ resident, transactionType, onSave, onClose }) => {
       {/* Modal */}
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden z-10">
         {/* Header */}
-        <div className={`px-6 py-4 text-white ${isTopUp ? 'bg-gradient-to-r from-emerald-600 to-green-600' : 'bg-gradient-to-r from-rose-600 to-red-600'}`}>
+        <div className={`px-6 py-4 text-white ${headerGradient}`}>
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold flex items-center gap-2">
-              <Icon name={isTopUp ? 'PlusCircle' : 'ShoppingCart'} size={24} />
-              {isTopUp ? 'Top Up Balance' : 'Record Purchase'}
+              {isTopUp ? (
+                <>
+                  <Icon name={isCash ? 'Banknote' : 'CreditCard'} size={24} />
+                  {isCash ? 'Cash Top Up' : 'Card Top Up'}
+                </>
+              ) : (
+                <>
+                  <Icon name="ShoppingCart" size={24} />
+                  Record Purchase
+                </>
+              )}
             </h2>
             <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-lg transition-colors">
               <Icon name="X" size={20} />
             </button>
           </div>
         </div>
+
+        {/* Payment Method Badge for Top Up */}
+        {isTopUp && (
+          <div className="px-6 py-2 bg-gray-100 border-b border-gray-200">
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${
+                isCash ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
+              }`}>
+                <Icon name={isCash ? 'Banknote' : 'CreditCard'} size={14} />
+                {isCash ? 'Cash Payment' : 'Card Payment'}
+              </span>
+              {!isCash && (
+                <span className="text-xs text-gray-500">(Stripe integration coming soon)</span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Resident Info */}
         <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
@@ -105,6 +149,7 @@ const TransactionModal = ({ resident, transactionType, onSave, onClose }) => {
                 min="0.01"
                 required
                 autoFocus
+                data-testid="transaction-amount-input"
                 className="w-full pl-8 pr-4 py-3 text-2xl font-bold border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               />
             </div>
@@ -118,21 +163,24 @@ const TransactionModal = ({ resident, transactionType, onSave, onClose }) => {
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder={isTopUp ? 'e.g. Cash top-up' : 'e.g. Lunch purchase'}
+              placeholder={isTopUp ? `e.g. ${isCash ? 'Cash' : 'Card'} top-up` : 'e.g. Lunch purchase'}
+              data-testid="transaction-description-input"
               className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             />
           </div>
 
           {/* Balance Preview */}
           {amount && parseFloat(amount) > 0 && (
-            <div className={`p-4 rounded-lg ${isTopUp ? 'bg-emerald-50' : 'bg-rose-50'}`}>
+            <div className={`p-4 rounded-lg ${isTopUp ? (isCash ? 'bg-emerald-50' : 'bg-blue-50') : 'bg-rose-50'}`}>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">Current Balance</span>
                 <span className="font-medium">£{currentBalance.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between text-sm mt-1">
-                <span className="text-gray-600">{isTopUp ? 'Top Up' : 'Purchase'}</span>
-                <span className={`font-medium ${isTopUp ? 'text-emerald-600' : 'text-rose-600'}`}>
+                <span className="text-gray-600">
+                  {isTopUp ? `${isCash ? 'Cash' : 'Card'} Top Up` : 'Purchase'}
+                </span>
+                <span className={`font-medium ${isTopUp ? (isCash ? 'text-emerald-600' : 'text-blue-600') : 'text-rose-600'}`}>
                   {isTopUp ? '+' : '-'}£{parseFloat(amount).toFixed(2)}
                 </span>
               </div>
@@ -157,9 +205,8 @@ const TransactionModal = ({ resident, transactionType, onSave, onClose }) => {
             <button
               type="submit"
               disabled={loading || (!isTopUp && parseFloat(amount) > currentBalance)}
-              className={`flex-1 px-4 py-2.5 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 ${
-                isTopUp ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
-              }`}
+              data-testid="transaction-submit-btn"
+              className={`flex-1 px-4 py-2.5 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 ${buttonColor}`}
             >
               {loading ? (
                 <>
@@ -168,7 +215,7 @@ const TransactionModal = ({ resident, transactionType, onSave, onClose }) => {
                 </>
               ) : (
                 <>
-                  <Icon name={isTopUp ? 'PlusCircle' : 'Check'} size={18} />
+                  <Icon name={isTopUp ? (isCash ? 'Banknote' : 'CreditCard') : 'Check'} size={18} />
                   <span>{isTopUp ? 'Add Funds' : 'Confirm Purchase'}</span>
                 </>
               )}
