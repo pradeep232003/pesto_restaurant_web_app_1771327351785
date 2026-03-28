@@ -1,7 +1,73 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Icon from '../../../components/AppIcon';
+import { resolveImageUrl } from '../../../lib/api';
 
 const DIETARY_OPTIONS = ['vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'keto'];
+
+const ImageUploadField = ({ currentUrl, onFileSelect, selectedFile }) => {
+  const fileRef = useRef(null);
+  const [preview, setPreview] = useState(null);
+
+  useEffect(() => {
+    if (selectedFile) {
+      const url = URL.createObjectURL(selectedFile);
+      setPreview(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    setPreview(null);
+  }, [selectedFile]);
+
+  const displayUrl = preview || currentUrl;
+
+  return (
+    <div className="space-y-2">
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        data-testid="modal-image-file-input"
+        className="hidden"
+        onChange={(e) => {
+          const file = e?.target?.files?.[0];
+          if (file) onFileSelect(file);
+        }}
+      />
+      <div className="flex items-start gap-3">
+        {/* Preview */}
+        <div className="w-20 h-20 rounded-lg border-2 border-dashed border-border bg-muted/50 flex items-center justify-center overflow-hidden shrink-0">
+          {displayUrl ? (
+            <img src={displayUrl} alt="Preview" className="w-full h-full object-cover rounded-lg" />
+          ) : (
+            <Icon name="ImagePlus" size={24} color="var(--color-muted-foreground)" />
+          )}
+        </div>
+        {/* Actions */}
+        <div className="flex-1 space-y-2">
+          <button
+            type="button"
+            data-testid="upload-image-from-pc-btn"
+            onClick={() => fileRef.current?.click()}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm font-body font-medium hover:bg-muted hover:border-primary/40 transition-all"
+          >
+            <Icon name="Upload" size={14} />
+            {selectedFile ? 'Change Image' : 'Upload from PC'}
+          </button>
+          {selectedFile && (
+            <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+              {selectedFile.name} ({(selectedFile.size / 1024).toFixed(0)} KB)
+            </p>
+          )}
+          {!selectedFile && currentUrl && (
+            <p className="text-xs text-green-600 flex items-center gap-1">
+              <Icon name="CheckCircle" size={10} />
+              Image uploaded
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
   const [form, setForm] = useState({
@@ -13,6 +79,7 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
     originalPrice: '',
     imageUrl: '',
     imageAlt: '',
+    imageFile: null,
     categories: [],
     dietary: [],
     tags: '',
@@ -61,6 +128,7 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
       ...form,
       tags: form?.tags?.split(',')?.map(t => t?.trim())?.filter(Boolean),
       showImage: form?.showImage,
+      imageFile: form?.imageFile,
     });
   };
 
@@ -204,15 +272,13 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
             </div>
           </div>
 
-          {/* Image URL */}
+          {/* Image Upload */}
           <div>
-            <label className="block text-sm font-body font-semibold text-foreground mb-1.5">Image URL</label>
-            <input
-              type="url"
-              value={form?.imageUrl}
-              onChange={(e) => handleChange('imageUrl', e?.target?.value)}
-              placeholder="https://..."
-              className="w-full px-4 py-2.5 rounded-lg border border-border bg-background text-foreground font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors duration-200"
+            <label className="block text-sm font-body font-semibold text-foreground mb-1.5">Food Image</label>
+            <ImageUploadField
+              currentUrl={resolveImageUrl(form?.imageUrl)}
+              onFileSelect={(file) => handleChange('imageFile', file)}
+              selectedFile={form?.imageFile}
             />
           </div>
 

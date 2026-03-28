@@ -89,14 +89,20 @@ const AdminMenuManagement = () => {
         show_image: formData?.showImage !== false,
       };
 
+      let savedItem;
       if (editingItem) {
-        // Update existing item
-        await api.adminUpdateMenuItem(editingItem?.id, payload);
+        savedItem = await api.adminUpdateMenuItem(editingItem?.id, payload);
         setSuccessMsg('Item updated successfully!');
       } else {
-        // Create new item
-        await api.adminCreateMenuItem(payload);
+        savedItem = await api.adminCreateMenuItem(payload);
         setSuccessMsg('Item added successfully!');
+      }
+
+      // Upload image file if selected
+      const itemId = savedItem?.id || editingItem?.id;
+      if (formData?.imageFile && itemId) {
+        await api.adminUploadMenuImage(itemId, formData.imageFile);
+        setSuccessMsg(editingItem ? 'Item updated with new image!' : 'Item added with image!');
       }
 
       await fetchMenuItems(selectedLocationId);
