@@ -1,9 +1,9 @@
-FROM node:20-slim AS build
+FROM node:20-slim
 
 WORKDIR /app
 
 COPY package.json ./
-RUN yarn install
+RUN yarn install && yarn global add serve
 
 COPY . .
 
@@ -12,10 +12,4 @@ ENV VITE_API_URL=$VITE_API_URL
 
 RUN yarn build
 
-FROM nginx:alpine
-
-COPY --from=build /app/build /usr/share/nginx/html
-
-RUN echo 'server { listen 80; root /usr/share/nginx/html; index index.html; location / { try_files $uri $uri/ /index.html; } }' > /etc/nginx/conf.d/default.conf
-
-CMD sh -c "sed -i 's/listen 80/listen '${PORT:-80}'/g' /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"
+CMD sh -c "serve build -l tcp://0.0.0.0:${PORT:-3000} --single"
