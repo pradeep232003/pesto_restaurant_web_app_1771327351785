@@ -10,3 +10,7 @@ body {
   font-family: inherit;
   margin: unset;
 }
+
+/* Hide scrollbar for horizontal scroll areas */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
