@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Core Colors */
+    --color-background: #F4F1ED; /* warm off-white */
+    --color-foreground: #4C1D0A; /* dark brown */
+    --color-border: rgba(76, 29, 10, 0.1); /* dark brown with opacity */
+    --color-input: #FFFFFF; /* white */
+    --color-ring: #730723; /* deep burgundy */
+    
+    /* Card Colors */
+    --color-card: #FFFFFF; /* white */
+    --color-card-foreground: #4C1D0A; /* dark brown */
+    
+    /* Popover Colors */
+    --color-popover: #FFFFFF; /* white */
+    --color-popover-foreground: #4C1D0A; /* dark brown */
+    
+    /* Muted Colors */
+    --color-muted: #F4F1ED; /* warm off-white */
+    --color-muted-foreground: #8B6F47; /* lighter brown */
+    
+    /* Primary Colors - Updated with #730723 */
+    --color-primary: #730723; /* deep burgundy */
+    --color-primary-solid: #730723; /* solid color for text */
+    --color-primary-foreground: #FFFFFF; /* white */
+    
+    /* Secondary Colors */
+    --color-secondary: #4C1D0A; /* rich dark brown */
+    --color-secondary-foreground: #FFFFFF; /* white */
+    
+    /* Accent Colors */
+    --color-accent: #E6B800; /* mustard yellow */
+    --color-accent-foreground: #4C1D0A; /* dark brown */
+    
+    /* Success Colors */
+    --color-success: #2D5016; /* deep forest green */
+    --color-success-foreground: #FFFFFF; /* white */
+    
+    /* Warning Colors */
+    --color-warning: #B8860B; /* dark goldenrod */
+    --color-warning-foreground: #FFFFFF; /* white */
+    
+    /* Error/Destructive Colors */
+    --color-error: #8B0000; /* dark red */
+    --color-error-foreground: #FFFFFF; /* white */
+    --color-destructive: #8B0000; /* dark red */
+    --color-destructive-foreground: #FFFFFF; /* white */
+  }
+  
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  .shadow-warm-sm {
+    box-shadow: 0 1px 2px 0 rgba(76, 29, 10, 0.1);
+  }
+  
+  .shadow-warm {
+    box-shadow: 0 4px 6px -1px rgba(76, 29, 10, 0.1), 0 2px 4px -1px rgba(76, 29, 10, 0.06);
+  }
+  
+  .shadow-warm-lg {
+    box-shadow: 0 10px 15px -3px rgba(76, 29, 10, 0.1), 0 4px 6px -2px rgba(76, 29, 10, 0.05);
+  }
+  
+  .shadow-warm-xl {
+    box-shadow: 0 20px 25px -5px rgba(76, 29, 10, 0.1), 0 10px 10px -5px rgba(76, 29, 10, 0.04);
+  }
+
+  /* Primary gradient utilities */
+  .bg-primary {
+    background: var(--color-primary);
+  }
+  
+  .bg-primary\/90 {
+    background: rgba(115, 7, 35, 0.9);
+  }
+  
+  .bg-primary\/10 {
+    background: rgba(115, 7, 35, 0.1);
+  }
+  
+  .text-primary {
+    color: var(--color-primary-solid);
+  }
+  
+  .hover\:text-primary:hover {
+    color: var(--color-primary-solid);
+  }
+  
+  .focus\:ring-primary\/50:focus {
+    --tw-ring-color: rgba(115, 7, 35, 0.5);
+  }
+  
+  .focus\:border-primary:focus {
+    border-color: var(--color-primary-solid);
+  }
+}
