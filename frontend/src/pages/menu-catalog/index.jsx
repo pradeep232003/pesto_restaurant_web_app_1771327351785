@@ -4,7 +4,7 @@ import Header from '../../components/ui/Header';
 import BrowseByCategoryWithFilters from './components/BrowseByCategoryWithFilters';
 import MenuGrid from './components/MenuGrid';
 import Icon from '../../components/AppIcon';
-import api from '../../lib/api';
+import api, { resolveImageUrl } from '../../lib/api';
 import { useLocation2, LOCATIONS } from '../../contexts/LocationContext';
 import { useCustomer } from '../../contexts/CustomerContext';
 
@@ -57,7 +57,7 @@ const MenuCatalog = () => {
         description: item?.description,
         price: parseFloat(item?.price),
         originalPrice: item?.original_price ? parseFloat(item?.original_price) : null,
-        image: item?.show_image !== false ? item?.image_url : null,
+        image: item?.show_image !== false ? resolveImageUrl(item?.thumbnail_url || item?.image_url) : null,
         imageAlt: item?.image_alt,
         category: item?.category,
         categories: item?.categories || [item?.category],

@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import Icon from '../../../components/AppIcon';
 import Image from '../../../components/AppImage';
+import { resolveImageUrl } from '../../../lib/api';
 
 const CATEGORY_LABELS = {
   breakfast: 'Breakfast',
@@ -110,7 +111,7 @@ const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability
                   <div className="flex items-center space-x-3">
                     <div className="w-14 h-14 rounded-lg overflow-hidden bg-muted shrink-0">
                       <Image
-                        src={item?.image_url}
+                        src={resolveImageUrl(item?.thumbnail_url || item?.image_url)}
                         alt={item?.image_alt || item?.name}
                         className="w-full h-full object-cover"
                       />
@@ -228,7 +229,7 @@ const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability
             <div className="flex items-start space-x-3">
               <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted shrink-0">
                 <Image
-                  src={item?.image_url}
+                  src={resolveImageUrl(item?.thumbnail_url || item?.image_url)}
                   alt={item?.image_alt || item?.name}
                   className="w-full h-full object-cover"
                 />

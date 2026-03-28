@@ -2,6 +2,13 @@
 // Use empty string to make relative API calls through the proxy
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
+// Helper to resolve image URLs - prepends API base for cross-origin setups
+export function resolveImageUrl(path) {
+  if (!path) return null;
+  if (path.startsWith('http')) return path;
+  return `${API_BASE_URL}${path}`;
+}
+
 // Helper to format API error details
 function formatApiErrorDetail(detail) {
   if (detail == null) return "Something went wrong. Please try again.";
