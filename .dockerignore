@@ -1,0 +1,15 @@
+node_modules
+frontend/node_modules
+frontend/build
+__pycache__
+*.pyc
+.git
+.emergent
+test_reports
+memory
+supabase
+backend/tests
+backend/__pycache__
+backend/uploads
+*.md
+.env

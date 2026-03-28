@@ -1584,3 +1584,20 @@ async def admin_toggle_ordering(location_id: str, user: dict = Depends(get_admin
     updated = site_settings_collection.find_one({"location_id": location_id})
     return serialize_doc(updated)
 
+
+
+# ============== SERVE FRONTEND (PRODUCTION) ==============
+# In production (Docker/Railway), serve the built React frontend
+FRONTEND_BUILD_DIR = Path(__file__).resolve().parent.parent / "frontend" / "build"
+if FRONTEND_BUILD_DIR.exists():
+    from fastapi.responses import FileResponse
+
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_BUILD_DIR / "assets")), name="frontend_assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        """Serve React frontend for all non-API routes"""
+        file_path = FRONTEND_BUILD_DIR / full_path
+        if file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(FRONTEND_BUILD_DIR / "index.html")
