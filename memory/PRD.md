@@ -36,23 +36,26 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - Hamburger sidebar, responsive grids, mobile card layouts
 
 ### Apple-Inspired Homepage Redesign (Mar 2026)
-- Complete visual overhaul with Apple.com design language
-- Outfit font (Google Fonts), monochrome palette (#FBFBFD, #1D1D1F, #86868B)
-- Cinematic hero section with large typography and rounded-corner hero image
-- Bento grid menu preview with glass-morphism labels
-- Minimal icon features (ChefHat, Leaf, Clock, Heart) with generous whitespace
-- Stats section (5 Locations, 50+ Menu Items, 10K+ Customers, 5-star Rating)
-- Auto-rotating testimonials with large typographic quotes
-- Newsletter signup in rounded gray container with pill-shaped CTA
-- Clean footer with Explore/Locations/Connect columns
-- Framer Motion scroll-triggered fade-up animations throughout
-- Fully responsive on desktop and mobile
+- Outfit font, monochrome palette (#FBFBFD, #1D1D1F, #86868B)
+- Cinematic hero, bento grid menu preview with glass-morphism labels
+- Minimal icon features, auto-rotating testimonials, newsletter CTA
+- Framer Motion scroll-triggered animations
+
+### Apple-Inspired Menu Catalog Redesign (Mar 2026)
+- Hero with "Our Menu." heading, pill-shaped location selector, green status pill
+- Sticky frosted-glass category bar (All, Breakfast, Lunch, Dinner, Dessert, Beverage) with counts
+- Inline sort dropdown (A-Z, Price Low, Price High)
+- Minimal white menu cards with 4:3 images, glass Quick Add hover overlay
+- + button with green confirmation state, dietary indicators (V, VG, GF)
+- Floating cart button appears after adding items with count badge
+- Framer Motion staggered entry animations
+- Fully responsive mobile with horizontal-scrollable category tabs
 
 ## Key Routes
 | Route | Description |
 |-------|-------------|
 | / | Apple-inspired landing page |
-| /menu-catalog | Public menu with site status |
+| /menu-catalog | Apple-inspired menu with category tabs & floating cart |
 | /customer-auth | Customer register/login |
 | /shopping-cart | Cart with real checkout |
 | /order-status | Track order by number |
