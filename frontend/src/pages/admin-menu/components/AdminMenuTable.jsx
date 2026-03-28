@@ -97,7 +97,7 @@ const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability
             <tr className="border-b border-border bg-muted/50">
               <th className="text-left px-4 py-3 text-xs font-heading font-semibold text-muted-foreground uppercase tracking-wide">Item</th>
               <th className="text-left px-4 py-3 text-xs font-heading font-semibold text-muted-foreground uppercase tracking-wide">Categories</th>
-              <th className="text-left px-4 py-3 text-xs font-heading font-semibold text-muted-foreground uppercase tracking-wide">Price</th>
+              <th className="text-left px-4 py-3 text-xs font-heading font-semibold text-muted-foreground uppercase tracking-wide">Pricing (R/V)</th>
               <th className="text-left px-4 py-3 text-xs font-heading font-semibold text-muted-foreground uppercase tracking-wide">Image</th>
               <th className="text-left px-4 py-3 text-xs font-heading font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
               <th className="text-right px-4 py-3 text-xs font-heading font-semibold text-muted-foreground uppercase tracking-wide">Actions</th>
@@ -138,7 +138,16 @@ const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability
                 </td>
                 <td className="px-4 py-3">
                   <div>
-                    <span className="font-heading font-bold text-primary text-sm">{'\u00A3'}{parseFloat(item?.price)?.toFixed(2)}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="inline-flex items-center bg-green-50 text-green-700 px-1.5 py-0.5 rounded text-xs font-body font-medium">R</span>
+                      <span className="font-heading font-bold text-primary text-sm">{'\u00A3'}{parseFloat(item?.price)?.toFixed(2)}</span>
+                    </div>
+                    {item?.visitor_price != null && (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="inline-flex items-center bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded text-xs font-body font-medium">V</span>
+                        <span className="font-heading font-semibold text-muted-foreground text-xs">{'\u00A3'}{parseFloat(item?.visitor_price)?.toFixed(2)}</span>
+                      </div>
+                    )}
                     {item?.original_price && (
                       <span className="text-xs text-muted-foreground line-through ml-1">{'\u00A3'}{parseFloat(item?.original_price)?.toFixed(2)}</span>
                     )}
@@ -228,7 +237,16 @@ const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="font-body font-semibold text-foreground text-sm">{item?.name}</p>
-                    <p className="font-heading font-bold text-primary text-sm mt-0.5">{'\u00A3'}{parseFloat(item?.price)?.toFixed(2)}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="font-heading font-bold text-primary text-sm">
+                        <span className="text-green-600 text-xs font-body mr-0.5">R</span>{'\u00A3'}{parseFloat(item?.price)?.toFixed(2)}
+                      </span>
+                      {item?.visitor_price != null && (
+                        <span className="text-xs text-muted-foreground">
+                          <span className="text-orange-500 font-body mr-0.5">V</span>{'\u00A3'}{parseFloat(item?.visitor_price)?.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center space-x-1 ml-2">
                     <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all duration-200">

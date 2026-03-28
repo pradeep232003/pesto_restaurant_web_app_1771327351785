@@ -75,6 +75,7 @@ const AdminMenuManagement = () => {
         subtitle: formData?.subtitle || null,
         description: formData?.description || null,
         price: parseFloat(formData?.price),
+        visitor_price: formData?.visitorPrice ? parseFloat(formData?.visitorPrice) : null,
         original_price: formData?.originalPrice ? parseFloat(formData?.originalPrice) : null,
         image_url: formData?.imageUrl || null,
         image_alt: formData?.imageAlt || null,

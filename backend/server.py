@@ -17,12 +17,16 @@ from datetime import datetime, timezone, timedelta
 import bcrypt
 import jwt
 import uuid
+from PIL import Image as PILImage
+import io
 
 app = FastAPI(title="Pesto Restaurant API")
 
-# Create uploads directory
+# Create uploads directory and thumbnail subdirectory
 UPLOAD_DIR = Path("/app/backend/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+THUMB_DIR = UPLOAD_DIR / "thumbnails"
+THUMB_DIR.mkdir(parents=True, exist_ok=True)
 
 # Mount static files for serving uploaded images
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
@@ -221,6 +225,7 @@ class MenuItemCreate(BaseModel):
     subtitle: Optional[str] = None
     description: Optional[str] = None
     price: float
+    visitor_price: Optional[float] = None
     original_price: Optional[float] = None
     image_url: Optional[str] = None
     image_alt: Optional[str] = None
@@ -238,6 +243,7 @@ class MenuItemUpdate(BaseModel):
     subtitle: Optional[str] = None
     description: Optional[str] = None
     price: Optional[float] = None
+    visitor_price: Optional[float] = None
     original_price: Optional[float] = None
     image_url: Optional[str] = None
     image_alt: Optional[str] = None
@@ -618,9 +624,27 @@ async def admin_delete_menu_item(item_id: str, user: dict = Depends(get_admin_us
     menu_items_collection.delete_one({"id": item_id})
     return {"message": "Menu item deleted successfully", "id": item_id}
 
+def generate_thumbnail(file_path: Path, thumb_path: Path, size=(400, 400)):
+    """Generate a consistent square thumbnail from an uploaded image."""
+    try:
+        with PILImage.open(file_path) as img:
+            img = img.convert("RGB")
+            # Center crop to square
+            w, h = img.size
+            min_dim = min(w, h)
+            left = (w - min_dim) // 2
+            top = (h - min_dim) // 2
+            img = img.crop((left, top, left + min_dim, top + min_dim))
+            img = img.resize(size, PILImage.LANCZOS)
+            img.save(thumb_path, "JPEG", quality=85, optimize=True)
+        return True
+    except Exception:
+        return False
+
+
 @app.post("/api/admin/menu-items/{item_id}/upload-image")
 async def admin_upload_menu_image(item_id: str, file: UploadFile = File(...), user: dict = Depends(get_admin_user)):
-    """Admin: Upload an image for a menu item"""
+    """Admin: Upload an image for a menu item, auto-generates thumbnail"""
     existing = menu_items_collection.find_one({"id": item_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Menu item not found")
@@ -633,26 +657,37 @@ async def admin_upload_menu_image(item_id: str, file: UploadFile = File(...), us
     # Generate unique filename
     file_ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
     unique_filename = f"{item_id}_{uuid.uuid4().hex[:8]}.{file_ext}"
+    thumb_filename = f"{item_id}_{uuid.uuid4().hex[:8]}_thumb.jpg"
     file_path = UPLOAD_DIR / unique_filename
+    thumb_path = THUMB_DIR / thumb_filename
     
-    # Save file
+    # Save original file
     try:
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save image: {str(e)}")
     
-    # Update menu item with new image URL
+    # Generate thumbnail
+    thumb_url = None
+    if generate_thumbnail(file_path, thumb_path):
+        thumb_url = f"/api/uploads/thumbnails/{thumb_filename}"
+    
+    # Update menu item with new image URL and thumbnail
     image_url = f"/api/uploads/{unique_filename}"
-    menu_items_collection.update_one(
-        {"id": item_id},
-        {"$set": {"image_url": image_url, "show_image": True, "updated_at": datetime.now(timezone.utc).isoformat()}}
-    )
+    update_fields = {
+        "image_url": image_url,
+        "thumbnail_url": thumb_url or image_url,
+        "show_image": True,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    menu_items_collection.update_one({"id": item_id}, {"$set": update_fields})
     
     updated_item = menu_items_collection.find_one({"id": item_id})
     return {
         "message": "Image uploaded successfully",
         "image_url": image_url,
+        "thumbnail_url": thumb_url or image_url,
         "item": serialize_doc(updated_item)
     }
 
@@ -675,6 +710,15 @@ async def admin_toggle_image_visibility(item_id: str, user: dict = Depends(get_a
     return serialize_doc(updated_item)
 
 # Serve uploaded images through API
+@app.get("/api/uploads/thumbnails/{filename}")
+async def get_uploaded_thumbnail(filename: str):
+    """Serve uploaded thumbnail images"""
+    file_path = THUMB_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+    from fastapi.responses import FileResponse
+    return FileResponse(file_path)
+
 @app.get("/api/uploads/{filename}")
 async def get_uploaded_image(filename: str):
     """Serve uploaded images"""
