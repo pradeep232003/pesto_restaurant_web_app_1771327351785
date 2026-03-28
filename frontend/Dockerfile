@@ -15,10 +15,9 @@ RUN yarn build
 FROM nginx:alpine
 
 COPY --from=build /app/build /usr/share/nginx/html
-COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
-ENV NGINX_ENVSUBST_FILTER=^(PORT|BACKEND_URL)$
-ENV PORT=3000
-ENV BACKEND_URL=http://localhost:8001
+RUN printf 'server {\n    listen 3000 default_server;\n    root /usr/share/nginx/html;\n    index index.html;\n    location / {\n        try_files $uri $uri/ /index.html;\n    }\n}\n' > /etc/nginx/conf.d/default.conf
 
-CMD ["nginx", "-g", "daemon off;"]
+EXPOSE 3000
+
+CMD sh -c "sed -i \"s/listen 3000/listen $PORT/\" /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"

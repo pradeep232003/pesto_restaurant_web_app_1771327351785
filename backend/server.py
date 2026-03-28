@@ -37,11 +37,12 @@ SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
 
-# CORS middleware - allow all origins with credentials through specific pattern
+# CORS middleware - allow frontend origins with credentials
+CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -69,6 +70,11 @@ JWT_SECRET = os.environ.get("JWT_SECRET", "fallback-secret-change-in-production"
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 REFRESH_TOKEN_EXPIRE_DAYS = 7
+
+# Cookie settings - cross-origin safe when CORS_ORIGINS is set (production)
+IS_PRODUCTION = bool(os.environ.get("CORS_ORIGINS"))
+COOKIE_SECURE = IS_PRODUCTION
+COOKIE_SAMESITE = "none" if IS_PRODUCTION else "lax"
 
 # Brute force protection settings
 MAX_LOGIN_ATTEMPTS = 5
@@ -494,8 +500,8 @@ async def login(request: Request, response: Response, credentials: LoginRequest)
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         path="/"
     )
@@ -503,8 +509,8 @@ async def login(request: Request, response: Response, credentials: LoginRequest)
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         path="/"
     )
@@ -514,8 +520,8 @@ async def login(request: Request, response: Response, credentials: LoginRequest)
 @app.post("/api/auth/logout")
 async def logout(response: Response):
     """Logout and clear cookies"""
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/")
+    response.delete_cookie("access_token", path="/", samesite=COOKIE_SAMESITE, secure=COOKIE_SECURE)
+    response.delete_cookie("refresh_token", path="/", samesite=COOKIE_SAMESITE, secure=COOKIE_SECURE)
     return {"message": "Logged out successfully"}
 
 @app.get("/api/auth/me")
@@ -545,8 +551,8 @@ async def refresh_token(request: Request, response: Response):
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         path="/"
     )
@@ -1336,7 +1342,7 @@ async def customer_register(data: CustomerRegister, response: Response):
     
     # Create token
     token = jwt.encode({"sub": customer_id, "email": email, "type": "customer_access", "exp": datetime.now(timezone.utc) + timedelta(days=30)}, JWT_SECRET, algorithm=JWT_ALGORITHM)
-    response.set_cookie("customer_token", token, httponly=True, samesite="lax", max_age=60*60*24*30)
+    response.set_cookie("customer_token", token, httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE, max_age=60*60*24*30)
     
     return {
         "message": "Registration successful",
@@ -1382,7 +1388,7 @@ async def customer_login(data: CustomerLogin, response: Response):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     token = jwt.encode({"sub": customer["id"], "email": email, "type": "customer_access", "exp": datetime.now(timezone.utc) + timedelta(days=30)}, JWT_SECRET, algorithm=JWT_ALGORITHM)
-    response.set_cookie("customer_token", token, httponly=True, samesite="lax", max_age=60*60*24*30)
+    response.set_cookie("customer_token", token, httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE, max_age=60*60*24*30)
     
     safe = {k: v for k, v in customer.items() if k not in ("_id", "password_hash", "otp_email", "otp_phone")}
     return {"message": "Login successful", "token": token, "customer": safe}

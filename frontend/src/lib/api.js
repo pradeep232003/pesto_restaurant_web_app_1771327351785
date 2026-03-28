@@ -17,7 +17,7 @@ class ApiService {
     const url = `${API_BASE_URL}${endpoint}`;
     const response = await fetch(url, {
       ...options,
-      credentials: 'same-origin',
+      credentials: API_BASE_URL ? 'include' : 'same-origin',
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
