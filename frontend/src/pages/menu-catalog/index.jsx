@@ -54,7 +54,7 @@ const MenuCatalog = () => {
         description: item?.description,
         price: parseFloat(item?.price),
         originalPrice: item?.original_price ? parseFloat(item?.original_price) : null,
-        image: item?.image_url,
+        image: item?.show_image !== false ? item?.image_url : null,
         imageAlt: item?.image_alt,
         category: item?.category,
         categories: item?.categories || [item?.category],

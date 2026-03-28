@@ -18,6 +18,7 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
     featured: false,
     prepTime: '15',
     isAvailable: true,
+    showImage: true,
   });
   const [errors, setErrors] = useState({});
 
@@ -37,6 +38,7 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
         featured: item?.featured || false,
         prepTime: item?.prep_time ? String(item?.prep_time) : '15',
         isAvailable: item?.is_available !== false,
+        showImage: item?.show_image !== false,
       });
     }
   }, [item]);
@@ -56,6 +58,7 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
     onSave({
       ...form,
       tags: form?.tags?.split(',')?.map(t => t?.trim())?.filter(Boolean),
+      showImage: form?.showImage,
     });
   };
 
@@ -270,7 +273,7 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
           </div>
 
           {/* Toggles */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-6 flex-wrap">
             <label className="flex items-center space-x-2.5 cursor-pointer">
               <div
                 onClick={() => handleChange('featured', !form?.featured)}
@@ -288,6 +291,15 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
                 <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${form?.isAvailable ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
               </div>
               <span className="text-sm font-body text-foreground">Available</span>
+            </label>
+            <label className="flex items-center space-x-2.5 cursor-pointer" data-testid="show-image-toggle">
+              <div
+                onClick={() => handleChange('showImage', !form?.showImage)}
+                className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${form?.showImage ? 'bg-blue-500' : 'bg-muted'}`}
+              >
+                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${form?.showImage ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
+              </div>
+              <span className="text-sm font-body text-foreground">Show image on menu</span>
             </label>
           </div>
 

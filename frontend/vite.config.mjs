@@ -13,6 +13,13 @@ export default defineConfig({
     port: 3000,
     host: "0.0.0.0",
     strictPort: true,
-    allowedHosts: ['.amazonaws.com', '.builtwithrocket.new', '.emergentagent.com', '.preview.emergentagent.com']
+    allowedHosts: ['.amazonaws.com', '.builtwithrocket.new', '.emergentagent.com', '.preview.emergentagent.com'],
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8001',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   }
 });

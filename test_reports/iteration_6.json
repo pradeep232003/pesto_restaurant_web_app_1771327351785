@@ -1,0 +1,73 @@
+{
+  "summary": "Completed testing of Menu Item Image Upload and Toggle Visibility features. All backend endpoints working correctly. Frontend UI components (Upload buttons, Toggle buttons, Show image toggle in modal) all functional. Fixed missing Vite proxy configuration for /api routes.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "fixed_issues": [
+      {
+        "component": "Vite Configuration",
+        "issue": "Missing proxy configuration for /api routes causing 404 errors on frontend API calls",
+        "fix_applied": "Added proxy configuration in vite.config.mjs to forward /api requests to localhost:8001",
+        "priority": "RESOLVED"
+      }
+    ]
+  },
+
+  "passed_tests": [
+    "Admin login with credentials admin@jollys.com / Admin123!",
+    "Admin menu page loads at /admin-menu with menu items displayed",
+    "Each menu item row has an 'Upload' button (9 buttons found)",
+    "Each menu item row has an image visibility toggle with Eye/EyeOff icon (9 buttons found)",
+    "Toggle button click changes state from 'Visible' to 'Hidden' and back",
+    "Image column header present in admin menu table",
+    "Hidden file input present for image upload (data-testid='menu-image-file-input')",
+    "Add/Edit modal has 'Show image on menu' toggle (data-testid='show-image-toggle')",
+    "Backend: POST /api/admin/menu-items/{item_id}/upload-image accepts multipart/form-data",
+    "Backend: PATCH /api/admin/menu-items/{item_id}/toggle-image toggles show_image field",
+    "Backend: Upload endpoint rejects non-image files with 400 error",
+    "Backend: Upload endpoint requires admin authentication (401 for unauthenticated)",
+    "Backend: Toggle endpoint requires admin authentication (401 for unauthenticated)",
+    "Backend: Both endpoints return 404 for non-existent items",
+    "Backend: Menu items include show_image field in response",
+    "Public menu catalog at /menu-catalog loads correctly with images"
+  ],
+
+  "test_report_links": [
+    "/app/backend/tests/test_menu_image_features.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [],
+
+  "updated_files": [
+    "/app/frontend/vite.config.mjs",
+    "/app/backend/tests/test_menu_image_features.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% - All 12 tests passed",
+    "frontend": "100% - All UI components working correctly"
+  },
+
+  "test_credentials": {
+    "admin_email": "admin@jollys.com",
+    "admin_password": "Admin123!"
+  },
+
+  "seed_data_creation": "None - used existing menu items for testing",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Menu image upload and toggle visibility features fully implemented and tested. Vite proxy configuration was missing and has been added. All admin menu features working including: Upload button per row, Visible/Hidden toggle per row, Show image toggle in Add/Edit modal. Backend endpoints for upload-image and toggle-image are functional with proper authentication and validation."
+}

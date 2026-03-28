@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import Icon from '../../../components/AppIcon';
 import Image from '../../../components/AppImage';
 
@@ -14,7 +14,29 @@ const CATEGORY_LABELS = {
   beverages: 'Beverages',
 };
 
-const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability, onAddNew, categories }) => {
+const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability, onUploadImage, onToggleImage, onAddNew, categories }) => {
+  const fileInputRef = useRef(null);
+  const [uploadingId, setUploadingId] = useState(null);
+
+  const handleFileSelect = async (e, itemId) => {
+    const file = e?.target?.files?.[0];
+    if (!file) return;
+    setUploadingId(itemId);
+    try {
+      await onUploadImage(itemId, file);
+    } finally {
+      setUploadingId(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const triggerUpload = (itemId) => {
+    if (fileInputRef.current) {
+      fileInputRef.current.dataset.itemId = itemId;
+      fileInputRef.current.click();
+    }
+  };
+
   if (loading) {
     return (
       <div className="bg-card rounded-xl shadow-warm overflow-hidden">
@@ -55,6 +77,19 @@ const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability
 
   return (
     <div className="bg-card rounded-xl shadow-warm overflow-hidden">
+      {/* Hidden file input shared across all rows */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        data-testid="menu-image-file-input"
+        onChange={(e) => {
+          const itemId = fileInputRef.current?.dataset?.itemId;
+          if (itemId) handleFileSelect(e, itemId);
+        }}
+      />
+
       {/* Desktop Table */}
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full">
@@ -63,6 +98,7 @@ const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability
               <th className="text-left px-4 py-3 text-xs font-heading font-semibold text-muted-foreground uppercase tracking-wide">Item</th>
               <th className="text-left px-4 py-3 text-xs font-heading font-semibold text-muted-foreground uppercase tracking-wide">Categories</th>
               <th className="text-left px-4 py-3 text-xs font-heading font-semibold text-muted-foreground uppercase tracking-wide">Price</th>
+              <th className="text-left px-4 py-3 text-xs font-heading font-semibold text-muted-foreground uppercase tracking-wide">Image</th>
               <th className="text-left px-4 py-3 text-xs font-heading font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
               <th className="text-right px-4 py-3 text-xs font-heading font-semibold text-muted-foreground uppercase tracking-wide">Actions</th>
             </tr>
@@ -102,10 +138,42 @@ const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability
                 </td>
                 <td className="px-4 py-3">
                   <div>
-                    <span className="font-heading font-bold text-primary text-sm">£{parseFloat(item?.price)?.toFixed(2)}</span>
+                    <span className="font-heading font-bold text-primary text-sm">{'\u00A3'}{parseFloat(item?.price)?.toFixed(2)}</span>
                     {item?.original_price && (
-                      <span className="text-xs text-muted-foreground line-through ml-1">£{parseFloat(item?.original_price)?.toFixed(2)}</span>
+                      <span className="text-xs text-muted-foreground line-through ml-1">{'\u00A3'}{parseFloat(item?.original_price)?.toFixed(2)}</span>
                     )}
+                  </div>
+                </td>
+                {/* Image column: upload + toggle */}
+                <td className="px-4 py-3">
+                  <div className="flex items-center space-x-2">
+                    <button
+                      data-testid={`upload-image-btn-${item?.id}`}
+                      onClick={() => triggerUpload(item?.id)}
+                      disabled={uploadingId === item?.id}
+                      className="inline-flex items-center space-x-1 px-2 py-1 rounded-md text-xs font-body font-medium border border-border text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 disabled:opacity-50"
+                      title="Upload image"
+                    >
+                      {uploadingId === item?.id ? (
+                        <div className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+                      ) : (
+                        <Icon name="Upload" size={12} />
+                      )}
+                      <span>{uploadingId === item?.id ? 'Uploading...' : 'Upload'}</span>
+                    </button>
+                    <button
+                      data-testid={`toggle-image-btn-${item?.id}`}
+                      onClick={() => onToggleImage(item)}
+                      className={`inline-flex items-center space-x-1 px-2 py-1 rounded-md text-xs font-body font-medium transition-all duration-200 ${
+                        item?.show_image !== false
+                          ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      }`}
+                      title={item?.show_image !== false ? 'Image visible — click to hide' : 'Image hidden — click to show'}
+                    >
+                      <Icon name={item?.show_image !== false ? 'Eye' : 'EyeOff'} size={12} />
+                      <span>{item?.show_image !== false ? 'Visible' : 'Hidden'}</span>
+                    </button>
                   </div>
                 </td>
                 <td className="px-4 py-3">
@@ -113,7 +181,7 @@ const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability
                     onClick={() => onToggleAvailability(item)}
                     className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-body font-medium transition-all duration-200 ${
                       item?.is_available
-                        ? 'bg-green-100 text-green-700 hover:bg-green-200' :'bg-red-100 text-red-600 hover:bg-red-200'
+                        ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-600 hover:bg-red-200'
                     }`}
                   >
                     <div className={`w-1.5 h-1.5 rounded-full ${item?.is_available ? 'bg-green-500' : 'bg-red-500'}`}></div>
@@ -160,7 +228,7 @@ const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="font-body font-semibold text-foreground text-sm">{item?.name}</p>
-                    <p className="font-heading font-bold text-primary text-sm mt-0.5">£{parseFloat(item?.price)?.toFixed(2)}</p>
+                    <p className="font-heading font-bold text-primary text-sm mt-0.5">{'\u00A3'}{parseFloat(item?.price)?.toFixed(2)}</p>
                   </div>
                   <div className="flex items-center space-x-1 ml-2">
                     <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all duration-200">
@@ -178,15 +246,41 @@ const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability
                     </span>
                   ))}
                 </div>
-                <button
-                  onClick={() => onToggleAvailability(item)}
-                  className={`mt-2 inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs font-body font-medium ${
-                    item?.is_available ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
-                  }`}
-                >
-                  <div className={`w-1.5 h-1.5 rounded-full ${item?.is_available ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                  <span>{item?.is_available ? 'Available' : 'Unavailable'}</span>
-                </button>
+                {/* Mobile: image controls + availability */}
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <button
+                    onClick={() => onToggleAvailability(item)}
+                    className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs font-body font-medium ${
+                      item?.is_available ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+                    }`}
+                  >
+                    <div className={`w-1.5 h-1.5 rounded-full ${item?.is_available ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    <span>{item?.is_available ? 'Available' : 'Unavailable'}</span>
+                  </button>
+                  <button
+                    onClick={() => triggerUpload(item?.id)}
+                    disabled={uploadingId === item?.id}
+                    className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs font-body font-medium border border-border text-muted-foreground hover:text-primary disabled:opacity-50"
+                  >
+                    {uploadingId === item?.id ? (
+                      <div className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+                    ) : (
+                      <Icon name="Upload" size={10} />
+                    )}
+                    <span>{uploadingId === item?.id ? '...' : 'Photo'}</span>
+                  </button>
+                  <button
+                    onClick={() => onToggleImage(item)}
+                    className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs font-body font-medium ${
+                      item?.show_image !== false
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    <Icon name={item?.show_image !== false ? 'Eye' : 'EyeOff'} size={10} />
+                    <span>{item?.show_image !== false ? 'Shown' : 'Hidden'}</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>

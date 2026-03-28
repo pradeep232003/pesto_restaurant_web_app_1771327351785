@@ -85,6 +85,7 @@ const AdminMenuManagement = () => {
         featured: formData?.featured || false,
         prep_time: parseInt(formData?.prepTime) || 15,
         is_available: formData?.isAvailable !== false,
+        show_image: formData?.showImage !== false,
       };
 
       if (editingItem) {
@@ -124,6 +125,28 @@ const AdminMenuManagement = () => {
   const handleToggleAvailability = async (item) => {
     try {
       await api.adminToggleAvailability(item?.id);
+      await fetchMenuItems(selectedLocationId);
+    } catch (err) {
+      setError(err?.message);
+    }
+  };
+
+  const handleUploadImage = async (itemId, file) => {
+    setError(null);
+    try {
+      await api.adminUploadMenuImage(itemId, file);
+      setSuccessMsg('Image uploaded successfully!');
+      await fetchMenuItems(selectedLocationId);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err) {
+      setError(err?.message);
+    }
+  };
+
+  const handleToggleImage = async (item) => {
+    setError(null);
+    try {
+      await api.adminToggleImageVisibility(item?.id);
       await fetchMenuItems(selectedLocationId);
     } catch (err) {
       setError(err?.message);
@@ -299,6 +322,8 @@ const AdminMenuManagement = () => {
               onEdit={handleEditItem}
               onDelete={handleDeleteItem}
               onToggleAvailability={handleToggleAvailability}
+              onUploadImage={handleUploadImage}
+              onToggleImage={handleToggleImage}
               onAddNew={handleAddNew}
               categories={MENU_CATEGORIES}
             />
