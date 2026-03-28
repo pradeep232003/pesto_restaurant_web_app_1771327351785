@@ -308,10 +308,10 @@ class SiteSettingsUpdate(BaseModel):
 # ============== HELPERS ==============
 
 def serialize_doc(doc):
-    """Convert MongoDB document to JSON-serializable dict"""
+    """Convert MongoDB document to JSON-serializable dict, removing _id"""
     if doc is None:
         return None
-    doc["_id"] = str(doc["_id"]) if "_id" in doc else None
+    doc.pop("_id", None)
     return doc
 
 def serialize_user(user):
