@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, User, Phone, ArrowRight } from 'lucide-react';
@@ -28,10 +28,13 @@ const CustomerAuth = () => {
   const [success, setSuccess] = useState('');
   const [generatedPassword, setGeneratedPassword] = useState('');
 
-  if (customer) {
-    navigate('/menu-catalog');
-    return null;
-  }
+  useEffect(() => {
+    if (customer && !generatedPassword) {
+      navigate('/menu-catalog');
+    }
+  }, [customer, generatedPassword, navigate]);
+
+  if (customer && !generatedPassword) return null;
 
   const handleGoogleLogin = () => {
     // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH

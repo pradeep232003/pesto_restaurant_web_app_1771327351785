@@ -7,6 +7,7 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - **Frontend**: React 18 + Vite + TailwindCSS + Framer Motion
 - **Backend**: FastAPI + MongoDB + JWT Auth
 - **Image Processing**: Pillow (400x400 auto-thumbnails)
+- **Auth**: Cookie-based JWT + Emergent Google OAuth
 - **Email**: Resend (when API key provided)
 
 ## Implemented Features
@@ -28,35 +29,34 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - Per-site opening hours, auto/manual scheduling
 
 ### Dynamic Locations & Wallet Toggle (Mar 2026)
-- Location CRUD from admin panel
-- wallet_enabled toggle per location
+- Location CRUD from admin panel, wallet_enabled toggle per location
 
 ### Mobile Responsiveness (Mar 2026)
-- All admin pages optimized for 375px+ mobile screens
-- Hamburger sidebar, responsive grids, mobile card layouts
+- All admin pages optimized for 375px+
 
 ### Apple-Inspired Homepage Redesign (Mar 2026)
-- Outfit font, monochrome palette (#FBFBFD, #1D1D1F, #86868B)
-- Cinematic hero, bento grid menu preview with glass-morphism labels
-- Minimal icon features, auto-rotating testimonials, newsletter CTA
-- Framer Motion scroll-triggered animations
+- Outfit font, monochrome palette, cinematic hero, bento grid, glass-morphism
+- Auto-rotating testimonials, newsletter CTA, Framer Motion animations
 
 ### Apple-Inspired Menu Catalog Redesign (Mar 2026)
-- Hero with "Our Menu." heading, pill-shaped location selector, green status pill
-- Sticky frosted-glass category bar (All, Breakfast, Lunch, Dinner, Dessert, Beverage) with counts
-- Inline sort dropdown (A-Z, Price Low, Price High)
-- Minimal white menu cards with 4:3 images, glass Quick Add hover overlay
-- + button with green confirmation state, dietary indicators (V, VG, GF)
-- Floating cart button appears after adding items with count badge
-- Framer Motion staggered entry animations
-- Fully responsive mobile with horizontal-scrollable category tabs
+- Sticky frosted-glass category bar, minimal white cards
+- Glass Quick Add hover overlay, floating cart button
+
+### Apple-Inspired Customer Auth + Google OAuth (Mar 2026)
+- Complete auth page redesign with Apple aesthetic
+- "Continue with Google" OAuth via Emergent Auth service
+- Backend: POST /api/customer/auth/google-session exchanges session_id for JWT
+- Frontend: GoogleAuthCallback component handles OAuth redirect
+- Pill-shaped Login/Register toggle, minimal input fields
+- Registration shows generated password before redirect
+- Redirect URL: window.location.origin (no hardcoded URLs)
 
 ## Key Routes
 | Route | Description |
 |-------|-------------|
 | / | Apple-inspired landing page |
 | /menu-catalog | Apple-inspired menu with category tabs & floating cart |
-| /customer-auth | Customer register/login |
+| /customer-auth | Apple-inspired auth with Google OAuth |
 | /shopping-cart | Cart with real checkout |
 | /order-status | Track order by number |
 | /admin-login | Admin authentication |
