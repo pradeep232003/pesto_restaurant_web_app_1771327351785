@@ -151,23 +151,13 @@ const TransactionReport = () => {
         .print-only { display: none; }
       `}</style>
 
-      <div className="no-print">
-        <Header
-          cartCount={0}
-          onCartClick={() => navigate('/shopping-cart')}
-          onAccountClick={() => {}}
-          onSearch={() => {}}
-          onLogout={handleLogout}
-        />
-      </div>
-
-      <main className="pt-16 print:pt-0">
+      <main className="print:pt-0">
         {/* Page Header */}
         <section className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-6 no-print">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate('/resident-balance')}
+                onClick={() => navigate('/admin/residents')}
                 className="p-2 hover:bg-white/20 rounded-lg transition-colors"
               >
                 <Icon name="ArrowLeft" size={24} />

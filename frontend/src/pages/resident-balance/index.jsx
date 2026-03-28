@@ -149,7 +149,7 @@ const ResidentBalance = () => {
   };
 
   const handleViewHistory = (resident) => {
-    navigate(`/resident-history/${resident.id}`);
+    navigate(`/admin/residents/${resident.id}`);
   };
 
   // Filter residents by search query
@@ -175,14 +175,7 @@ const ResidentBalance = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header
-        cartCount={0}
-        onCartClick={() => navigate('/shopping-cart')}
-        onAccountClick={() => {}}
-        onSearch={() => {}}
-        onLogout={handleLogout}
-      />
-      <main className="pt-16">
+      <main>
         {/* Page Header */}
         <section className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white py-6 lg:py-8">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -206,19 +199,12 @@ const ResidentBalance = () => {
                   <span>Add Resident</span>
                 </button>
                 <button
-                  onClick={() => navigate('/transaction-report')}
+                  onClick={() => navigate('/admin/transactions')}
                   data-testid="view-reports-btn"
                   className="inline-flex items-center space-x-2 px-4 py-2.5 bg-white/10 text-white rounded-lg font-body hover:bg-white/20 transition-all duration-200"
                 >
                   <Icon name="FileText" size={18} />
                   <span className="hidden sm:inline">Reports</span>
-                </button>
-                <button
-                  onClick={handleLogout}
-                  data-testid="logout-btn"
-                  className="inline-flex items-center space-x-2 px-4 py-2.5 bg-white/10 text-white rounded-lg font-body hover:bg-white/20 transition-all duration-200"
-                >
-                  <Icon name="LogOut" size={18} />
                 </button>
               </div>
             </div>

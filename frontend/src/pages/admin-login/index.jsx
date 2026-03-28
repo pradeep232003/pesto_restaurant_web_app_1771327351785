@@ -17,7 +17,7 @@ const AdminLogin = () => {
   // Redirect if already logged in as admin
   useEffect(() => {
     if (!authLoading && isAuthenticated && isAdmin) {
-      navigate('/admin-menu');
+      navigate('/admin');
     }
   }, [isAuthenticated, isAdmin, authLoading, navigate]);
 
@@ -42,7 +42,7 @@ const AdminLogin = () => {
       }
 
       // Success - redirect to admin panel
-      navigate('/admin-menu');
+      navigate('/admin');
     } catch (err) {
       setError(err.message || 'Login failed. Please try again.');
       setLoading(false);

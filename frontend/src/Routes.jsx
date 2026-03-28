@@ -12,17 +12,23 @@ import Register from './pages/register';
 import MenuCatalog from './pages/menu-catalog';
 import TableReservation from './pages/table-reservation';
 import OrderTracking from './pages/order-tracking';
-import AdminMenuManagement from './pages/admin-menu';
 import AdminLogin from './pages/admin-login';
+import AdminDashboard from './pages/admin-dashboard';
+import AdminMenuManagement from './pages/admin-menu';
+import AdminOrders from './pages/admin-orders';
+import AdminSiteSettings from './pages/admin-site-settings';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
 import CustomerAuth from './pages/customer-auth';
 import OrderStatus from './pages/order-status';
-import AdminOrders from './pages/admin-orders';
-import AdminSiteSettings from './pages/admin-site-settings';
+import AdminLayout from './components/AdminLayout';
 import { LocationProvider } from './contexts/LocationContext';
 import { CustomerProvider } from './contexts/CustomerContext';
+
+const AdminRoute = ({ children }) => (
+  <AdminLayout>{children}</AdminLayout>
+);
 
 const Routes = () => {
   return (
@@ -46,14 +52,25 @@ const Routes = () => {
         <Route path="/customer-auth" element={<CustomerAuth />} />
         <Route path="/order-status" element={<OrderStatus />} />
         
-        {/* Admin Routes */}
+        {/* Admin Login (no layout) */}
         <Route path="/admin-login" element={<AdminLogin />} />
-        <Route path="/admin-menu" element={<AdminMenuManagement />} />
-        <Route path="/admin-orders" element={<AdminOrders />} />
-        <Route path="/admin-site-settings" element={<AdminSiteSettings />} />
-        <Route path="/resident-balance" element={<ResidentBalance />} />
-        <Route path="/resident-history/:residentId" element={<ResidentHistory />} />
-        <Route path="/transaction-report" element={<TransactionReport />} />
+        
+        {/* Admin Routes (with sidebar layout) */}
+        <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+        <Route path="/admin/menu" element={<AdminRoute><AdminMenuManagement /></AdminRoute>} />
+        <Route path="/admin/orders" element={<AdminRoute><AdminOrders /></AdminRoute>} />
+        <Route path="/admin/site-settings" element={<AdminRoute><AdminSiteSettings /></AdminRoute>} />
+        <Route path="/admin/residents" element={<AdminRoute><ResidentBalance /></AdminRoute>} />
+        <Route path="/admin/residents/:residentId" element={<AdminRoute><ResidentHistory /></AdminRoute>} />
+        <Route path="/admin/transactions" element={<AdminRoute><TransactionReport /></AdminRoute>} />
+
+        {/* Legacy admin routes - redirect to new paths */}
+        <Route path="/admin-menu" element={<AdminRoute><AdminMenuManagement /></AdminRoute>} />
+        <Route path="/admin-orders" element={<AdminRoute><AdminOrders /></AdminRoute>} />
+        <Route path="/admin-site-settings" element={<AdminRoute><AdminSiteSettings /></AdminRoute>} />
+        <Route path="/resident-balance" element={<AdminRoute><ResidentBalance /></AdminRoute>} />
+        <Route path="/resident-history/:residentId" element={<AdminRoute><ResidentHistory /></AdminRoute>} />
+        <Route path="/transaction-report" element={<AdminRoute><TransactionReport /></AdminRoute>} />
         
         <Route path="*" element={<NotFound />} />
       </RouterRoutes>

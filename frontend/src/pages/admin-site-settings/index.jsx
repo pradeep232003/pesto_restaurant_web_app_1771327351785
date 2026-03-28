@@ -93,18 +93,13 @@ const AdminSiteSettings = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header cartCount={0} onCartClick={() => navigate('/shopping-cart')} onAccountClick={() => {}} onSearch={() => {}} onLogout={async () => { await signOut(); navigate('/admin-login'); }} />
-      <main className="pt-16">
+      <main>
         <section className="bg-primary text-primary-foreground py-6 lg:py-8">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h1 className="text-2xl lg:text-3xl font-heading font-bold">Site Settings</h1>
                 <p className="text-sm opacity-80 mt-1">Manage ordering hours and availability per location</p>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => navigate('/admin-orders')} className="px-4 py-2 bg-white/10 text-white rounded-lg font-body text-sm hover:bg-white/20 transition-all">Orders</button>
-                <button onClick={() => navigate('/admin-menu')} className="px-4 py-2 bg-white/10 text-white rounded-lg font-body text-sm hover:bg-white/20 transition-all">Menu</button>
               </div>
             </div>
           </div>
