@@ -13,6 +13,7 @@ import MenuCatalog from './pages/menu-catalog';
 import TableReservation from './pages/table-reservation';
 import OrderTracking from './pages/order-tracking';
 import AdminMenuManagement from './pages/admin-menu';
+import AdminLogin from './pages/admin-login';
 import { LocationProvider } from './contexts/LocationContext';
 
 const Routes = () => {
@@ -33,6 +34,7 @@ const Routes = () => {
         <Route path="/menu-catalog" element={<MenuCatalog />} />
         <Route path="/table-reservation" element={<TableReservation />} />
         <Route path="/order-tracking" element={<OrderTracking />} />
+        <Route path="/admin-login" element={<AdminLogin />} />
         <Route path="/admin-menu" element={<AdminMenuManagement />} />
         <Route path="*" element={<NotFound />} />
       </RouterRoutes>

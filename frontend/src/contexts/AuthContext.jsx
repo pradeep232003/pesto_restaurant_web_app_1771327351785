@@ -1,97 +1,84 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import api from '../lib/api';
 
-const AuthContext = createContext({})
+const AuthContext = createContext({});
 
 export const useAuth = () => {
-  const context = useContext(AuthContext)
+  const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within AuthProvider')
+    throw new Error('useAuth must be used within AuthProvider');
   }
-  return context
-}
+  return context;
+};
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null)
-  const [userProfile, setUserProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [profileLoading, setProfileLoading] = useState(false)
+  const [user, setUser] = useState(null); // null = checking, false = not authenticated, object = authenticated
+  const [loading, setLoading] = useState(true);
 
-  // Load user from localStorage on mount
+  // Check session on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      try {
-        const userData = JSON.parse(savedUser);
-        setUser(userData);
-        setUserProfile(userData);
-      } catch (e) {
-        console.error('Error parsing saved user:', e);
-      }
-    }
-    setLoading(false);
+    checkAuth();
   }, []);
 
-  // Auth methods using localStorage for demo
+  const checkAuth = async () => {
+    try {
+      const userData = await api.getMe();
+      setUser(userData);
+    } catch (error) {
+      // Not authenticated or token expired
+      setUser(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const signIn = async (email, password) => {
     try {
-      // Demo authentication - in production, this would call a backend API
-      const userData = {
-        id: `user_${Date.now()}`,
-        email,
-        name: email.split('@')[0],
-        loginTime: new Date().toISOString()
-      };
-      
-      localStorage.setItem('currentUser', JSON.stringify(userData));
+      const userData = await api.login(email, password);
       setUser(userData);
-      setUserProfile(userData);
-      
       return { data: { user: userData }, error: null };
     } catch (error) {
-      return { error: { message: 'Login failed. Please try again.' } };
+      return { data: null, error: { message: error.message } };
     }
-  }
+  };
 
   const signOut = async () => {
     try {
-      localStorage.removeItem('currentUser');
-      localStorage.removeItem('rememberUser');
-      setUser(null);
-      setUserProfile(null);
+      await api.logout();
+      setUser(false);
       return { error: null };
     } catch (error) {
-      return { error: { message: 'Logout failed. Please try again.' } };
+      // Still clear local state even if API fails
+      setUser(false);
+      return { error: { message: error.message } };
     }
-  }
+  };
 
-  const updateProfile = async (updates) => {
-    if (!user) return { error: { message: 'No user logged in' } }
-    
+  const refreshSession = async () => {
     try {
-      const updatedUser = { ...user, ...updates };
-      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-      setUser(updatedUser);
-      setUserProfile(updatedUser);
-      return { data: updatedUser, error: null };
+      const userData = await api.refreshToken();
+      setUser(userData);
+      return { data: { user: userData }, error: null };
     } catch (error) {
-      return { error: { message: 'Profile update failed.' } };
+      setUser(false);
+      return { data: null, error: { message: error.message } };
     }
-  }
+  };
 
   const value = {
     user,
-    userProfile,
     loading,
-    profileLoading,
     signIn,
     signOut,
-    updateProfile,
-    isAuthenticated: !!user
-  }
+    refreshSession,
+    checkAuth,
+    isAuthenticated: !!user && user !== false,
+    isAdmin: user?.role === 'admin',
+  };
 
   return (
     <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
-}
+};

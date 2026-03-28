@@ -1,21 +1,25 @@
-from fastapi import FastAPI, HTTPException
+from dotenv import load_dotenv
+load_dotenv()
+
+from fastapi import FastAPI, HTTPException, Request, Response, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
 from bson import ObjectId
 import os
-from dotenv import load_dotenv
 from typing import List, Optional
-from pydantic import BaseModel, Field
-from datetime import datetime, timezone
-
-load_dotenv()
+from pydantic import BaseModel, EmailStr
+from datetime import datetime, timezone, timedelta
+import bcrypt
+import jwt
+import uuid
 
 app = FastAPI(title="Pesto Restaurant API")
 
-# CORS middleware
+# CORS middleware - use specific origin for credentials
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[FRONTEND_URL, "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,8 +35,139 @@ db = client[DB_NAME]
 # Collections
 locations_collection = db["locations"]
 menu_items_collection = db["menu_items"]
+users_collection = db["users"]
+login_attempts_collection = db["login_attempts"]
 
-# Pydantic models
+# JWT Configuration
+JWT_SECRET = os.environ.get("JWT_SECRET", "fallback-secret-change-in-production")
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+REFRESH_TOKEN_EXPIRE_DAYS = 7
+
+# Brute force protection settings
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_MINUTES = 15
+
+# ============== PASSWORD HELPERS ==============
+
+def hash_password(password: str) -> str:
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
+    return hashed.decode("utf-8")
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+
+# ============== JWT HELPERS ==============
+
+def create_access_token(user_id: str, email: str, role: str) -> str:
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "role": role,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        "type": "access"
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def create_refresh_token(user_id: str) -> str:
+    payload = {
+        "sub": user_id,
+        "exp": datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+        "type": "refresh"
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def decode_token(token: str) -> dict:
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+# ============== AUTH DEPENDENCY ==============
+
+async def get_current_user(request: Request) -> dict:
+    """Get current user from token (cookie or header)"""
+    token = request.cookies.get("access_token")
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+    
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    payload = decode_token(token)
+    if payload.get("type") != "access":
+        raise HTTPException(status_code=401, detail="Invalid token type")
+    
+    user = users_collection.find_one({"_id": ObjectId(payload["sub"])})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    user["_id"] = str(user["_id"])
+    user.pop("password_hash", None)
+    return user
+
+async def get_admin_user(request: Request) -> dict:
+    """Get current user and verify they are admin"""
+    user = await get_current_user(request)
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+# ============== BRUTE FORCE PROTECTION ==============
+
+def get_client_ip(request: Request) -> str:
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+def check_brute_force(identifier: str) -> bool:
+    """Check if account/IP is locked out. Returns True if locked."""
+    attempt = login_attempts_collection.find_one({"identifier": identifier})
+    if not attempt:
+        return False
+    
+    if attempt.get("locked_until"):
+        # Ensure both datetimes are timezone-aware for comparison
+        locked_until = attempt["locked_until"]
+        if not hasattr(locked_until, 'tzinfo') or locked_until.tzinfo is None:
+            # If stored datetime is naive, assume it's UTC
+            locked_until = locked_until.replace(tzinfo=timezone.utc)
+        
+        if datetime.now(timezone.utc) < locked_until:
+            return True
+        # Lockout expired, reset
+        login_attempts_collection.delete_one({"identifier": identifier})
+    return False
+
+def record_failed_attempt(identifier: str):
+    """Record a failed login attempt"""
+    attempt = login_attempts_collection.find_one({"identifier": identifier})
+    if attempt:
+        new_count = attempt.get("count", 0) + 1
+        update = {"$set": {"count": new_count, "last_attempt": datetime.now(timezone.utc)}}
+        if new_count >= MAX_LOGIN_ATTEMPTS:
+            update["$set"]["locked_until"] = datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_MINUTES)
+        login_attempts_collection.update_one({"identifier": identifier}, update)
+    else:
+        login_attempts_collection.insert_one({
+            "identifier": identifier,
+            "count": 1,
+            "last_attempt": datetime.now(timezone.utc)
+        })
+
+def clear_failed_attempts(identifier: str):
+    """Clear failed attempts on successful login"""
+    login_attempts_collection.delete_one({"identifier": identifier})
+
+# ============== PYDANTIC MODELS ==============
+
 class Location(BaseModel):
     id: str
     name: str
@@ -61,6 +196,51 @@ class MenuItem(BaseModel):
     prep_time: int = 15
     is_available: bool = True
 
+class MenuItemCreate(BaseModel):
+    location_id: str
+    name: str
+    subtitle: Optional[str] = None
+    description: Optional[str] = None
+    price: float
+    original_price: Optional[float] = None
+    image_url: Optional[str] = None
+    image_alt: Optional[str] = None
+    category: str = "mains"
+    categories: List[str] = []
+    dietary: List[str] = []
+    tags: List[str] = []
+    featured: bool = False
+    prep_time: int = 15
+    is_available: bool = True
+
+class MenuItemUpdate(BaseModel):
+    name: Optional[str] = None
+    subtitle: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    original_price: Optional[float] = None
+    image_url: Optional[str] = None
+    image_alt: Optional[str] = None
+    category: Optional[str] = None
+    categories: Optional[List[str]] = None
+    dietary: Optional[List[str]] = None
+    tags: Optional[List[str]] = None
+    featured: Optional[bool] = None
+    prep_time: Optional[int] = None
+    is_available: Optional[bool] = None
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    name: str
+    role: str
+
+# ============== HELPERS ==============
+
 def serialize_doc(doc):
     """Convert MongoDB document to JSON-serializable dict"""
     if doc is None:
@@ -68,11 +248,68 @@ def serialize_doc(doc):
     doc["_id"] = str(doc["_id"]) if "_id" in doc else None
     return doc
 
+def serialize_user(user):
+    """Serialize user document for response"""
+    return {
+        "id": str(user["_id"]),
+        "email": user["email"],
+        "name": user.get("name", "Admin"),
+        "role": user.get("role", "user")
+    }
+
+# ============== STARTUP ==============
+
 @app.on_event("startup")
 async def startup_event():
     """Seed database with initial data if empty"""
+    # Create indexes
+    users_collection.create_index("email", unique=True)
+    login_attempts_collection.create_index("identifier")
+    
+    # Seed locations and menu if empty
     if locations_collection.count_documents({}) == 0:
         seed_data()
+    
+    # Seed admin user
+    seed_admin()
+
+def seed_admin():
+    """Seed admin user from environment variables"""
+    admin_email = os.environ.get("ADMIN_EMAIL", "admin@jollys.com").lower()
+    admin_password = os.environ.get("ADMIN_PASSWORD", "Admin123!")
+    
+    existing = users_collection.find_one({"email": admin_email})
+    if existing is None:
+        hashed = hash_password(admin_password)
+        users_collection.insert_one({
+            "email": admin_email,
+            "password_hash": hashed,
+            "name": "Admin",
+            "role": "admin",
+            "created_at": datetime.now(timezone.utc)
+        })
+        print(f"Admin user created: {admin_email}")
+    elif not verify_password(admin_password, existing["password_hash"]):
+        # Password changed in env, update it
+        users_collection.update_one(
+            {"email": admin_email},
+            {"$set": {"password_hash": hash_password(admin_password)}}
+        )
+        print(f"Admin password updated: {admin_email}")
+    
+    # Write credentials to test file
+    os.makedirs("/app/memory", exist_ok=True)
+    with open("/app/memory/test_credentials.md", "w") as f:
+        f.write("# Test Credentials\n\n")
+        f.write("## Admin Account\n")
+        f.write(f"- Email: {admin_email}\n")
+        f.write(f"- Password: {admin_password}\n")
+        f.write("- Role: admin\n\n")
+        f.write("## Auth Endpoints\n")
+        f.write("- POST /api/auth/login\n")
+        f.write("- POST /api/auth/logout\n")
+        f.write("- GET /api/auth/me\n")
+        f.write("- POST /api/auth/refresh\n")
 
 def seed_data():
     """Seed the database with restaurant data"""
@@ -99,7 +336,6 @@ def seed_data():
         {"id": "6", "location_id": "timperley-altrincham", "name": "Chocolate Lava Cake", "subtitle": "Warm cake with molten center", "description": "Decadent chocolate cake with a molten chocolate center, served with vanilla ice cream.", "price": 11.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1457823622778-ccdb4b7aa62d", "image_alt": "Chocolate lava cake with molten chocolate flowing out", "category": "desserts", "categories": ["dessert"], "dietary": ["vegetarian"], "tags": ["warm", "chocolate"], "featured": True, "rating": 4.9, "review_count": 287, "prep_time": 8, "is_available": True},
         {"id": "7", "location_id": "timperley-altrincham", "name": "Buffalo Chicken Wings", "subtitle": "Spicy wings with blue cheese", "description": "Crispy chicken wings tossed in our signature buffalo sauce with celery sticks.", "price": 15.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1624726175512-19b9baf9fbd1", "image_alt": "Golden-brown buffalo chicken wings", "category": "appetizers", "categories": ["lunch", "appetizer"], "dietary": ["gluten-free"], "tags": ["spicy", "wings"], "featured": False, "rating": 4.3, "review_count": 178, "prep_time": 15, "is_available": True},
         {"id": "8", "location_id": "timperley-altrincham", "name": "Fresh Fruit Smoothie", "subtitle": "Blend of seasonal fruits", "description": "Refreshing smoothie made with seasonal fresh fruits, yogurt, and honey.", "price": 7.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1662130187270-a4d52c700eb6", "image_alt": "Three colorful fruit smoothies in tall glasses", "category": "beverages", "categories": ["breakfast", "beverage"], "dietary": ["vegetarian", "gluten-free"], "tags": ["healthy", "fresh"], "featured": False, "rating": 4.1, "review_count": 45, "prep_time": 5, "is_available": True},
-
         # Howe Bridge, Atherton
         {"id": "9", "location_id": "howe-bridge-atherton", "name": "BBQ Pulled Pork Sandwich", "subtitle": "Slow-cooked pork with house BBQ sauce", "description": "Tender pulled pork slow-cooked for 12 hours and tossed in our signature BBQ sauce on a brioche bun.", "price": 18.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1545196353-e431cf8d0803", "image_alt": "BBQ pulled pork sandwich on brioche bun", "category": "mains", "categories": ["lunch", "dinner", "mains"], "dietary": [], "tags": ["bbq", "comfort"], "featured": True, "rating": 4.4, "review_count": 112, "prep_time": 18, "is_available": True},
         {"id": "10", "location_id": "howe-bridge-atherton", "name": "Spinach & Artichoke Dip", "subtitle": "Creamy dip with tortilla chips", "description": "Our signature creamy spinach and artichoke dip served hot with crispy tortilla chips.", "price": 14.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1703219339970-98cd69cc896f", "image_alt": "Creamy spinach artichoke dip in cast iron skillet", "category": "appetizers", "categories": ["lunch", "appetizer"], "dietary": ["vegetarian"], "tags": ["sharing", "comfort"], "featured": False, "rating": 4.2, "review_count": 134, "prep_time": 10, "is_available": True},
@@ -107,20 +343,17 @@ def seed_data():
         {"id": "12", "location_id": "howe-bridge-atherton", "name": "Vanilla Bean Creme Brulee", "subtitle": "Classic French dessert", "description": "Rich vanilla custard topped with caramelized sugar, served with fresh seasonal berries.", "price": 13.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1607235780843-a196b94386b4", "image_alt": "Creme brulee in white ramekin with caramelized sugar", "category": "desserts", "categories": ["dessert"], "dietary": ["vegetarian", "gluten-free"], "tags": ["french", "classic"], "featured": False, "rating": 4.6, "review_count": 95, "prep_time": 3, "is_available": True},
         {"id": "13", "location_id": "howe-bridge-atherton", "name": "Grilled Chicken Burger", "subtitle": "Juicy chicken with house sauce", "description": "Tender grilled chicken breast with lettuce, tomato, and our signature house sauce on a toasted bun.", "price": 16.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd", "image_alt": "Grilled chicken burger with fresh toppings", "category": "mains", "categories": ["lunch", "dinner", "mains"], "dietary": [], "tags": ["grilled", "popular"], "featured": True, "rating": 4.5, "review_count": 201, "prep_time": 15, "is_available": True},
         {"id": "14", "location_id": "howe-bridge-atherton", "name": "Iced Latte", "subtitle": "Smooth cold coffee with milk", "description": "Freshly brewed espresso poured over ice with your choice of milk.", "price": 5.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1461023058943-07fcbe16d735", "image_alt": "Iced latte in tall glass with ice", "category": "beverages", "categories": ["breakfast", "beverage"], "dietary": ["vegetarian"], "tags": ["coffee", "cold"], "featured": True, "rating": 4.7, "review_count": 312, "prep_time": 3, "is_available": True},
-
         # Chaddesden, Derby
         {"id": "15", "location_id": "chaddesden-derby", "name": "Fish and Chips", "subtitle": "Classic British favourite", "description": "Beer-battered cod fillet served with thick-cut chips, mushy peas, and tartar sauce.", "price": 17.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1579208570378-8c970854bc23", "image_alt": "Classic fish and chips with mushy peas", "category": "mains", "categories": ["lunch", "dinner", "mains"], "dietary": [], "tags": ["classic", "british"], "featured": True, "rating": 4.7, "review_count": 345, "prep_time": 20, "is_available": True},
         {"id": "16", "location_id": "chaddesden-derby", "name": "Chicken Tikka Masala", "subtitle": "Rich and creamy curry", "description": "Tender chicken pieces in a rich, creamy tomato-based sauce with aromatic spices. Served with basmati rice.", "price": 16.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1565557623262-b51c2513a641", "image_alt": "Chicken tikka masala with basmati rice", "category": "mains", "categories": ["lunch", "dinner", "mains"], "dietary": ["gluten-free"], "tags": ["curry", "spicy"], "featured": True, "rating": 4.8, "review_count": 289, "prep_time": 25, "is_available": True},
         {"id": "17", "location_id": "chaddesden-derby", "name": "Sticky Toffee Pudding", "subtitle": "Warm British classic", "description": "Moist sponge pudding drenched in warm toffee sauce, served with vanilla ice cream.", "price": 9.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1586985289688-ca3cf47d3e6e", "image_alt": "Sticky toffee pudding with toffee sauce", "category": "desserts", "categories": ["dessert"], "dietary": ["vegetarian"], "tags": ["british", "warm"], "featured": True, "rating": 4.9, "review_count": 198, "prep_time": 10, "is_available": True},
         {"id": "18", "location_id": "chaddesden-derby", "name": "English Breakfast Tea", "subtitle": "Traditional loose-leaf brew", "description": "A proper cup of English Breakfast tea served with milk and your choice of sweetener.", "price": 3.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1556679343-c7306c1976bc", "image_alt": "English breakfast tea in white ceramic cup", "category": "beverages", "categories": ["breakfast", "beverage"], "dietary": ["vegan", "gluten-free"], "tags": ["tea", "british"], "featured": False, "rating": 4.5, "review_count": 156, "prep_time": 5, "is_available": True},
-
         # Oakmere, Handforth
         {"id": "19", "location_id": "oakmere-handforth", "name": "Avocado Toast", "subtitle": "Smashed avocado on sourdough", "description": "Creamy smashed avocado on toasted sourdough with cherry tomatoes, feta, and a poached egg.", "price": 13.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1541519227354-08fa5d50c820", "image_alt": "Avocado toast on sourdough with poached egg", "category": "appetizers", "categories": ["breakfast", "mains"], "dietary": ["vegetarian"], "tags": ["healthy", "brunch"], "featured": True, "rating": 4.6, "review_count": 234, "prep_time": 10, "is_available": True},
         {"id": "20", "location_id": "oakmere-handforth", "name": "Pesto Pasta", "subtitle": "Fresh basil pesto with linguine", "description": "Al dente linguine tossed in our house-made basil pesto with pine nuts and Parmesan shavings.", "price": 15.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1473093295043-cdd812d0e601", "image_alt": "Pesto pasta with pine nuts and parmesan", "category": "mains", "categories": ["lunch", "dinner", "mains"], "dietary": ["vegetarian"], "tags": ["pasta", "italian"], "featured": True, "rating": 4.5, "review_count": 167, "prep_time": 15, "is_available": True},
         {"id": "21", "location_id": "oakmere-handforth", "name": "Halloumi Fries", "subtitle": "Crispy fried halloumi with dip", "description": "Golden-fried halloumi sticks served with sweet chilli dipping sauce and fresh mint yoghurt.", "price": 11.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1601050690597-df0568f70950", "image_alt": "Crispy halloumi fries with dipping sauce", "category": "appetizers", "categories": ["lunch", "appetizer"], "dietary": ["vegetarian", "gluten-free"], "tags": ["crispy", "cheese"], "featured": True, "rating": 4.7, "review_count": 289, "prep_time": 10, "is_available": True},
         {"id": "22", "location_id": "oakmere-handforth", "name": "Matcha Latte", "subtitle": "Japanese green tea with steamed milk", "description": "Premium ceremonial grade matcha whisked with steamed oat milk. Available hot or iced.", "price": 5.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1536256263959-770b48d82b0a", "image_alt": "Matcha latte in ceramic cup with latte art", "category": "beverages", "categories": ["breakfast", "beverage"], "dietary": ["vegan"], "tags": ["matcha", "healthy"], "featured": False, "rating": 4.5, "review_count": 178, "prep_time": 5, "is_available": True},
         {"id": "23", "location_id": "oakmere-handforth", "name": "Lemon Tart", "subtitle": "Zesty French-style tart", "description": "Crisp pastry shell filled with silky smooth lemon curd, topped with fresh raspberries and icing sugar.", "price": 8.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1519915028121-7d3463d20b13", "image_alt": "Lemon tart with raspberries and icing sugar", "category": "desserts", "categories": ["dessert"], "dietary": ["vegetarian"], "tags": ["citrus", "french"], "featured": True, "rating": 4.8, "review_count": 156, "prep_time": 5, "is_available": True},
-
         # Willowmere, Middlewich
         {"id": "24", "location_id": "willowmere-middlewich", "name": "Sunday Roast", "subtitle": "Traditional roast with all the trimmings", "description": "Slow-roasted beef served with roast potatoes, Yorkshire pudding, seasonal vegetables, and rich gravy.", "price": 22.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1544025162-d76694265947", "image_alt": "Traditional Sunday roast with Yorkshire pudding", "category": "mains", "categories": ["lunch", "dinner", "mains"], "dietary": [], "tags": ["traditional", "sunday"], "featured": True, "rating": 4.9, "review_count": 412, "prep_time": 35, "is_available": True},
         {"id": "25", "location_id": "willowmere-middlewich", "name": "Homemade Soup of the Day", "subtitle": "Fresh seasonal soup", "description": "Our chef's daily soup made with fresh seasonal ingredients, served with crusty bread and butter.", "price": 8.99, "original_price": None, "image_url": "https://images.unsplash.com/photo-1547592180-85f173990554", "image_alt": "Bowl of homemade soup with crusty bread", "category": "appetizers", "categories": ["lunch", "dinner", "appetizer"], "dietary": ["vegetarian"], "tags": ["seasonal", "homemade"], "featured": False, "rating": 4.5, "review_count": 234, "prep_time": 10, "is_available": True},
@@ -132,7 +365,104 @@ def seed_data():
     menu_items_collection.insert_many(menu_items)
     print("Database seeded successfully!")
 
-# API Endpoints
+# ============== AUTH ENDPOINTS ==============
+
+@app.post("/api/auth/login")
+async def login(request: Request, response: Response, credentials: LoginRequest):
+    """Admin login endpoint"""
+    email = credentials.email.lower()
+    client_ip = get_client_ip(request)
+    identifier = f"{client_ip}:{email}"
+    
+    # Check brute force lockout
+    if check_brute_force(identifier):
+        raise HTTPException(status_code=429, detail="Too many failed attempts. Please try again later.")
+    
+    # Find user
+    user = users_collection.find_one({"email": email})
+    if not user:
+        record_failed_attempt(identifier)
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # Verify password
+    if not verify_password(credentials.password, user["password_hash"]):
+        record_failed_attempt(identifier)
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # Clear failed attempts on success
+    clear_failed_attempts(identifier)
+    
+    # Create tokens
+    user_id = str(user["_id"])
+    access_token = create_access_token(user_id, user["email"], user.get("role", "user"))
+    refresh_token = create_refresh_token(user_id)
+    
+    # Set cookies
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/"
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        path="/"
+    )
+    
+    return serialize_user(user)
+
+@app.post("/api/auth/logout")
+async def logout(response: Response):
+    """Logout and clear cookies"""
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/")
+    return {"message": "Logged out successfully"}
+
+@app.get("/api/auth/me")
+async def get_me(user: dict = Depends(get_current_user)):
+    """Get current authenticated user"""
+    return user
+
+@app.post("/api/auth/refresh")
+async def refresh_token(request: Request, response: Response):
+    """Refresh access token using refresh token"""
+    token = request.cookies.get("refresh_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="No refresh token")
+    
+    payload = decode_token(token)
+    if payload.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="Invalid token type")
+    
+    user = users_collection.find_one({"_id": ObjectId(payload["sub"])})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    # Create new access token
+    access_token = create_access_token(str(user["_id"]), user["email"], user.get("role", "user"))
+    
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/"
+    )
+    
+    return serialize_user(user)
+
+# ============== PUBLIC API ENDPOINTS ==============
+
 @app.get("/api/health")
 async def health_check():
     return {"status": "healthy", "app": "Pesto Restaurant API", "database": "MongoDB"}
@@ -190,44 +520,10 @@ async def get_featured_items(location_id: Optional[str] = None, limit: int = 8):
     items = list(menu_items_collection.find(query).limit(limit))
     return [serialize_doc(item) for item in items]
 
-
-# ============== ADMIN CRUD ENDPOINTS ==============
-
-class MenuItemCreate(BaseModel):
-    location_id: str
-    name: str
-    subtitle: Optional[str] = None
-    description: Optional[str] = None
-    price: float
-    original_price: Optional[float] = None
-    image_url: Optional[str] = None
-    image_alt: Optional[str] = None
-    category: str = "mains"
-    categories: List[str] = []
-    dietary: List[str] = []
-    tags: List[str] = []
-    featured: bool = False
-    prep_time: int = 15
-    is_available: bool = True
-
-class MenuItemUpdate(BaseModel):
-    name: Optional[str] = None
-    subtitle: Optional[str] = None
-    description: Optional[str] = None
-    price: Optional[float] = None
-    original_price: Optional[float] = None
-    image_url: Optional[str] = None
-    image_alt: Optional[str] = None
-    category: Optional[str] = None
-    categories: Optional[List[str]] = None
-    dietary: Optional[List[str]] = None
-    tags: Optional[List[str]] = None
-    featured: Optional[bool] = None
-    prep_time: Optional[int] = None
-    is_available: Optional[bool] = None
+# ============== ADMIN CRUD ENDPOINTS (PROTECTED) ==============
 
 @app.get("/api/admin/menu-items")
-async def admin_get_menu_items(location_id: Optional[str] = None):
+async def admin_get_menu_items(location_id: Optional[str] = None, user: dict = Depends(get_admin_user)):
     """Admin: Get all menu items (including unavailable) for a location"""
     query = {}
     if location_id:
@@ -237,10 +533,8 @@ async def admin_get_menu_items(location_id: Optional[str] = None):
     return [serialize_doc(item) for item in items]
 
 @app.post("/api/admin/menu-items", status_code=201)
-async def admin_create_menu_item(item: MenuItemCreate):
+async def admin_create_menu_item(item: MenuItemCreate, user: dict = Depends(get_admin_user)):
     """Admin: Create a new menu item"""
-    # Generate a unique ID
-    import uuid
     item_id = str(uuid.uuid4())[:8]
     
     item_dict = item.model_dump()
@@ -251,19 +545,16 @@ async def admin_create_menu_item(item: MenuItemCreate):
     
     result = menu_items_collection.insert_one(item_dict)
     
-    # Fetch and return the created item
     created_item = menu_items_collection.find_one({"_id": result.inserted_id})
     return serialize_doc(created_item)
 
 @app.put("/api/admin/menu-items/{item_id}")
-async def admin_update_menu_item(item_id: str, item: MenuItemUpdate):
+async def admin_update_menu_item(item_id: str, item: MenuItemUpdate, user: dict = Depends(get_admin_user)):
     """Admin: Update an existing menu item"""
-    # Check if item exists
     existing = menu_items_collection.find_one({"id": item_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Menu item not found")
     
-    # Build update dict with only provided fields
     update_data = {k: v for k, v in item.model_dump().items() if v is not None}
     
     if not update_data:
@@ -276,12 +567,11 @@ async def admin_update_menu_item(item_id: str, item: MenuItemUpdate):
         {"$set": update_data}
     )
     
-    # Fetch and return the updated item
     updated_item = menu_items_collection.find_one({"id": item_id})
     return serialize_doc(updated_item)
 
 @app.patch("/api/admin/menu-items/{item_id}/availability")
-async def admin_toggle_availability(item_id: str):
+async def admin_toggle_availability(item_id: str, user: dict = Depends(get_admin_user)):
     """Admin: Toggle menu item availability"""
     existing = menu_items_collection.find_one({"id": item_id})
     if not existing:
@@ -298,7 +588,7 @@ async def admin_toggle_availability(item_id: str):
     return serialize_doc(updated_item)
 
 @app.delete("/api/admin/menu-items/{item_id}")
-async def admin_delete_menu_item(item_id: str):
+async def admin_delete_menu_item(item_id: str, user: dict = Depends(get_admin_user)):
     """Admin: Delete a menu item"""
     existing = menu_items_collection.find_one({"id": item_id})
     if not existing:
@@ -306,4 +596,3 @@ async def admin_delete_menu_item(item_id: str):
     
     menu_items_collection.delete_one({"id": item_id})
     return {"message": "Menu item deleted successfully", "id": item_id}
-

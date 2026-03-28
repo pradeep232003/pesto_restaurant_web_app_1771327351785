@@ -2,3 +2,5 @@ fastapi
 uvicorn
 pymongo
 python-dotenv
+bcrypt==4.1.3
+PyJWT==2.12.1

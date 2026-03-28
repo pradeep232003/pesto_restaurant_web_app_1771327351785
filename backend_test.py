@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
 Backend API Testing for Pesto Restaurant Web App
-Tests MongoDB integration after migration from Supabase
+Tests MongoDB integration and Admin Authentication
 """
 
 import requests
 import sys
 import json
+import time
 from datetime import datetime
 
 class PestoAPITester:
@@ -15,8 +16,13 @@ class PestoAPITester:
         self.tests_run = 0
         self.tests_passed = 0
         self.test_results = []
+        self.session = requests.Session()  # Use session to maintain cookies
+        self.admin_credentials = {
+            "email": "admin@jollys.com",
+            "password": "Admin123!"
+        }
 
-    def run_test(self, name, method, endpoint, expected_status, data=None, expected_fields=None):
+    def run_test(self, name, method, endpoint, expected_status, data=None, expected_fields=None, use_auth=False):
         """Run a single API test"""
         url = f"{self.base_url}{endpoint}"
         headers = {'Content-Type': 'application/json'}
@@ -26,10 +32,23 @@ class PestoAPITester:
         print(f"   URL: {url}")
         
         try:
-            if method == 'GET':
-                response = requests.get(url, headers=headers, timeout=10)
-            elif method == 'POST':
-                response = requests.post(url, json=data, headers=headers, timeout=10)
+            # Use session for authenticated requests to maintain cookies
+            if use_auth:
+                if method == 'GET':
+                    response = self.session.get(url, headers=headers, timeout=10)
+                elif method == 'POST':
+                    response = self.session.post(url, json=data, headers=headers, timeout=10)
+                elif method == 'PUT':
+                    response = self.session.put(url, json=data, headers=headers, timeout=10)
+                elif method == 'PATCH':
+                    response = self.session.patch(url, json=data, headers=headers, timeout=10)
+                elif method == 'DELETE':
+                    response = self.session.delete(url, headers=headers, timeout=10)
+            else:
+                if method == 'GET':
+                    response = requests.get(url, headers=headers, timeout=10)
+                elif method == 'POST':
+                    response = requests.post(url, json=data, headers=headers, timeout=10)
 
             success = response.status_code == expected_status
             response_data = {}
@@ -101,6 +120,153 @@ class PestoAPITester:
                 "response_sample": str(e)
             })
             return False, {}
+
+    # ============== AUTH TESTS ==============
+    
+    def test_admin_login_valid(self):
+        """Test admin login with valid credentials"""
+        success, response = self.run_test(
+            "Admin Login (Valid Credentials)",
+            "POST",
+            "/api/auth/login",
+            200,
+            data=self.admin_credentials,
+            expected_fields=["id", "email", "role"]
+        )
+        
+        if success and response.get('role') == 'admin':
+            print(f"   ✅ Successfully logged in as admin: {response.get('email')}")
+        
+        return success, response
+
+    def test_admin_login_invalid_email(self):
+        """Test admin login with invalid email"""
+        invalid_creds = {
+            "email": "invalid@example.com",
+            "password": "Admin123!"
+        }
+        success, response = self.run_test(
+            "Admin Login (Invalid Email)",
+            "POST",
+            "/api/auth/login",
+            401,
+            data=invalid_creds
+        )
+        return success, response
+
+    def test_admin_login_invalid_password(self):
+        """Test admin login with invalid password"""
+        invalid_creds = {
+            "email": "admin@jollys.com",
+            "password": "WrongPassword123!"
+        }
+        success, response = self.run_test(
+            "Admin Login (Invalid Password)",
+            "POST",
+            "/api/auth/login",
+            401,
+            data=invalid_creds
+        )
+        return success, response
+
+    def test_get_current_user(self):
+        """Test getting current authenticated user"""
+        success, response = self.run_test(
+            "Get Current User",
+            "GET",
+            "/api/auth/me",
+            200,
+            use_auth=True,
+            expected_fields=["id", "email", "role"]
+        )
+        
+        if success and response.get('role') == 'admin':
+            print(f"   ✅ Current user is admin: {response.get('email')}")
+        
+        return success, response
+
+    def test_refresh_token(self):
+        """Test token refresh"""
+        success, response = self.run_test(
+            "Refresh Token",
+            "POST",
+            "/api/auth/refresh",
+            200,
+            use_auth=True,
+            expected_fields=["id", "email", "role"]
+        )
+        return success, response
+
+    def test_admin_logout(self):
+        """Test admin logout"""
+        success, response = self.run_test(
+            "Admin Logout",
+            "POST",
+            "/api/auth/logout",
+            200,
+            use_auth=True,
+            expected_fields=["message"]
+        )
+        
+        if success and "logged out" in response.get('message', '').lower():
+            print(f"   ✅ Successfully logged out")
+        
+        return success, response
+
+    def test_unauthorized_access(self):
+        """Test accessing admin endpoints without authentication"""
+        success, response = self.run_test(
+            "Unauthorized Admin Access",
+            "GET",
+            "/api/admin/menu-items",
+            401
+        )
+        
+        if success:
+            print(f"   ✅ Properly blocked unauthorized access")
+        
+        return success, response
+
+    def test_brute_force_protection(self):
+        """Test brute force protection after multiple failed attempts"""
+        print(f"\n🔒 Testing Brute Force Protection...")
+        
+        # Make 5 failed login attempts
+        invalid_creds = {
+            "email": "admin@jollys.com",
+            "password": "WrongPassword"
+        }
+        
+        for i in range(5):
+            print(f"   Attempt {i+1}/5...")
+            response = requests.post(
+                f"{self.base_url}/api/auth/login",
+                json=invalid_creds,
+                headers={'Content-Type': 'application/json'},
+                timeout=10
+            )
+            if response.status_code != 401:
+                print(f"   ⚠️  Expected 401, got {response.status_code}")
+        
+        # 6th attempt should be blocked with 429
+        print(f"   Attempt 6 (should be blocked)...")
+        response = requests.post(
+            f"{self.base_url}/api/auth/login",
+            json=invalid_creds,
+            headers={'Content-Type': 'application/json'},
+            timeout=10
+        )
+        
+        self.tests_run += 1
+        if response.status_code == 429:
+            self.tests_passed += 1
+            print(f"   ✅ Brute force protection working - got 429 status")
+            return True, response.json() if response.content else {}
+        else:
+            print(f"   ❌ Brute force protection failed - expected 429, got {response.status_code}")
+            return False, {}
+
+    # ============== PUBLIC API TESTS ==============
 
     def test_health_check(self):
         """Test health check endpoint"""
@@ -245,7 +411,7 @@ class PestoAPITester:
             404
         )
 
-    # ============== ADMIN CRUD TESTS ==============
+    # ============== ADMIN CRUD TESTS (AUTHENTICATED) ==============
     
     def test_admin_get_menu_items(self):
         """Test admin get all menu items (including unavailable)"""
@@ -254,6 +420,7 @@ class PestoAPITester:
             "GET",
             "/api/admin/menu-items",
             200,
+            use_auth=True,
             expected_fields=["id", "location_id", "name", "price", "is_available"]
         )
         
@@ -273,6 +440,7 @@ class PestoAPITester:
             "GET",
             f"/api/admin/menu-items?location_id={location_id}",
             200,
+            use_auth=True,
             expected_fields=["id", "location_id", "name", "price", "is_available"]
         )
         
@@ -305,8 +473,9 @@ class PestoAPITester:
             "Admin Create Menu Item",
             "POST",
             "/api/admin/menu-items",
-            200,  # Backend returns 200 instead of 201
+            201,  # Should be 201 for created
             data=test_item,
+            use_auth=True,
             expected_fields=["id", "name", "price", "location_id"]
         )
         
@@ -331,6 +500,7 @@ class PestoAPITester:
             f"/api/admin/menu-items/{item_id}",
             200,
             data=update_data,
+            use_auth=True,
             expected_fields=["id", "name", "price"]
         )
         
@@ -346,6 +516,7 @@ class PestoAPITester:
             "PATCH",
             f"/api/admin/menu-items/{item_id}/availability",
             200,
+            use_auth=True,
             expected_fields=["id", "is_available"]
         )
         
@@ -362,6 +533,7 @@ class PestoAPITester:
             "DELETE",
             f"/api/admin/menu-items/{item_id}",
             200,
+            use_auth=True,
             expected_fields=["message", "id"]
         )
         
@@ -371,25 +543,52 @@ class PestoAPITester:
         return success, response
 
 def main():
-    print("🍽️  Starting Pesto Restaurant API Tests (MongoDB Integration + Admin CRUD)")
+    print("🍽️  Starting Pesto Restaurant API Tests (Admin Authentication + CRUD)")
     print("=" * 70)
     
     tester = PestoAPITester()
     created_item_id = None
     
-    # Test 1: Health Check
+    # ============== AUTHENTICATION TESTS ==============
+    print("\n🔐 AUTHENTICATION TESTS")
+    print("=" * 50)
+    
+    # Test 1: Test unauthorized access first
+    tester.test_unauthorized_access()
+    
+    # Test 2: Test invalid login attempts
+    tester.test_admin_login_invalid_email()
+    tester.test_admin_login_invalid_password()
+    
+    # Test 3: Test valid admin login
+    login_success, login_data = tester.test_admin_login_valid()
+    if not login_success:
+        print("❌ Admin login failed - stopping tests")
+        return 1
+    
+    # Test 4: Test getting current user
+    tester.test_get_current_user()
+    
+    # Test 5: Test token refresh
+    tester.test_refresh_token()
+    
+    # ============== PUBLIC API TESTS ==============
+    print("\n🌐 PUBLIC API TESTS")
+    print("=" * 50)
+    
+    # Test 6: Health Check
     health_success, health_data = tester.test_health_check()
     if not health_success:
         print("❌ Health check failed - stopping tests")
         return 1
     
-    # Test 2: Get all locations
+    # Test 7: Get all locations
     locations_success, locations_data = tester.test_get_locations()
     if not locations_success:
         print("❌ Locations endpoint failed - stopping tests")
         return 1
     
-    # Test 3: Test specific location by slug
+    # Test 8: Test specific location by slug
     if locations_data and len(locations_data) > 0:
         first_location = locations_data[0]
         location_slug = first_location.get('slug', 'timperley-altrincham')
@@ -397,53 +596,64 @@ def main():
         
         tester.test_get_location_by_slug(location_slug)
         
-        # Test 4: Get all menu items
+        # Test 9: Get all menu items
         menu_success, menu_data = tester.test_get_menu_items_all()
         
-        # Test 5: Get menu items by location
+        # Test 10: Get menu items by location
         if menu_success:
             tester.test_get_menu_items_by_location(location_id)
             
-            # Test 6: Get menu items by category
+            # Test 11: Get menu items by category
             tester.test_get_menu_items_by_category('mains')
             tester.test_get_menu_items_by_category('desserts')
             
-            # Test 7: Get featured items
+            # Test 12: Get featured items
             tester.test_get_featured_items()
             
-            # Test 8: Get specific menu item
+            # Test 13: Get specific menu item
             if menu_data and len(menu_data) > 0:
                 first_item_id = menu_data[0].get('id', '1')
                 tester.test_get_menu_item_by_id(first_item_id)
     
-    # Test 9: 404 endpoints
+    # Test 14: 404 endpoints
     tester.test_404_endpoints()
     
     # ============== ADMIN CRUD TESTS ==============
-    print("\n" + "🔧 ADMIN CRUD TESTS" + "=" * 50)
+    print("\n🔧 ADMIN CRUD TESTS (AUTHENTICATED)")
+    print("=" * 50)
     
-    # Test 10: Admin get all menu items
+    # Test 15: Admin get all menu items
     admin_menu_success, admin_menu_data = tester.test_admin_get_menu_items()
     
-    # Test 11: Admin get menu items by location
+    # Test 16: Admin get menu items by location
     if admin_menu_success and location_id:
         tester.test_admin_get_menu_items_by_location(location_id)
     
-    # Test 12: Admin create menu item
+    # Test 17: Admin create menu item
     create_success, create_data = tester.test_admin_create_menu_item()
     if create_success and 'id' in create_data:
         created_item_id = create_data['id']
         
-        # Test 13: Admin update menu item
+        # Test 18: Admin update menu item
         tester.test_admin_update_menu_item(created_item_id)
         
-        # Test 14: Admin toggle availability
+        # Test 19: Admin toggle availability
         tester.test_admin_toggle_availability(created_item_id)
         
-        # Test 15: Admin delete menu item
+        # Test 20: Admin delete menu item
         tester.test_admin_delete_menu_item(created_item_id)
     else:
         print("⚠️  Skipping update/toggle/delete tests due to failed creation")
+    
+    # ============== SECURITY TESTS ==============
+    print("\n🔒 SECURITY TESTS")
+    print("=" * 50)
+    
+    # Test 21: Logout
+    tester.test_admin_logout()
+    
+    # Test 22: Brute force protection (this will lock the account temporarily)
+    tester.test_brute_force_protection()
     
     # Print summary
     print("\n" + "=" * 70)
@@ -453,7 +663,7 @@ def main():
     print(f"   Success Rate: {(tester.tests_passed/tester.tests_run*100):.1f}%")
     
     if tester.tests_passed == tester.tests_run:
-        print("🎉 All tests passed! MongoDB integration and Admin CRUD are working correctly.")
+        print("🎉 All tests passed! Admin authentication and CRUD are working correctly.")
         return 0
     else:
         print(f"⚠️  {tester.tests_run - tester.tests_passed} tests failed.")

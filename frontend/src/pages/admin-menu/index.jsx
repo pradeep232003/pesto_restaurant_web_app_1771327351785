@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../../components/ui/Header';
 import Icon from '../../components/AppIcon';
 import api from '../../lib/api';
+import { useAuth } from '../../contexts/AuthContext';
 import { LOCATIONS } from '../../contexts/LocationContext';
 import AdminMenuItemModal from './components/AdminMenuItemModal';
 import AdminMenuTable from './components/AdminMenuTable';
@@ -17,6 +18,7 @@ const MENU_CATEGORIES = [
 
 const AdminMenuManagement = () => {
   const navigate = useNavigate();
+  const { user, isAuthenticated, isAdmin, loading: authLoading, signOut } = useAuth();
   const [selectedLocationId, setSelectedLocationId] = useState(LOCATIONS?.[0]?.id);
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +29,18 @@ const AdminMenuManagement = () => {
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
+  // Redirect to login if not authenticated as admin
+  useEffect(() => {
+    if (!authLoading && (!isAuthenticated || !isAdmin)) {
+      navigate('/admin-login');
+    }
+  }, [authLoading, isAuthenticated, isAdmin, navigate]);
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/admin-login');
+  };
+
   const fetchMenuItems = useCallback(async (locationSlug) => {
     setLoading(true);
     setError(null);
@@ -35,12 +49,17 @@ const AdminMenuManagement = () => {
       const data = await api.adminGetMenuItems(locationSlug);
       setMenuItems(data || []);
     } catch (err) {
+      // If unauthorized, redirect to login
+      if (err.message?.includes('401') || err.message?.includes('Not authenticated')) {
+        navigate('/admin-login');
+        return;
+      }
       setError(err?.message);
       setMenuItems([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     fetchMenuItems(selectedLocationId);
@@ -121,6 +140,20 @@ const AdminMenuManagement = () => {
     setIsModalOpen(true);
   };
 
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (will redirect)
+  if (!isAuthenticated || !isAdmin) {
+    return null;
+  }
+
   const filteredItems = activeCategory === 'all'
     ? menuItems
     : menuItems?.filter(item =>
@@ -147,7 +180,7 @@ const AdminMenuManagement = () => {
           if (action === 'account') navigate('/user-account');
         }}
         onSearch={() => {}}
-        onLogout={() => {}}
+        onLogout={handleLogout}
       />
       <main className="pt-16">
         {/* Page Header */}
@@ -156,15 +189,28 @@ const AdminMenuManagement = () => {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h1 className="text-2xl lg:text-3xl font-heading font-bold">Menu Management</h1>
-                <p className="text-sm opacity-80 mt-1 font-body">Add, edit, and manage menu items per cafe location</p>
+                <p className="text-sm opacity-80 mt-1 font-body">
+                  Logged in as <span className="font-semibold">{user?.email}</span>
+                </p>
               </div>
-              <button
-                onClick={handleAddNew}
-                className="inline-flex items-center space-x-2 px-5 py-2.5 bg-white text-primary rounded-lg font-body font-semibold hover:bg-white/90 transition-all duration-200 hover:scale-105 shadow-sm"
-              >
-                <Icon name="Plus" size={18} />
-                <span>Add Menu Item</span>
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleAddNew}
+                  data-testid="add-menu-item-btn"
+                  className="inline-flex items-center space-x-2 px-5 py-2.5 bg-white text-primary rounded-lg font-body font-semibold hover:bg-white/90 transition-all duration-200 hover:scale-105 shadow-sm"
+                >
+                  <Icon name="Plus" size={18} />
+                  <span>Add Menu Item</span>
+                </button>
+                <button
+                  onClick={handleLogout}
+                  data-testid="admin-logout-btn"
+                  className="inline-flex items-center space-x-2 px-4 py-2.5 bg-white/10 text-white rounded-lg font-body hover:bg-white/20 transition-all duration-200"
+                >
+                  <Icon name="LogOut" size={18} />
+                  <span className="hidden sm:inline">Logout</span>
+                </button>
+              </div>
             </div>
           </div>
         </section>
