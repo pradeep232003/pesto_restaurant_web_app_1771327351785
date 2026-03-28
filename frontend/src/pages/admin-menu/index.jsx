@@ -20,7 +20,7 @@ const AdminMenuManagement = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, isAdmin, loading: authLoading, signOut } = useAuth();
   const { locations } = useLocation2();
-  const [selectedLocationId, setSelectedLocationId] = useState(null);
+  const [selectedLocationId, setSelectedLocationId] = useState('');
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

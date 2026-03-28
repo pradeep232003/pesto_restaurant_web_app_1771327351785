@@ -7,7 +7,7 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - **Frontend**: React 18 + Vite + TailwindCSS + Framer Motion
 - **Backend**: FastAPI + MongoDB + JWT Auth
 - **Image Processing**: Pillow (400x400 auto-thumbnails)
-- **Auth**: Cookie-based JWT + Emergent Google OAuth
+- **Auth**: Cookie-based JWT + Emergent Google OAuth + Email OTP verification
 - **Email**: Resend (when API key provided)
 
 ## Implemented Features
@@ -42,28 +42,40 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - Sticky frosted-glass category bar, minimal white cards
 - Glass Quick Add hover overlay, floating cart button
 
-### Apple-Inspired Customer Auth + Google OAuth (Mar 2026)
-- Complete auth page redesign with Apple aesthetic
-- "Continue with Google" OAuth via Emergent Auth service
-- Backend: POST /api/customer/auth/google-session exchanges session_id for JWT
-- Frontend: GoogleAuthCallback component handles OAuth redirect
-- Pill-shaped Login/Register toggle, minimal input fields
-- Registration shows generated password before redirect
-- Redirect URL: window.location.origin (no hardcoded URLs)
+### Customer Auth + Google OAuth + Email Verification (Mar 2026)
+- Apple-designed auth page with Google OAuth via Emergent Auth
+- Header Sign In → login tab, Sign Up → register tab (via router state)
+- Registration requires email OTP verification before account activation
+- OTP sent via Resend (if configured), fallback shows code in UI
+- JWT only issued after successful verification
+- Verification step: shield icon, password display, 6-digit OTP input
+
+### Apple-Inspired Admin Pages (Mar 2026)
+- AdminLayout: Dark sidebar (#1D1D1F) with Outfit font, ChefHat logo, user avatar
+- Admin Login: Centered minimal form with ChefHat icon, "Admin." heading
+- Dashboard: Stat cards with colored icons, recent orders list, quick action cards
+- Menu Management: Pill "Add Item" button, location selector, category pills with counts
+- Orders: Clean header with Apple typography
+- Site Settings: Apple header with "Add Location" pill button
+- Resident Balance: Apple header with "Add Resident" + "Reports" buttons
+- Transaction Report: Apple header with "Print" pill button
+- All pages: #F5F5F7 background, #1D1D1F text, #86868B secondary, rounded-2xl cards
 
 ## Key Routes
 | Route | Description |
 |-------|-------------|
 | / | Apple-inspired landing page |
 | /menu-catalog | Apple-inspired menu with category tabs & floating cart |
-| /customer-auth | Apple-inspired auth with Google OAuth |
+| /customer-auth | Apple auth with Google OAuth + email verification |
 | /shopping-cart | Cart with real checkout |
 | /order-status | Track order by number |
-| /admin-login | Admin authentication |
-| /admin-menu | Menu CRUD management |
-| /admin-orders | Order management dashboard |
-| /admin-site-settings | Location CRUD, site hours, wallet toggle |
-| /resident-balance | Prepaid wallet management |
+| /admin-login | Apple-styled admin login |
+| /admin | Apple-styled dashboard |
+| /admin/menu | Menu CRUD management |
+| /admin/orders | Order management |
+| /admin/site-settings | Location CRUD, site hours, wallet toggle |
+| /admin/residents | Prepaid wallet management |
+| /admin/transactions | Transaction reports |
 
 ## Prioritized Backlog
 
