@@ -32,7 +32,7 @@ const FooterSection = () => {
   return (
     <footer>
       {/* Newsletter */}
-      <section className="py-24 md:py-32 px-6 md:px-12" style={{ background: '#FBFBFD' }}>
+      <section className="py-16 md:py-20 px-6 md:px-12" style={{ background: '#FBFBFD' }}>
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}

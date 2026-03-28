@@ -10,7 +10,7 @@ const HeroSection = ({ onViewMenu, onOrderNow }) => {
   return (
     <section className="relative" style={{ background: '#FBFBFD' }}>
       {/* Text Content */}
-      <div className="max-w-7xl mx-auto px-6 md:px-12 pt-16 pb-12 md:pt-24 md:pb-16 text-center">
+      <div className="max-w-7xl mx-auto px-6 md:px-12 pt-12 pb-8 md:pt-16 md:pb-10 text-center">
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -81,7 +81,7 @@ const HeroSection = ({ onViewMenu, onOrderNow }) => {
       </div>
 
       {/* Hero Image */}
-      <div className="max-w-7xl mx-auto px-6 md:px-12 pb-8">
+      <div className="max-w-7xl mx-auto px-6 md:px-12 pb-4">
         <motion.div
           initial={{ opacity: 0, scale: 1.02 }}
           animate={{ opacity: 1, scale: 1 }}

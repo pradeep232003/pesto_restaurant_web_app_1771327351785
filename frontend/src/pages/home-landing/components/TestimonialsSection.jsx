@@ -39,14 +39,14 @@ const TestimonialsSection = () => {
   }, [next]);
 
   return (
-    <section className="py-24 md:py-36 px-6 md:px-12" style={{ background: '#FBFBFD' }}>
+    <section className="py-16 md:py-24 px-6 md:px-12" style={{ background: '#FBFBFD' }}>
       <div className="max-w-4xl mx-auto text-center">
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, ease }}
-          className="text-sm tracking-[0.2em] uppercase mb-12"
+          className="text-sm tracking-[0.2em] uppercase mb-8"
           style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}
         >
           What our customers say
@@ -78,7 +78,7 @@ const TestimonialsSection = () => {
         </div>
 
         {/* Dots */}
-        <div className="flex justify-center gap-2 mt-12">
+        <div className="flex justify-center gap-2 mt-8">
           {testimonials.map((_, i) => (
             <button
               key={i}

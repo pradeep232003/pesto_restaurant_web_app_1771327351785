@@ -29,7 +29,7 @@ const features = [
 
 const WhyChooseUsSection = () => {
   return (
-    <section className="py-24 md:py-36 px-6 md:px-12" style={{ background: '#FFFFFF' }}>
+    <section className="py-16 md:py-24 px-6 md:px-12" style={{ background: '#FFFFFF' }}>
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
         <motion.div
@@ -37,7 +37,7 @@ const WhyChooseUsSection = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.8, ease }}
-          className="text-center mb-20 md:mb-28"
+          className="text-center mb-12 md:mb-16"
         >
           <h2
             className="text-4xl sm:text-5xl font-semibold tracking-tight mb-6"
@@ -92,7 +92,7 @@ const WhyChooseUsSection = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-60px' }}
           transition={{ duration: 0.8, delay: 0.2, ease }}
-          className="mt-24 md:mt-32 pt-16 flex flex-wrap justify-center gap-12 md:gap-20"
+          className="mt-16 md:mt-20 pt-12 flex flex-wrap justify-center gap-12 md:gap-20"
           style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}
         >
           {[

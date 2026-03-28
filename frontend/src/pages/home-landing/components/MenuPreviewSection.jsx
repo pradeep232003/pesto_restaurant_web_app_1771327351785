@@ -60,10 +60,10 @@ const MenuPreviewSection = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="py-24 md:py-32 px-6 md:px-12" style={{ background: '#FBFBFD' }}>
+    <section className="py-16 md:py-20 px-6 md:px-12" style={{ background: '#FBFBFD' }}>
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
-        <motion.div {...fadeUp} className="text-center mb-16 md:mb-20">
+        <motion.div {...fadeUp} className="text-center mb-10 md:mb-14">
           <p
             className="text-sm tracking-[0.2em] uppercase mb-4"
             style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}
@@ -133,7 +133,7 @@ const MenuPreviewSection = () => {
         </div>
 
         {/* CTA */}
-        <motion.div {...fadeUp} className="text-center mt-14">
+        <motion.div {...fadeUp} className="text-center mt-10">
           <button
             data-testid="menu-view-full-btn"
             onClick={() => navigate('/menu-catalog')}

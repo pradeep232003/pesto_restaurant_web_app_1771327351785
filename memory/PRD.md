@@ -37,6 +37,7 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 ### Apple-Inspired Homepage Redesign (Mar 2026)
 - Outfit font, monochrome palette, cinematic hero, bento grid, glass-morphism
 - Auto-rotating testimonials, newsletter CTA, Framer Motion animations
+- Whitespace between sections tightened for better flow
 
 ### Apple-Inspired Menu Catalog Redesign (Mar 2026)
 - Sticky frosted-glass category bar, minimal white cards
@@ -44,7 +45,7 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 
 ### Customer Auth + Google OAuth + Email Verification (Mar 2026)
 - Apple-designed auth page with Google OAuth via Emergent Auth
-- Header Sign In → login tab, Sign Up → register tab (via router state)
+- Header Sign In -> login tab, Sign Up -> register tab (via router state)
 - Registration requires email OTP verification before account activation
 - OTP sent via Resend (if configured), fallback shows code in UI
 - JWT only issued after successful verification
@@ -60,6 +61,14 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - Resident Balance: Apple header with "Add Resident" + "Reports" buttons
 - Transaction Report: Apple header with "Print" pill button
 - All pages: #F5F5F7 background, #1D1D1F text, #86868B secondary, rounded-2xl cards
+
+### Location Picker Modal (Mar 2026)
+- Glassmorphism modal triggered when navigating to menu without selecting a cafe
+- Enforces location selection before viewing menu
+
+### Homepage Whitespace Fix (Mar 2026)
+- Reduced section padding by 30-40% across all homepage sections
+- Maintains Apple aesthetic while improving content density
 
 ## Key Routes
 | Route | Description |
@@ -81,7 +90,7 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 
 ### P1 (High)
 - Stripe integration for card top-ups
-- Resend API key for email notifications
+- Resend API key for email notifications (blocked on user)
 
 ### P2 (Medium)
 - Kitchen display board (auto-updating orders on screen)
@@ -90,3 +99,4 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 ### P3 (Low)
 - Multiple admin users with roles
 - Loyalty rewards program
+- Backend server.py modularization (~1800 lines -> /routes/)
