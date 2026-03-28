@@ -37,7 +37,7 @@ const CAFE_DETAILS = {
   },
 };
 
-const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLogout, onSearch }) => {
+const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLogout, onSearch, onMenuClick }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -65,6 +65,11 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
   };
 
   const handleNavigation = (path) => {
+    if (path === '/menu-catalog' && onMenuClick && !selectedCafeLocation) {
+      onMenuClick();
+      setIsMobileMenuOpen(false);
+      return;
+    }
     navigate(path);
     setIsMobileMenuOpen(false);
   };

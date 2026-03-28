@@ -6,11 +6,15 @@ import MenuPreviewSection from './components/MenuPreviewSection';
 import WhyChooseUsSection from './components/WhyChooseUsSection';
 import TestimonialsSection from './components/TestimonialsSection';
 import FooterSection from './components/FooterSection';
+import LocationPickerModal from '../../components/LocationPickerModal';
+import { useLocation2 } from '../../contexts/LocationContext';
 
 const HomeLanding = () => {
   const navigate = useNavigate();
+  const { locations, selectedCafeLocation, setSelectedLocation, setSelectedCafeLocation } = useLocation2();
   const [cartCount, setCartCount] = useState(0);
   const [user, setUser] = useState(null);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
 
   useEffect(() => {
     const mockUser = localStorage.getItem('currentUser');
@@ -19,30 +23,24 @@ const HomeLanding = () => {
     if (mockCartCount) setCartCount(parseInt(mockCartCount, 10));
   }, []);
 
-  const handleOrderNow = () => navigate('/menu-catalog');
-  const handleCartClick = () => navigate('/shopping-cart');
-
-  const handleAccountClick = (action) => {
-    switch (action) {
-      case 'login': navigate('/login'); break;
-      case 'register': navigate('/register'); break;
-      case 'account': navigate('/user-account'); break;
-      case 'logout':
-        localStorage.removeItem('currentUser');
-        setUser(null);
-        break;
-      default: break;
+  const handleViewMenu = () => {
+    if (!selectedCafeLocation) {
+      setShowLocationPicker(true);
+    } else {
+      navigate('/menu-catalog');
     }
   };
 
-  const handleSearch = (searchTerm) => {
-    navigate('/menu-catalog', { state: { searchQuery: searchTerm } });
+  const handleLocationSelect = (loc) => {
+    setSelectedLocation(loc);
+    setSelectedCafeLocation(loc);
+    setShowLocationPicker(false);
+    navigate('/menu-catalog');
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('currentUser');
-    setUser(null);
-  };
+  const handleCartClick = () => navigate('/shopping-cart');
+  const handleSearch = (searchTerm) => navigate('/menu-catalog', { state: { searchQuery: searchTerm } });
+  const handleLogout = () => { localStorage.removeItem('currentUser'); setUser(null); };
 
   return (
     <div className="min-h-screen" style={{ background: '#FBFBFD' }}>
@@ -50,18 +48,26 @@ const HomeLanding = () => {
         cartCount={cartCount}
         user={user}
         onCartClick={handleCartClick}
-        onAccountClick={handleAccountClick}
+        onAccountClick={() => {}}
         onSearch={handleSearch}
         onLogout={handleLogout}
+        onMenuClick={() => setShowLocationPicker(true)}
       />
 
       <main className="pt-16">
-        <HeroSection onOrderNow={handleOrderNow} />
+        <HeroSection onViewMenu={handleViewMenu} onOrderNow={handleViewMenu} />
         <MenuPreviewSection />
         <WhyChooseUsSection />
         <TestimonialsSection />
         <FooterSection />
       </main>
+
+      <LocationPickerModal
+        open={showLocationPicker}
+        onClose={() => setShowLocationPicker(false)}
+        locations={locations}
+        onSelect={handleLocationSelect}
+      />
     </div>
   );
 };

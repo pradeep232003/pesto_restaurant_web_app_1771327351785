@@ -4,13 +4,13 @@ import { useNavigate } from 'react-router-dom';
 
 const ease = [0.16, 1, 0.3, 1];
 
-const HeroSection = ({ onOrderNow }) => {
+const HeroSection = ({ onViewMenu, onOrderNow }) => {
   const navigate = useNavigate();
 
   return (
     <section className="relative" style={{ background: '#FBFBFD' }}>
       {/* Text Content */}
-      <div className="max-w-7xl mx-auto px-6 md:px-12 pt-32 pb-16 md:pt-44 md:pb-20 text-center">
+      <div className="max-w-7xl mx-auto px-6 md:px-12 pt-16 pb-12 md:pt-24 md:pb-16 text-center">
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -59,7 +59,7 @@ const HeroSection = ({ onOrderNow }) => {
         >
           <button
             data-testid="hero-view-menu-btn"
-            onClick={() => navigate('/menu-catalog')}
+            onClick={onViewMenu || (() => navigate('/menu-catalog'))}
             className="px-8 py-4 rounded-full text-sm font-medium tracking-wide transition-colors duration-300"
             style={{ background: '#1D1D1F', color: '#FFFFFF', fontFamily: 'Outfit, sans-serif' }}
             onMouseEnter={e => e.target.style.background = '#333336'}
