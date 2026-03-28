@@ -4,20 +4,13 @@ import Header from '../../components/ui/Header';
 import Icon from '../../components/AppIcon';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
-
-const LOCATIONS = [
-  { id: 'oakmere-handforth', name: 'Oakmere, Handforth' },
-  { id: 'willowmere-middlewich', name: 'Willowmere, Middlewich' },
-];
-
-const LOCATION_NAMES = {
-  'oakmere-handforth': 'Oakmere',
-  'willowmere-middlewich': 'Willowmere',
-};
+import { useLocation2 } from '../../contexts/LocationContext';
 
 const TransactionReport = () => {
   const navigate = useNavigate();
   const { isAuthenticated, isAdmin, loading: authLoading, signOut } = useAuth();
+  const { locations: allLocations } = useLocation2();
+  const walletLocations = allLocations.filter(l => l.wallet_enabled);
   
   const [transactions, setTransactions] = useState([]);
   const [residents, setResidents] = useState([]);
@@ -186,7 +179,7 @@ const TransactionReport = () => {
         <div className="print-only p-6 border-b-2 border-gray-200">
           <h1 className="text-2xl font-bold">Transaction Report</h1>
           <p className="text-gray-600 mt-1">
-            {selectedLocation ? LOCATION_NAMES[selectedLocation] : 'All Locations'} 
+            {selectedLocation ? (walletLocations.find(l => l.id === selectedLocation)?.name || selectedLocation) : 'All Locations'} 
             {startDate && ` • From: ${startDate}`}
             {endDate && ` To: ${endDate}`}
           </p>
@@ -213,7 +206,7 @@ const TransactionReport = () => {
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="">All Locations</option>
-                    {LOCATIONS.map(loc => (
+                    {walletLocations.map(loc => (
                       <option key={loc.id} value={loc.id}>{loc.name}</option>
                     ))}
                   </select>
@@ -348,7 +341,7 @@ const TransactionReport = () => {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-600">
-                            {LOCATION_NAMES[t.resident_location] || t.resident_location}
+                            {walletLocations.find(l => l.id === t.resident_location)?.name || t.resident_location}
                           </td>
                           <td className="px-4 py-3">
                             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${

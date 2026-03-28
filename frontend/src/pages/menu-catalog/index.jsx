@@ -5,12 +5,12 @@ import BrowseByCategoryWithFilters from './components/BrowseByCategoryWithFilter
 import MenuGrid from './components/MenuGrid';
 import Icon from '../../components/AppIcon';
 import api, { resolveImageUrl } from '../../lib/api';
-import { useLocation2, LOCATIONS } from '../../contexts/LocationContext';
+import { useLocation2 } from '../../contexts/LocationContext';
 import { useCustomer } from '../../contexts/CustomerContext';
 
 const MenuCatalog = () => {
   const navigate = useNavigate();
-  const { selectedLocation, setSelectedLocation } = useLocation2();
+  const { selectedLocation, setSelectedLocation, locations } = useLocation2();
   const { customer, logout: customerLogout } = useCustomer();
   const [activeCategory, setActiveCategory] = useState('all');
   const [filters, setFilters] = useState({
@@ -106,7 +106,7 @@ const MenuCatalog = () => {
   };
 
   const handleLocationChange = (e) => {
-    const loc = LOCATIONS?.find(l => l?.id === e?.target?.value);
+    const loc = locations?.find(l => l?.id === e?.target?.value);
     if (loc) setSelectedLocation(loc);
   };
 
@@ -180,7 +180,7 @@ const MenuCatalog = () => {
                       onChange={handleLocationChange}
                       className="w-full sm:max-w-sm px-4 py-2.5 rounded-lg border border-border bg-background text-foreground font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors duration-200 cursor-pointer"
                     >
-                      {LOCATIONS?.map(loc => (
+                      {locations?.map(loc => (
                         <option key={loc?.id} value={loc?.id}>{loc?.name}</option>
                       ))}
                     </select>

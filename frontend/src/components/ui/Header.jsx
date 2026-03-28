@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../AppIcon';
 import Button from './Button';
-import { useLocation2, LOCATIONS } from '../../contexts/LocationContext';
+import { useLocation2 } from '../../contexts/LocationContext';
 
 const CAFE_DETAILS = {
   'timperley-altrincham': {
@@ -46,7 +46,7 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
   const [isCafesDropdownOpen, setIsCafesDropdownOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { selectedLocation, setSelectedLocation, selectedCafeLocation, setSelectedCafeLocation } = useLocation2();
+  const { selectedLocation, setSelectedLocation, locations, selectedCafeLocation, setSelectedCafeLocation } = useLocation2();
 
   const RESERVATION_LOCATIONS = ['oakmere-handforth', 'willowmere-middlewich'];
   const isHomePage = location?.pathname === '/home-landing' || location?.pathname === '/';
@@ -231,7 +231,7 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
               </button>
               {isCafesDropdownOpen && (
                 <div className="cafes-dropdown absolute left-0 top-full mt-2 w-56 bg-card border border-border rounded-lg shadow-warm-lg overflow-hidden z-50">
-                  {LOCATIONS?.map((loc) => (
+                  {locations?.map((loc) => (
                     <button
                       key={loc?.id}
                       onClick={() => handleCafeSelect(loc)}
@@ -540,7 +540,7 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
               </div>
               {isCafesDropdownOpen && (
                 <div className="cafes-dropdown mt-1 w-full bg-card border border-border rounded-lg shadow-warm-lg overflow-hidden">
-                  {LOCATIONS?.map((loc) => (
+                  {locations?.map((loc) => (
                     <button
                       key={loc?.id}
                       onClick={() => handleCafeSelect(loc)}

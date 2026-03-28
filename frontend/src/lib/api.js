@@ -335,6 +335,32 @@ class ApiService {
       method: 'PATCH',
     });
   }
+
+  // ============== ADMIN LOCATION CRUD ==============
+
+  async adminGetLocations() {
+    return this.fetch('/api/admin/locations');
+  }
+
+  async adminCreateLocation(data) {
+    return this.fetch('/api/admin/locations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async adminUpdateLocation(locationId, data) {
+    return this.fetch(`/api/admin/locations/${locationId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async adminDeleteLocation(locationId) {
+    return this.fetch(`/api/admin/locations/${locationId}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export const api = new ApiService();

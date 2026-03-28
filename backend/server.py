@@ -208,6 +208,19 @@ class Location(BaseModel):
     address: str
     is_active: bool = True
     sort_order: int = 0
+    wallet_enabled: bool = False
+
+class LocationCreate(BaseModel):
+    name: str
+    address: Optional[str] = ""
+    wallet_enabled: bool = False
+
+class LocationUpdate(BaseModel):
+    name: Optional[str] = None
+    address: Optional[str] = None
+    is_active: Optional[bool] = None
+    sort_order: Optional[int] = None
+    wallet_enabled: Optional[bool] = None
 
 class MenuItem(BaseModel):
     id: str
@@ -348,6 +361,17 @@ async def startup_event():
     
     # Seed default site settings
     seed_site_settings()
+    
+    # Ensure all locations have wallet_enabled field
+    locations_collection.update_many(
+        {"wallet_enabled": {"$exists": False}},
+        {"$set": {"wallet_enabled": False}}
+    )
+    # Set correct wallet_enabled for known wallet locations
+    locations_collection.update_many(
+        {"id": {"$in": ["oakmere-handforth", "willowmere-middlewich"]}, "wallet_enabled": False},
+        {"$set": {"wallet_enabled": True}}
+    )
 
 def seed_admin():
     """Seed admin user from environment variables"""
@@ -415,11 +439,11 @@ def seed_data():
     
     # Locations
     locations = [
-        {"id": "timperley-altrincham", "name": "Timperley, Altrincham", "slug": "timperley-altrincham", "address": "Timperley, Altrincham", "is_active": True, "sort_order": 1},
-        {"id": "howe-bridge-atherton", "name": "Howe Bridge, Atherton", "slug": "howe-bridge-atherton", "address": "Howe Bridge, Atherton", "is_active": True, "sort_order": 2},
-        {"id": "chaddesden-derby", "name": "Chaddesden, Derby", "slug": "chaddesden-derby", "address": "Chaddesden, Derby", "is_active": True, "sort_order": 3},
-        {"id": "oakmere-handforth", "name": "Oakmere, Handforth", "slug": "oakmere-handforth", "address": "Oakmere, Handforth", "is_active": True, "sort_order": 4},
-        {"id": "willowmere-middlewich", "name": "Willowmere, Middlewich", "slug": "willowmere-middlewich", "address": "Willowmere, Middlewich", "is_active": True, "sort_order": 5},
+        {"id": "timperley-altrincham", "name": "Timperley, Altrincham", "slug": "timperley-altrincham", "address": "Timperley, Altrincham", "is_active": True, "sort_order": 1, "wallet_enabled": False},
+        {"id": "howe-bridge-atherton", "name": "Howe Bridge, Atherton", "slug": "howe-bridge-atherton", "address": "Howe Bridge, Atherton", "is_active": True, "sort_order": 2, "wallet_enabled": False},
+        {"id": "chaddesden-derby", "name": "Chaddesden, Derby", "slug": "chaddesden-derby", "address": "Chaddesden, Derby", "is_active": True, "sort_order": 3, "wallet_enabled": False},
+        {"id": "oakmere-handforth", "name": "Oakmere, Handforth", "slug": "oakmere-handforth", "address": "Oakmere, Handforth", "is_active": True, "sort_order": 4, "wallet_enabled": True},
+        {"id": "willowmere-middlewich", "name": "Willowmere, Middlewich", "slug": "willowmere-middlewich", "address": "Willowmere, Middlewich", "is_active": True, "sort_order": 5, "wallet_enabled": True},
     ]
     
     locations_collection.insert_many(locations)
@@ -583,6 +607,100 @@ async def get_location_by_slug(slug: str):
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
     return serialize_doc(location)
+
+
+# ============== ADMIN LOCATION CRUD ==============
+
+@app.get("/api/admin/locations")
+async def admin_get_all_locations(user: dict = Depends(get_admin_user)):
+    """Admin: Get all locations including inactive"""
+    locations = list(locations_collection.find({}).sort("sort_order", 1))
+    return [serialize_doc(loc) for loc in locations]
+
+
+@app.post("/api/admin/locations")
+async def admin_create_location(data: LocationCreate, user: dict = Depends(get_admin_user)):
+    """Admin: Create a new location"""
+    import re
+    slug = re.sub(r'[^a-z0-9]+', '-', data.name.lower()).strip('-')
+    # Ensure slug is unique
+    if locations_collection.find_one({"slug": slug}):
+        raise HTTPException(status_code=400, detail="A location with a similar name already exists")
+
+    max_sort = locations_collection.find_one(sort=[("sort_order", -1)])
+    next_sort = (max_sort.get("sort_order", 0) + 1) if max_sort else 1
+
+    location_doc = {
+        "id": slug,
+        "name": data.name,
+        "slug": slug,
+        "address": data.address or data.name,
+        "is_active": True,
+        "sort_order": next_sort,
+        "wallet_enabled": data.wallet_enabled,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    locations_collection.insert_one(location_doc)
+
+    # Auto-create site settings for the new location
+    default_hours = {
+        "monday": {"open": "08:00", "close": "17:00"},
+        "tuesday": {"open": "08:00", "close": "17:00"},
+        "wednesday": {"open": "08:00", "close": "17:00"},
+        "thursday": {"open": "08:00", "close": "17:00"},
+        "friday": {"open": "08:00", "close": "18:00"},
+        "saturday": {"open": "09:00", "close": "16:00"},
+        "sunday": {"open": "10:00", "close": "15:00"},
+    }
+    if not site_settings_collection.find_one({"location_id": slug}):
+        site_settings_collection.insert_one({
+            "location_id": slug,
+            "ordering_enabled": True,
+            "manual_override": False,
+            "opening_hours": default_hours,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    created = locations_collection.find_one({"id": slug})
+    return serialize_doc(created)
+
+
+@app.put("/api/admin/locations/{location_id}")
+async def admin_update_location(location_id: str, data: LocationUpdate, user: dict = Depends(get_admin_user)):
+    """Admin: Update a location"""
+    existing = locations_collection.find_one({"id": location_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Location not found")
+
+    update_fields = {}
+    if data.name is not None:
+        update_fields["name"] = data.name
+    if data.address is not None:
+        update_fields["address"] = data.address
+    if data.is_active is not None:
+        update_fields["is_active"] = data.is_active
+    if data.sort_order is not None:
+        update_fields["sort_order"] = data.sort_order
+    if data.wallet_enabled is not None:
+        update_fields["wallet_enabled"] = data.wallet_enabled
+
+    if update_fields:
+        locations_collection.update_one({"id": location_id}, {"$set": update_fields})
+
+    updated = locations_collection.find_one({"id": location_id})
+    return serialize_doc(updated)
+
+
+@app.delete("/api/admin/locations/{location_id}")
+async def admin_delete_location(location_id: str, user: dict = Depends(get_admin_user)):
+    """Admin: Soft-delete a location (set is_active=False)"""
+    existing = locations_collection.find_one({"id": location_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Location not found")
+
+    locations_collection.update_one({"id": location_id}, {"$set": {"is_active": False}})
+    return {"message": "Location deactivated", "id": location_id}
+
 
 @app.get("/api/menu-items")
 async def get_menu_items(location_id: Optional[str] = None, category: Optional[str] = None):
@@ -1437,7 +1555,7 @@ async def create_order(order_data: OrderCreate, customer: dict = Depends(get_cus
     # Check site is open
     status = is_site_open(order_data.location_id)
     if not status["is_open"]:
-        raise HTTPException(status_code=400, detail=f"Ordering is currently closed for this location")
+        raise HTTPException(status_code=400, detail="Ordering is currently closed for this location")
     
     # Validate items
     if not order_data.items or len(order_data.items) == 0:
@@ -1559,8 +1677,9 @@ async def admin_update_order_status(order_id: str, data: OrderStatusUpdate, user
 
 @app.get("/api/admin/site-settings")
 async def admin_get_site_settings(user: dict = Depends(get_admin_user)):
-    """Admin: Get all site settings"""
-    settings = list(site_settings_collection.find({}))
+    """Admin: Get all site settings for active locations"""
+    active_ids = [loc["id"] for loc in locations_collection.find({"is_active": True}, {"id": 1, "_id": 0})]
+    settings = list(site_settings_collection.find({"location_id": {"$in": active_ids}}))
     return [serialize_doc(s) for s in settings]
 
 

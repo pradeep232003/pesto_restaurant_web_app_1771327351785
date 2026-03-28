@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import Icon from '../../components/AppIcon';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { LOCATIONS } from '../../contexts/LocationContext';
+import { useLocation2 } from '../../contexts/LocationContext';
 
 const StatCard = ({ icon, label, value, color, to }) => (
   <Link to={to} data-testid={`stat-${label.toLowerCase().replace(/\s/g, '-')}`} className="bg-card rounded-xl shadow-warm p-5 hover:shadow-lg transition-all duration-200 group">
@@ -21,6 +21,7 @@ const StatCard = ({ icon, label, value, color, to }) => (
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { isAuthenticated, isAdmin, loading: authLoading } = useAuth();
+  const { locations } = useLocation2();
   const [stats, setStats] = useState({ menuItems: 0, orders: 0, residents: 0, openSites: 0 });
   const [recentOrders, setRecentOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -88,7 +89,7 @@ const AdminDashboard = () => {
         <StatCard icon="UtensilsCrossed" label="Menu Items" value={stats.menuItems} color="bg-primary" to="/admin/menu" />
         <StatCard icon="ClipboardList" label="Total Orders" value={stats.orders} color="bg-blue-500" to="/admin/orders" />
         <StatCard icon="Users" label="Residents" value={stats.residents} color="bg-emerald-500" to="/admin/residents" />
-        <StatCard icon="Store" label="Sites Open" value={`${stats.openSites}/${LOCATIONS.length}`} color="bg-amber-500" to="/admin/site-settings" />
+        <StatCard icon="Store" label="Sites Open" value={`${stats.openSites}/${locations.length}`} color="bg-amber-500" to="/admin/site-settings" />
       </div>
 
       {/* Recent Orders */}

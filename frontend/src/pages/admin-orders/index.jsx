@@ -4,7 +4,7 @@ import Header from '../../components/ui/Header';
 import Icon from '../../components/AppIcon';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { LOCATIONS } from '../../contexts/LocationContext';
+import { useLocation2 } from '../../contexts/LocationContext';
 
 const STATUS_COLORS = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -20,6 +20,7 @@ const STATUS_FLOW = ['pending', 'confirmed', 'preparing', 'ready', 'collected'];
 const AdminOrders = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, isAdmin, loading: authLoading, signOut } = useAuth();
+  const { locations } = useLocation2();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -73,7 +74,7 @@ const AdminOrders = () => {
   if (authLoading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div></div>;
   if (!isAuthenticated || !isAdmin) return null;
 
-  const locationName = (id) => LOCATIONS.find(l => l.id === id)?.name || id;
+  const locationName = (id) => locations.find(l => l.id === id)?.name || id;
 
   return (
     <div className="min-h-screen bg-background">
@@ -113,7 +114,7 @@ const AdminOrders = () => {
                 className="px-3 py-2 rounded-lg border border-border bg-background text-sm font-body"
               >
                 <option value="">All Locations</option>
-                {LOCATIONS.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
               <select
                 data-testid="order-status-filter"

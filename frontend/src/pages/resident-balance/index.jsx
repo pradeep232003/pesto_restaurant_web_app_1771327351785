@@ -4,18 +4,16 @@ import Header from '../../components/ui/Header';
 import Icon from '../../components/AppIcon';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLocation2 } from '../../contexts/LocationContext';
 import ResidentModal from './components/ResidentModal';
 import TransactionModal from './components/TransactionModal';
 import ResidentCard from './components/ResidentCard';
 
-const LOCATIONS = [
-  { id: 'oakmere-handforth', name: 'Oakmere, Handforth' },
-  { id: 'willowmere-middlewich', name: 'Willowmere, Middlewich' },
-];
-
 const ResidentBalance = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, isAdmin, loading: authLoading, signOut } = useAuth();
+  const { locations: allLocations } = useLocation2();
+  const walletLocations = allLocations.filter(l => l.wallet_enabled);
   
   const [residents, setResidents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -283,7 +281,7 @@ const ResidentBalance = () => {
                 className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               >
                 <option value="">All Locations</option>
-                {LOCATIONS.map(loc => (
+                {walletLocations.map(loc => (
                   <option key={loc.id} value={loc.id}>{loc.name}</option>
                 ))}
               </select>
@@ -343,7 +341,7 @@ const ResidentBalance = () => {
       {isResidentModalOpen && (
         <ResidentModal
           resident={editingResident}
-          locations={LOCATIONS}
+          locations={walletLocations}
           onSave={handleSaveResident}
           onClose={() => {
             setIsResidentModalOpen(false);

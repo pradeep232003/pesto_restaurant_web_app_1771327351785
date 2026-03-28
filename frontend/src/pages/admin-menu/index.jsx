@@ -4,7 +4,7 @@ import Header from '../../components/ui/Header';
 import Icon from '../../components/AppIcon';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { LOCATIONS } from '../../contexts/LocationContext';
+import { useLocation2 } from '../../contexts/LocationContext';
 import AdminMenuItemModal from './components/AdminMenuItemModal';
 import AdminMenuTable from './components/AdminMenuTable';
 
@@ -19,7 +19,8 @@ const MENU_CATEGORIES = [
 const AdminMenuManagement = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, isAdmin, loading: authLoading, signOut } = useAuth();
-  const [selectedLocationId, setSelectedLocationId] = useState(LOCATIONS?.[0]?.id);
+  const { locations } = useLocation2();
+  const [selectedLocationId, setSelectedLocationId] = useState(null);
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -35,6 +36,13 @@ const AdminMenuManagement = () => {
       navigate('/admin-login');
     }
   }, [authLoading, isAuthenticated, isAdmin, navigate]);
+
+  // Set initial location once loaded
+  useEffect(() => {
+    if (locations?.length > 0 && !selectedLocationId) {
+      setSelectedLocationId(locations[0].id);
+    }
+  }, [locations, selectedLocationId]);
 
   const handleLogout = async () => {
     await signOut();
@@ -257,7 +265,7 @@ const AdminMenuManagement = () => {
                     onChange={(e) => setSelectedLocationId(e?.target?.value)}
                     className="w-full sm:max-w-sm px-4 py-2.5 rounded-lg border border-border bg-background text-foreground font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors duration-200 cursor-pointer"
                   >
-                    {LOCATIONS?.map(loc => (
+                    {locations?.map(loc => (
                       <option key={loc?.id} value={loc?.id}>{loc?.name}</option>
                     ))}
                   </select>
