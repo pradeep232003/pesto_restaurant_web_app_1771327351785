@@ -21,13 +21,13 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - Image upload with auto-thumbnail generation (400x400 JPEG)
 - Show/hide image toggle per item
 - Dual pricing: Resident (R) and Visitor (V) prices
-- Public menu shows only resident price in GBP (£)
+- Public menu shows only resident price in GBP
 
 ### Online Ordering System (Feb 2026)
 - Customer registration (name, email, phone) with auto-generated password
 - Customer login with JWT tokens
-- Cart → Order submission (collection only, no delivery)
-- Order status flow: Pending → Confirmed → Preparing → Ready → Collected
+- Cart -> Order submission (collection only, no delivery)
+- Order status flow: Pending -> Confirmed -> Preparing -> Ready -> Collected
 - Order tracking by order number (JK-XXXXXX format)
 - Special instructions support
 
@@ -43,6 +43,14 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - Public menu shows "Online Ordering Open/Closed" banner
 - Cart blocks checkout when site is closed
 
+### Dynamic Locations & Wallet Toggle (Mar 2026)
+- Location CRUD: Admin can add, edit, soft-delete locations from Site Settings
+- wallet_enabled toggle per location (controls resident wallet availability)
+- Locations fetched from API (no more hardcoded arrays)
+- Auto site_settings creation when adding new location
+- Resident Balance and Transaction Report pages filter by wallet_enabled
+- All admin pages (Menu, Orders, Dashboard, Site Settings) use dynamic locations
+
 ## Key Routes
 | Route | Description |
 |-------|-------------|
@@ -53,7 +61,7 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 | /admin-login | Admin authentication |
 | /admin-menu | Menu CRUD management |
 | /admin-orders | Order management dashboard |
-| /admin-site-settings | Site hours & ordering toggle |
+| /admin-site-settings | Location CRUD, site hours, wallet toggle |
 | /resident-balance | Prepaid wallet management |
 
 ## API Endpoints
@@ -83,6 +91,15 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 | PUT | /api/admin/site-settings/{location_id} | Admin |
 | PATCH | /api/admin/site-settings/{location_id}/toggle | Admin |
 
+### Locations (NEW)
+| Method | Endpoint | Auth |
+|--------|----------|------|
+| GET | /api/locations | Public |
+| GET | /api/admin/locations | Admin |
+| POST | /api/admin/locations | Admin |
+| PUT | /api/admin/locations/{id} | Admin |
+| DELETE | /api/admin/locations/{id} | Admin |
+
 ## Prioritized Backlog
 
 ### P1 (High)
@@ -91,6 +108,7 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - Twilio credentials for SMS notifications
 
 ### P2 (Medium)
+- Kitchen display board (auto-updating orders on screen)
 - Bulk resident import/export
 - Order history for customers
 - Print kitchen tickets
