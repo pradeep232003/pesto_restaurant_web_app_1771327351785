@@ -39,7 +39,7 @@ const AdminLogin = () => {
   );
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6" style={{ background: '#FBFBFD' }}>
+    <div className="min-h-screen flex items-start pt-16 sm:items-center sm:pt-0 justify-center px-6" style={{ background: '#FBFBFD' }}>
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}

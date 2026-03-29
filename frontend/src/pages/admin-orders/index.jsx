@@ -71,13 +71,13 @@ const AdminOrders = () => {
     return STATUS_FLOW[idx + 1];
   };
 
-  if (authLoading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div></div>;
+  if (authLoading) return <div className="bg-background flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div></div>;
   if (!isAuthenticated || !isAdmin) return null;
 
   const locationName = (id) => locations.find(l => l.id === id)?.name || id;
 
   return (
-    <div className="min-h-screen" style={{ background: '#F5F5F7' }}>
+    <div style={{ background: '#F5F5F7' }}>
       <main>
         <section className="py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto">

@@ -181,7 +181,7 @@ const AdminMenuManagement = () => {
   // Show loading while checking auth
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="bg-background flex items-center justify-center py-20">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     );
@@ -209,7 +209,7 @@ const AdminMenuManagement = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background">
       <main>
         {/* Page Header */}
         <section className="py-6 lg:py-8 px-4 sm:px-6 lg:px-8">

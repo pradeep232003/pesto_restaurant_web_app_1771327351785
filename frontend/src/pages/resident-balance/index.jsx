@@ -161,7 +161,7 @@ const ResidentBalance = () => {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="bg-background flex items-center justify-center py-20">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     );
@@ -172,7 +172,7 @@ const ResidentBalance = () => {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: '#F5F5F7' }}>
+    <div style={{ background: '#F5F5F7' }}>
       <main>
         <section className="py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

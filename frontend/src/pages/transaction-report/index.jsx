@@ -122,7 +122,7 @@ const TransactionReport = () => {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="bg-background flex items-center justify-center py-20">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
       </div>
     );
@@ -133,7 +133,7 @@ const TransactionReport = () => {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: '#F5F5F7' }}>
+    <div style={{ background: '#F5F5F7' }}>
       <style>{`
         @media print {
           .no-print { display: none !important; }
