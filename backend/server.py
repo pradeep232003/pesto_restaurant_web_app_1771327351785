@@ -579,7 +579,10 @@ async def login(request: Request, response: Response, credentials: LoginRequest)
         path="/"
     )
     
-    return serialize_user(user)
+    user_data = serialize_user(user)
+    user_data["access_token"] = access_token
+    user_data["refresh_token"] = refresh_token
+    return user_data
 
 @app.post("/api/auth/logout")
 async def logout(response: Response):
@@ -597,6 +600,13 @@ async def get_me(user: dict = Depends(get_current_user)):
 async def refresh_token(request: Request, response: Response):
     """Refresh access token using refresh token"""
     token = request.cookies.get("refresh_token")
+    # Also check body for refresh_token (fallback for mobile browsers blocking cookies)
+    if not token:
+        try:
+            body = await request.json()
+            token = body.get("refresh_token")
+        except Exception:
+            pass
     if not token:
         raise HTTPException(status_code=401, detail="No refresh token")
     
@@ -621,7 +631,9 @@ async def refresh_token(request: Request, response: Response):
         path="/"
     )
     
-    return serialize_user(user)
+    user_data = serialize_user(user)
+    user_data["access_token"] = access_token
+    return user_data
 
 # ============== PUBLIC API ENDPOINTS ==============
 

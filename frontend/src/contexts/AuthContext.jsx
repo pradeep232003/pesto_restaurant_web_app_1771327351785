@@ -25,7 +25,22 @@ export const AuthProvider = ({ children }) => {
       const userData = await api.getMe();
       setUser(userData);
     } catch (error) {
-      // Not authenticated or token expired
+      // Access token might be expired - try refreshing with stored refresh token
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (refreshToken) {
+        try {
+          const userData = await api.refreshToken(refreshToken);
+          if (userData.access_token) {
+            localStorage.setItem('access_token', userData.access_token);
+          }
+          setUser(userData);
+          return;
+        } catch {
+          // Refresh also failed, clear tokens
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+        }
+      }
       setUser(false);
     } finally {
       setLoading(false);
@@ -35,6 +50,13 @@ export const AuthProvider = ({ children }) => {
   const signIn = async (email, password) => {
     try {
       const userData = await api.login(email, password);
+      // Store tokens for mobile browsers that block cross-origin cookies
+      if (userData.access_token) {
+        localStorage.setItem('access_token', userData.access_token);
+      }
+      if (userData.refresh_token) {
+        localStorage.setItem('refresh_token', userData.refresh_token);
+      }
       setUser(userData);
       return { data: { user: userData }, error: null };
     } catch (error) {
@@ -45,10 +67,14 @@ export const AuthProvider = ({ children }) => {
   const signOut = async () => {
     try {
       await api.logout();
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
       setUser(false);
       return { error: null };
     } catch (error) {
       // Still clear local state even if API fails
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
       setUser(false);
       return { error: { message: error.message } };
     }
@@ -56,10 +82,17 @@ export const AuthProvider = ({ children }) => {
 
   const refreshSession = async () => {
     try {
-      const userData = await api.refreshToken();
+      const refreshToken = localStorage.getItem('refresh_token');
+      const userData = await api.refreshToken(refreshToken);
+      // Store new access token
+      if (userData.access_token) {
+        localStorage.setItem('access_token', userData.access_token);
+      }
       setUser(userData);
       return { data: { user: userData }, error: null };
     } catch (error) {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
       setUser(false);
       return { data: null, error: { message: error.message } };
     }

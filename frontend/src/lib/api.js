@@ -22,13 +22,21 @@ function formatApiErrorDetail(detail) {
 class ApiService {
   async fetch(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+
+    // Attach stored token as Authorization header (fallback for mobile browsers blocking cross-origin cookies)
+    const storedToken = localStorage.getItem('access_token');
+    if (storedToken && !headers['Authorization']) {
+      headers['Authorization'] = `Bearer ${storedToken}`;
+    }
+
     const response = await fetch(url, {
       ...options,
       credentials: API_BASE_URL ? 'include' : 'same-origin',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
     });
     
     if (!response.ok) {
@@ -58,9 +66,10 @@ class ApiService {
     return this.fetch('/api/auth/me');
   }
 
-  async refreshToken() {
+  async refreshToken(refreshToken) {
     return this.fetch('/api/auth/refresh', {
       method: 'POST',
+      body: JSON.stringify({ refresh_token: refreshToken || null }),
     });
   }
 
@@ -143,9 +152,16 @@ class ApiService {
     const formData = new FormData();
     formData.append('file', file);
     
+    const headers = {};
+    const storedToken = localStorage.getItem('access_token');
+    if (storedToken) {
+      headers['Authorization'] = `Bearer ${storedToken}`;
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/admin/menu-items/${itemId}/upload-image`, {
       method: 'POST',
       credentials: API_BASE_URL ? 'include' : 'same-origin',
+      headers,
       body: formData,
     });
     
