@@ -210,12 +210,14 @@ class Location(BaseModel):
     sort_order: int = 0
     wallet_enabled: bool = False
     reservation_enabled: bool = False
+    phone: str = ""
 
 class LocationCreate(BaseModel):
     name: str
     address: Optional[str] = ""
     wallet_enabled: bool = False
     reservation_enabled: bool = False
+    phone: Optional[str] = ""
 
 class LocationUpdate(BaseModel):
     name: Optional[str] = None
@@ -224,6 +226,7 @@ class LocationUpdate(BaseModel):
     sort_order: Optional[int] = None
     wallet_enabled: Optional[bool] = None
     reservation_enabled: Optional[bool] = None
+    phone: Optional[str] = None
 
 class MenuItem(BaseModel):
     id: str
@@ -385,6 +388,23 @@ async def startup_event():
         {"id": {"$in": ["oakmere-handforth", "willowmere-middlewich"]}},
         {"$set": {"reservation_enabled": True}}
     )
+    # Ensure all locations have phone field and set known phone numbers
+    locations_collection.update_many(
+        {"phone": {"$exists": False}},
+        {"$set": {"phone": ""}}
+    )
+    phone_map = {
+        "timperley-altrincham": "0161 883 3707",
+        "howe-bridge-atherton": "0194 240 4322",
+        "chaddesden-derby": "0133 246 0708",
+        "oakmere-handforth": "0162 552 5168",
+        "willowmere-middlewich": "0160 683 5413",
+    }
+    for loc_id, phone in phone_map.items():
+        locations_collection.update_one(
+            {"id": loc_id},
+            {"$set": {"phone": phone}}
+        )
 
 def seed_admin():
     """Seed admin user from environment variables"""
@@ -652,6 +672,7 @@ async def admin_create_location(data: LocationCreate, user: dict = Depends(get_a
         "sort_order": next_sort,
         "wallet_enabled": data.wallet_enabled,
         "reservation_enabled": data.reservation_enabled,
+        "phone": data.phone or "",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     locations_collection.insert_one(location_doc)
@@ -699,6 +720,8 @@ async def admin_update_location(location_id: str, data: LocationUpdate, user: di
         update_fields["wallet_enabled"] = data.wallet_enabled
     if data.reservation_enabled is not None:
         update_fields["reservation_enabled"] = data.reservation_enabled
+    if data.phone is not None:
+        update_fields["phone"] = data.phone
 
     if update_fields:
         locations_collection.update_one({"id": location_id}, {"$set": update_fields})

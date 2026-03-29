@@ -1,33 +1,107 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { X, Phone } from 'lucide-react';
+import { useLocation2 } from '../../../contexts/LocationContext';
 
 const ease = [0.16, 1, 0.3, 1];
 
+const PolicyModal = ({ title, content, onClose }) => (
+  <>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[70]"
+      style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)' }}
+      onClick={onClose}
+    />
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95, y: 10 }}
+      transition={{ duration: 0.3, ease }}
+      className="fixed inset-0 z-[71] flex items-center justify-center px-5"
+    >
+      <div
+        className="w-full max-w-lg max-h-[80vh] overflow-y-auto"
+        style={{
+          background: 'rgba(255,255,255,0.97)',
+          backdropFilter: 'blur(40px)',
+          borderRadius: '1.5rem',
+          border: '1px solid rgba(255,255,255,0.5)',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 pt-6 pb-4" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+          <h2 className="text-lg font-semibold tracking-tight" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>
+            {title}
+          </h2>
+          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.05)' }}>
+            <X size={16} style={{ color: '#86868B' }} />
+          </button>
+        </div>
+        <div className="px-6 py-5 text-sm leading-relaxed" style={{ color: '#424245', fontFamily: 'Outfit, sans-serif' }}>
+          {content}
+        </div>
+      </div>
+    </motion.div>
+  </>
+);
+
+const privacyContent = (
+  <div className="space-y-4">
+    <p>At Jolly's Kafe, we are committed to protecting your privacy and personal data. This policy outlines how we collect, use, and safeguard your information.</p>
+    <h3 className="font-semibold" style={{ color: '#1D1D1F' }}>Information We Collect</h3>
+    <p>We collect information you provide when creating an account, placing orders, or making reservations — including your name, email address, phone number, and order history.</p>
+    <h3 className="font-semibold" style={{ color: '#1D1D1F' }}>How We Use Your Data</h3>
+    <p>Your data is used to process orders, manage reservations, send order confirmations, and improve our services. We do not sell your personal information to third parties.</p>
+    <h3 className="font-semibold" style={{ color: '#1D1D1F' }}>Data Security</h3>
+    <p>We implement industry-standard security measures to protect your data, including encrypted connections and secure password storage.</p>
+    <h3 className="font-semibold" style={{ color: '#1D1D1F' }}>Contact</h3>
+    <p>For any privacy-related queries, please contact us at any of our cafe locations.</p>
+    <p className="text-xs" style={{ color: '#86868B' }}>Last updated: March 2026</p>
+  </div>
+);
+
+const termsContent = (
+  <div className="space-y-4">
+    <p>By using the Jolly's Kafe website and services, you agree to the following terms and conditions.</p>
+    <h3 className="font-semibold" style={{ color: '#1D1D1F' }}>Orders & Collection</h3>
+    <p>All online orders are for collection only. Orders must be collected from the selected cafe location. We reserve the right to cancel orders if items become unavailable.</p>
+    <h3 className="font-semibold" style={{ color: '#1D1D1F' }}>Reservations</h3>
+    <p>Reservations are held for 15 minutes past the booked time. Cancellations must be made at least 2 hours in advance. Large parties of 8 or more may require a deposit.</p>
+    <h3 className="font-semibold" style={{ color: '#1D1D1F' }}>Prepaid Wallets</h3>
+    <p>Resident prepaid wallet balances are non-refundable and can only be used at eligible Jolly's Kafe locations. Wallet balances do not expire.</p>
+    <h3 className="font-semibold" style={{ color: '#1D1D1F' }}>Pricing</h3>
+    <p>Menu prices may vary by location and are subject to change. Resident pricing is available only at wallet-enabled locations with a valid resident account.</p>
+    <p className="text-xs" style={{ color: '#86868B' }}>Last updated: March 2026</p>
+  </div>
+);
+
+const cookiesContent = (
+  <div className="space-y-4">
+    <p>Jolly's Kafe uses cookies and similar technologies to provide and improve our services.</p>
+    <h3 className="font-semibold" style={{ color: '#1D1D1F' }}>Essential Cookies</h3>
+    <p>These cookies are required for the website to function properly, including authentication, cart management, and location preferences. They cannot be disabled.</p>
+    <h3 className="font-semibold" style={{ color: '#1D1D1F' }}>Functional Cookies</h3>
+    <p>These remember your preferences such as selected cafe location, improving your browsing experience across visits.</p>
+    <h3 className="font-semibold" style={{ color: '#1D1D1F' }}>Managing Cookies</h3>
+    <p>You can manage cookie preferences through your browser settings. Disabling essential cookies may affect website functionality.</p>
+    <p className="text-xs" style={{ color: '#86868B' }}>Last updated: March 2026</p>
+  </div>
+);
+
 const FooterSection = () => {
   const navigate = useNavigate();
-  const year = new Date().getFullYear();
+  const { locations } = useLocation2();
+  const [activeModal, setActiveModal] = useState(null);
 
-  const links = {
-    Explore: [
-      { label: 'Menu', path: '/menu-catalog' },
-      { label: 'Order Online', path: '/menu-catalog' },
-      { label: 'Reservations', path: '/table-reservation' },
-      { label: 'Track Order', path: '/order-tracking' },
-    ],
-    Locations: [
-      { label: 'Timperley, Altrincham' },
-      { label: 'Howe Bridge, Atherton' },
-      { label: 'Chaddesden, Derby' },
-      { label: 'Oakmere, Handforth' },
-      { label: 'Willowmere, Middlewich' },
-    ],
-    Connect: [
-      { label: 'Facebook', url: '#' },
-      { label: 'Instagram', url: '#' },
-      { label: 'Twitter', url: '#' },
-    ],
-  };
+  const exploreLinks = [
+    { label: 'Menu', path: '/menu-catalog' },
+    { label: 'Order Online', path: '/menu-catalog' },
+    { label: 'Track Order', path: '/order-status' },
+  ];
 
   return (
     <footer>
@@ -56,11 +130,7 @@ const FooterSection = () => {
               type="email"
               placeholder="you@email.com"
               className="flex-1 px-5 py-3.5 rounded-full text-sm outline-none"
-              style={{
-                background: '#FFFFFF',
-                color: '#1D1D1F',
-                border: 'none',
-              }}
+              style={{ background: '#FFFFFF', color: '#1D1D1F', border: 'none' }}
             />
             <button
               data-testid="newsletter-subscribe-btn"
@@ -82,15 +152,8 @@ const FooterSection = () => {
             {/* Brand */}
             <div className="col-span-2 md:col-span-1">
               <div className="flex items-center gap-2 mb-4">
-                <img
-                  src="/assets/images/logo-2-1774630354696.png"
-                  alt="Jollys Kafe"
-                  className="h-10 w-auto"
-                />
-                <span
-                  className="text-lg font-semibold tracking-tight"
-                  style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
-                >
+                <img src="/assets/images/logo-2-1774630354696.png" alt="Jollys Kafe" className="h-10 w-auto" />
+                <span className="text-lg font-semibold tracking-tight" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>
                   Jolly's Kafe
                 </span>
               </div>
@@ -99,54 +162,83 @@ const FooterSection = () => {
               </p>
             </div>
 
-            {/* Link Columns */}
-            {Object.entries(links).map(([title, items]) => (
-              <div key={title}>
-                <h4
-                  className="text-xs font-medium tracking-[0.15em] uppercase mb-4"
-                  style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}
-                >
-                  {title}
-                </h4>
-                <ul className="space-y-2.5">
-                  {items.map((item) => (
-                    <li key={item.label}>
-                      {item.path ? (
-                        <button
-                          onClick={() => navigate(item.path)}
-                          className="text-sm transition-colors duration-200 hover:underline"
-                          style={{ color: '#1D1D1F' }}
-                        >
-                          {item.label}
-                        </button>
-                      ) : (
-                        <span className="text-sm" style={{ color: '#86868B' }}>
-                          {item.label}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+            {/* Explore */}
+            <div>
+              <h4 className="text-xs font-medium tracking-[0.15em] uppercase mb-4" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>
+                Explore
+              </h4>
+              <ul className="space-y-2.5">
+                {exploreLinks.map(item => (
+                  <li key={item.label}>
+                    <button
+                      onClick={() => navigate(item.path)}
+                      className="text-sm transition-colors duration-200 hover:underline"
+                      style={{ color: '#1D1D1F' }}
+                    >
+                      {item.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Locations with phone */}
+            <div>
+              <h4 className="text-xs font-medium tracking-[0.15em] uppercase mb-4" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>
+                Locations
+              </h4>
+              <ul className="space-y-3">
+                {(locations || []).filter(l => l.is_active !== false).map(loc => (
+                  <li key={loc.id}>
+                    <span className="text-sm block" style={{ color: '#1D1D1F' }}>{loc.name}</span>
+                    {loc.phone && (
+                      <a
+                        href={`tel:${loc.phone.replace(/\s/g, '')}`}
+                        className="inline-flex items-center gap-1 text-xs mt-0.5 transition-colors duration-200 hover:underline"
+                        style={{ color: '#86868B' }}
+                      >
+                        <Phone size={10} />
+                        {loc.phone}
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Connect */}
+            <div>
+              <h4 className="text-xs font-medium tracking-[0.15em] uppercase mb-4" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>
+                Connect
+              </h4>
+              <ul className="space-y-2.5">
+                <li><a href="#" className="text-sm transition-colors duration-200 hover:underline" style={{ color: '#1D1D1F' }}>Facebook</a></li>
+                <li><a href="#" className="text-sm transition-colors duration-200 hover:underline" style={{ color: '#1D1D1F' }}>Instagram</a></li>
+                <li><a href="#" className="text-sm transition-colors duration-200 hover:underline" style={{ color: '#1D1D1F' }}>Twitter</a></li>
+              </ul>
+            </div>
           </div>
 
           {/* Bottom Bar */}
-          <div
-            className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-8"
-            style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}
-          >
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-8" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
             <p className="text-xs" style={{ color: '#86868B' }}>
               &copy; 2018 Jolly's Kafe. All rights reserved.
             </p>
             <div className="flex gap-6">
-              <a href="#" className="text-xs transition-colors duration-200 hover:underline" style={{ color: '#86868B' }}>Privacy</a>
-              <a href="#" className="text-xs transition-colors duration-200 hover:underline" style={{ color: '#86868B' }}>Terms</a>
-              <a href="#" className="text-xs transition-colors duration-200 hover:underline" style={{ color: '#86868B' }}>Cookies</a>
+              <button onClick={() => setActiveModal('privacy')} className="text-xs transition-colors duration-200 hover:underline" style={{ color: '#86868B' }}>Privacy</button>
+              <button onClick={() => setActiveModal('terms')} className="text-xs transition-colors duration-200 hover:underline" style={{ color: '#86868B' }}>Terms</button>
+              <button onClick={() => setActiveModal('cookies')} className="text-xs transition-colors duration-200 hover:underline" style={{ color: '#86868B' }}>Cookies</button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Policy Modals */}
+      <AnimatePresence>
+        {activeModal === 'privacy' && <PolicyModal title="Privacy Policy" content={privacyContent} onClose={() => setActiveModal(null)} />}
+        {activeModal === 'terms' && <PolicyModal title="Terms & Conditions" content={termsContent} onClose={() => setActiveModal(null)} />}
+        {activeModal === 'cookies' && <PolicyModal title="Cookie Policy" content={cookiesContent} onClose={() => setActiveModal(null)} />}
+      </AnimatePresence>
     </footer>
   );
 };
