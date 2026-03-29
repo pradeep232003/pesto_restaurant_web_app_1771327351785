@@ -417,32 +417,30 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
 
             {/* Mobile Cafes — dropdown or selected label */}
             <div className="relative">
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setIsCafesDropdownOpen(!isCafesDropdownOpen)}
-                  className="cafes-dropdown-button flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-body font-medium transition-all duration-200 text-foreground hover:text-primary hover:bg-muted"
-                >
-                  <Icon name="Coffee" size={20} />
-                  <span>Cafes</span>
-                  <Icon name="ChevronDown" size={16} className={`transition-transform duration-200 ${isCafesDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {selectedCafeLocation && (
-                  <div className="flex items-center space-x-1 flex-1">
-                    <span className="flex-1 flex items-center space-x-3 px-4 py-3 rounded-lg font-body font-medium text-primary bg-primary/10">
-                      <Icon name="MapPin" size={20} className="text-primary flex-shrink-0" />
-                      <span className="truncate">{selectedCafeLocation?.name}</span>
-                    </span>
-                    <button
-                      onClick={handleCafeClear}
-                      className="p-3 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200"
-                    >
-                      <Icon name="X" size={18} />
-                    </button>
-                  </div>
-                )}
-              </div>
+              <button
+                onClick={() => setIsCafesDropdownOpen(!isCafesDropdownOpen)}
+                className="cafes-dropdown-button w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-body font-medium transition-all duration-200 text-foreground hover:text-primary hover:bg-muted"
+              >
+                <Icon name="Coffee" size={20} />
+                <span className="flex-1">Cafes</span>
+                <Icon name="ChevronDown" size={16} className={`transition-transform duration-200 ${isCafesDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {selectedCafeLocation && (
+                <div className="flex items-center mt-1 mx-1">
+                  <span className="flex-1 flex items-center space-x-2 px-4 py-2.5 rounded-lg font-body text-sm font-medium text-primary bg-primary/10">
+                    <Icon name="MapPin" size={16} className="text-primary flex-shrink-0" />
+                    <span className="truncate">{selectedCafeLocation?.name}</span>
+                  </span>
+                  <button
+                    onClick={handleCafeClear}
+                    className="p-2 ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200"
+                  >
+                    <Icon name="X" size={16} />
+                  </button>
+                </div>
+              )}
               {isCafesDropdownOpen && (
-                <div className="cafes-dropdown mt-1 w-full bg-card border border-border rounded-lg shadow-warm-lg overflow-hidden">
+                <div className="cafes-dropdown mt-1 w-full bg-card border border-border rounded-lg shadow-warm-lg overflow-hidden max-h-48 overflow-y-auto">
                   {locations?.map((loc) => (
                     <button
                       key={loc?.id}
@@ -540,10 +538,13 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
 
           {/* Contact Info */}
           <div className="mt-8 pt-6 border-t border-border">
-            <div className="flex items-center space-x-3 text-sm font-body text-muted-foreground">
+            <a
+              href={selectedCafeLocation?.phone ? `tel:${selectedCafeLocation.phone.replace(/\s/g, '')}` : 'tel:01618833707'}
+              className="flex items-center space-x-3 text-sm font-body text-muted-foreground hover:text-foreground transition-colors"
+            >
               <Icon name="Phone" size={16} />
-              <span>Call us: (555) 123-4567</span>
-            </div>
+              <span>Call us: {selectedCafeLocation?.phone || '0161 883 3707'}</span>
+            </a>
           </div>
         </div>
       </div>
