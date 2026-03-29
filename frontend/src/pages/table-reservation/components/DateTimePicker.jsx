@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../../../lib/api';
 
 const ease = [0.16, 1, 0.3, 1];
@@ -26,7 +26,7 @@ const generateSlots = (openTime, closeTime) => {
   return slots;
 };
 
-const DateTimePicker = ({ restaurant, onSelect, onBack }) => {
+const DateTimePicker = ({ restaurant, onSelect }) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -114,19 +114,8 @@ const DateTimePicker = ({ restaurant, onSelect, onBack }) => {
 
   return (
     <div>
-      {/* Back + location label */}
-      <div className="flex items-center justify-between mb-8">
-        <button
-          data-testid="datetime-back-btn"
-          onClick={onBack}
-          className="inline-flex items-center gap-2 text-sm font-medium transition-colors duration-200"
-          style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}
-          onMouseEnter={e => e.currentTarget.style.color = '#1D1D1F'}
-          onMouseLeave={e => e.currentTarget.style.color = '#86868B'}
-        >
-          <ArrowLeft size={15} />
-          Back
-        </button>
+      {/* Location label */}
+      <div className="flex items-center justify-end mb-8">
         <div
           className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm"
           style={{ background: '#F5F5F7', color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}

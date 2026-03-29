@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Calendar, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
 import Header from '../../components/ui/Header';
-import LocationStep from './components/RestaurantSelector';
 import DateTimePicker from './components/DateTimePicker';
 import ReservationForm from './components/ReservationForm';
 import ConfirmationModal from './components/ConfirmationModal';
@@ -12,31 +11,31 @@ import { useLocation2 } from '../../contexts/LocationContext';
 const ease = [0.16, 1, 0.3, 1];
 
 const steps = [
-  { num: 1, label: 'Location' },
-  { num: 2, label: 'Date & Time' },
-  { num: 3, label: 'Details' },
+  { num: 1, label: 'Date & Time' },
+  { num: 2, label: 'Details' },
 ];
 
 const TableReservation = () => {
   const navigate = useNavigate();
-  const { locations, selectedLocation } = useLocation2();
-  const [currentStep, setCurrentStep] = useState(selectedLocation ? 2 : 1);
-  const [selectedRestaurant, setSelectedRestaurant] = useState(selectedLocation || null);
+  const { selectedLocation } = useLocation2();
+  const [currentStep, setCurrentStep] = useState(1);
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
   const [reservationData, setReservationData] = useState(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleRestaurantSelect = (loc) => {
-    setSelectedRestaurant(loc);
-    setCurrentStep(2);
-  };
+  // Redirect to home if no location selected or reservation not enabled
+  useEffect(() => {
+    if (!selectedLocation || !selectedLocation.reservation_enabled) {
+      navigate('/home-landing');
+    }
+  }, [selectedLocation, navigate]);
 
   const handleDateTimeSelect = (date, time) => {
     setSelectedDate(date);
     setSelectedTime(time);
-    setCurrentStep(3);
+    setCurrentStep(2);
   };
 
   const handleReservationSubmit = async (formData) => {
@@ -50,11 +49,13 @@ const TableReservation = () => {
   const handleConfirmationClose = () => {
     setShowConfirmation(false);
     setCurrentStep(1);
-    setSelectedRestaurant(null);
     setSelectedDate(null);
     setSelectedTime(null);
     setReservationData(null);
   };
+
+  // Don't render if redirecting
+  if (!selectedLocation || !selectedLocation.reservation_enabled) return null;
 
   return (
     <div className="min-h-screen" style={{ background: '#FBFBFD' }}>
@@ -75,7 +76,7 @@ const TableReservation = () => {
             className="text-sm tracking-[0.2em] uppercase mb-4"
             style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}
           >
-            Book a table
+            {selectedLocation.name}
           </motion.p>
           <motion.h1
             initial={{ opacity: 0, y: 30 }}
@@ -93,7 +94,7 @@ const TableReservation = () => {
             className="text-base md:text-lg max-w-xl mx-auto"
             style={{ color: '#86868B' }}
           >
-            Choose your preferred cafe, date and time for an unforgettable meal.
+            Pick your preferred date and time for an unforgettable meal.
           </motion.p>
         </section>
 
@@ -150,9 +151,9 @@ const TableReservation = () => {
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ duration: 0.4, ease }}
                 >
-                  <LocationStep
-                    locations={locations}
-                    onSelect={handleRestaurantSelect}
+                  <DateTimePicker
+                    restaurant={selectedLocation}
+                    onSelect={handleDateTimeSelect}
                   />
                 </motion.div>
               )}
@@ -164,27 +165,12 @@ const TableReservation = () => {
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ duration: 0.4, ease }}
                 >
-                  <DateTimePicker
-                    restaurant={selectedRestaurant}
-                    onSelect={handleDateTimeSelect}
-                    onBack={() => setCurrentStep(1)}
-                  />
-                </motion.div>
-              )}
-              {currentStep === 3 && (
-                <motion.div
-                  key="step3"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  transition={{ duration: 0.4, ease }}
-                >
                   <ReservationForm
-                    restaurant={selectedRestaurant}
+                    restaurant={selectedLocation}
                     date={selectedDate}
                     time={selectedTime}
                     onSubmit={handleReservationSubmit}
-                    onBack={() => setCurrentStep(2)}
+                    onBack={() => setCurrentStep(1)}
                     loading={loading}
                   />
                 </motion.div>
@@ -198,7 +184,7 @@ const TableReservation = () => {
       <AnimatePresence>
         {showConfirmation && (
           <ConfirmationModal
-            restaurant={selectedRestaurant}
+            restaurant={selectedLocation}
             date={selectedDate}
             time={selectedTime}
             reservationData={reservationData}
