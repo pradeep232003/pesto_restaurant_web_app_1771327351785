@@ -7,7 +7,7 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - **Frontend**: React 18 + Vite + TailwindCSS + Framer Motion
 - **Backend**: FastAPI + MongoDB + JWT Auth
 - **Image Processing**: Pillow (400x400 auto-thumbnails)
-- **Auth**: Cookie-based JWT + Emergent Google OAuth + Email OTP verification
+- **Auth**: Cookie-based JWT + localStorage Bearer token fallback + Emergent Google OAuth + Email OTP verification
 - **Email**: Resend (when API key provided)
 
 ## Implemented Features
@@ -57,9 +57,18 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - Mobile-responsive layout
 
 ### Apple Table Reservation (Mar 2026)
-- 3-step flow: Location → Calendar/Time → Details → Confirmation modal
+- 3-step flow: Location -> Calendar/Time -> Details -> Confirmation modal
 - Dynamic locations from API, glassmorphism confirmation
 - "Reservations" link always visible in header nav (desktop + mobile)
+
+### Contact Us Page (Mar 2026)
+- Apple-designed form with Honeypot + Speed Check + Math Captcha spam protection
+
+### Mobile Admin Auth Fix (Mar 2026)
+- Dual-auth: cookies (same-origin) + localStorage Bearer tokens (cross-origin/mobile)
+- Fixed mobile browsers blocking third-party cookies on Railway deployment
+- Tokens returned in login/refresh response bodies, stored in localStorage
+- All admin pages verified working on mobile viewport (375x812)
 
 ## Key Routes
 | Route | Description |
@@ -70,6 +79,7 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 | /shopping-cart | Apple-designed cart with checkout |
 | /table-reservation | Apple-designed reservation with calendar |
 | /order-status | Track order by number |
+| /contact-us | Contact form with spam protection |
 | /admin-login | Apple-styled admin login |
 | /admin | Apple-styled dashboard |
 | /admin/menu | Menu CRUD management |
@@ -91,4 +101,4 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 ### P3 (Low)
 - Multiple admin users with roles
 - Loyalty rewards program
-- Backend server.py modularization (~1800 lines -> /routes/)
+- Backend server.py modularization (~1900 lines -> /routes/)
