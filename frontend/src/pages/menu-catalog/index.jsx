@@ -130,12 +130,12 @@ const MenuCatalog = () => {
 
       <main className="pt-16">
         {/* Hero */}
-        <section className="pt-20 pb-12 md:pt-28 md:pb-16 px-6 md:px-12 text-center" style={{ background: '#FBFBFD' }}>
+        <section className="pt-12 pb-6 md:pt-16 md:pb-8 px-6 md:px-12 text-center" style={{ background: '#FBFBFD' }}>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease }}
-            className="text-sm tracking-[0.2em] uppercase mb-5"
+            className="text-sm tracking-[0.2em] uppercase mb-3"
             style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}
           >
             {selectedLocation?.name || 'Our Menu'}
@@ -144,7 +144,7 @@ const MenuCatalog = () => {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.1, ease }}
-            className="text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight mb-5"
+            className="text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight mb-3"
             style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
           >
             Our Menu.
@@ -153,7 +153,7 @@ const MenuCatalog = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.2, ease }}
-            className="text-base md:text-lg max-w-xl mx-auto mb-8"
+            className="text-base md:text-lg max-w-xl mx-auto mb-5"
             style={{ color: '#86868B' }}
           >
             Fresh ingredients, family recipes, and honest cooking — all in one place.
@@ -303,7 +303,7 @@ const MenuCatalog = () => {
         )}
 
         {/* Menu Grid */}
-        <section className="py-10 md:py-14 px-6 md:px-12">
+        <section className="py-6 md:py-8 px-6 md:px-12">
           <div className="max-w-7xl mx-auto">
             <MenuGrid
               items={filteredItems}
