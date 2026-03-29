@@ -92,15 +92,15 @@ const cookiesContent = (
   </div>
 );
 
-const FooterSection = () => {
+const FooterSection = ({ onOrderOnline }) => {
   const navigate = useNavigate();
   const { locations } = useLocation2();
   const [activeModal, setActiveModal] = useState(null);
 
   const exploreLinks = [
-    { label: 'Menu', path: '/menu-catalog' },
-    { label: 'Order Online', path: '/menu-catalog' },
-    { label: 'Track Order', path: '/order-status' },
+    { label: 'Menu', action: () => navigate('/menu-catalog') },
+    { label: 'Order Online', action: onOrderOnline || (() => navigate('/menu-catalog')) },
+    { label: 'Track Order', action: () => navigate('/order-status') },
   ];
 
   return (
@@ -171,7 +171,7 @@ const FooterSection = () => {
                 {exploreLinks.map(item => (
                   <li key={item.label}>
                     <button
-                      onClick={() => navigate(item.path)}
+                      onClick={item.action}
                       className="text-sm transition-colors duration-200 hover:underline"
                       style={{ color: '#1D1D1F' }}
                     >

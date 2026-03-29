@@ -8,13 +8,16 @@ import TestimonialsSection from './components/TestimonialsSection';
 import FooterSection from './components/FooterSection';
 import LocationPickerModal from '../../components/LocationPickerModal';
 import { useLocation2 } from '../../contexts/LocationContext';
+import { useCustomer } from '../../contexts/CustomerContext';
 
 const HomeLanding = () => {
   const navigate = useNavigate();
   const { locations, selectedCafeLocation, setSelectedLocation, setSelectedCafeLocation } = useLocation2();
+  const { customer } = useCustomer();
   const [cartCount, setCartCount] = useState(0);
   const [user, setUser] = useState(null);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [pendingOrderRedirect, setPendingOrderRedirect] = useState(false);
 
   useEffect(() => {
     const mockUser = localStorage.getItem('currentUser');
@@ -31,10 +34,24 @@ const HomeLanding = () => {
     }
   };
 
+  const handleOrderOnline = () => {
+    if (!customer) {
+      navigate('/customer-auth');
+      return;
+    }
+    if (!selectedCafeLocation) {
+      setPendingOrderRedirect(true);
+      setShowLocationPicker(true);
+    } else {
+      navigate('/menu-catalog');
+    }
+  };
+
   const handleLocationSelect = (loc) => {
     setSelectedLocation(loc);
     setSelectedCafeLocation(loc);
     setShowLocationPicker(false);
+    setPendingOrderRedirect(false);
     navigate('/menu-catalog');
   };
 
@@ -55,11 +72,11 @@ const HomeLanding = () => {
       />
 
       <main className="pt-16">
-        <HeroSection onViewMenu={handleViewMenu} onOrderNow={handleViewMenu} />
+        <HeroSection onViewMenu={handleViewMenu} onOrderNow={handleOrderOnline} />
         <MenuPreviewSection />
         <WhyChooseUsSection />
         <TestimonialsSection />
-        <FooterSection />
+        <FooterSection onOrderOnline={handleOrderOnline} />
       </main>
 
       <LocationPickerModal
