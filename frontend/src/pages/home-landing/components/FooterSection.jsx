@@ -137,7 +137,7 @@ const FooterSection = () => {
             style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}
           >
             <p className="text-xs" style={{ color: '#86868B' }}>
-              &copy; {year} Jolly's Kafe. All rights reserved.
+              &copy; 2018 Jolly's Kafe. All rights reserved.
             </p>
             <div className="flex gap-6">
               <a href="#" className="text-xs transition-colors duration-200 hover:underline" style={{ color: '#86868B' }}>Privacy</a>
