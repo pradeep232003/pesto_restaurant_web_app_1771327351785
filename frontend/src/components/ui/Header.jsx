@@ -341,17 +341,10 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
               <>
                 <button
                   onClick={handleSignIn}
-                  className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-body font-medium text-foreground hover:text-primary hover:bg-muted border border-border transition-all duration-200"
+                  className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-body font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200"
                 >
                   <Icon name="LogIn" size={16} />
                   <span>Sign In</span>
-                </button>
-                <button
-                  onClick={handleSignUp}
-                  className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-body font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200"
-                >
-                  <Icon name="UserPlus" size={16} />
-                  <span>Sign Up</span>
                 </button>
               </>
             )}
@@ -524,17 +517,10 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
                 <div className="space-y-2">
                   <button
                     onClick={handleSignIn}
-                    className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-body font-medium text-foreground hover:text-primary hover:bg-muted transition-all duration-200"
+                    className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-body font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200"
                   >
                     <Icon name="LogIn" size={20} />
                     <span>Sign In</span>
-                  </button>
-                  <button
-                    onClick={handleSignUp}
-                    className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-body font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200"
-                  >
-                    <Icon name="UserPlus" size={20} />
-                    <span>Sign Up</span>
                   </button>
                 </div>
               </>
