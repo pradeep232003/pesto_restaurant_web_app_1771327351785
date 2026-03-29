@@ -1,11 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { useLocation2 } from '../../../contexts/LocationContext';
 
 const ease = [0.16, 1, 0.3, 1];
 
 const HeroSection = ({ onViewMenu, onOrderNow }) => {
   const navigate = useNavigate();
+  const { selectedLocation } = useLocation2();
 
   return (
     <section className="relative" style={{ background: '#FBFBFD' }}>
@@ -77,6 +79,18 @@ const HeroSection = ({ onViewMenu, onOrderNow }) => {
           >
             Order Online
           </button>
+          {selectedLocation?.reservation_enabled && (
+            <button
+              data-testid="hero-reservations-btn"
+              onClick={() => navigate('/table-reservation')}
+              className="sm:hidden px-8 py-4 rounded-full text-sm font-medium tracking-wide transition-colors duration-300"
+              style={{ background: '#F5F5F7', color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
+              onMouseEnter={e => e.target.style.background = '#E8E8ED'}
+              onMouseLeave={e => e.target.style.background = '#F5F5F7'}
+            >
+              Reservations
+            </button>
+          )}
         </motion.div>
       </div>
 
