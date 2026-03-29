@@ -1,114 +1,83 @@
 import React from 'react';
-import Icon from '../../../components/AppIcon';
+import { MapPin, ChevronRight } from 'lucide-react';
 
-const RestaurantSelector = ({ restaurants, onSelect }) => {
+const LocationStep = ({ locations, onSelect }) => {
+  const activeLocations = locations?.filter(l => l.is_active !== false) || [];
+
   return (
     <div>
-      <div className="text-center mb-8">
-        <h2 className="text-2xl lg:text-3xl font-heading font-bold text-foreground mb-2">
-          Choose Your Location
+      <div className="text-center mb-10">
+        <h2
+          className="text-2xl sm:text-3xl font-semibold tracking-tight mb-3"
+          style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
+        >
+          Choose a cafe.
         </h2>
-        <p className="text-muted-foreground">
-          Select from our six beautiful Jollys Kafe locations
+        <p className="text-sm" style={{ color: '#86868B' }}>
+          Select the location for your reservation.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2 gap-6">
-        {restaurants?.map((restaurant) => (
-          <div
-            key={restaurant?.id}
-            className="bg-card border border-border rounded-xl overflow-hidden hover:shadow-warm-lg transition-all duration-300 cursor-pointer group"
-            onClick={() => onSelect?.(restaurant)}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {activeLocations.map((loc) => (
+          <button
+            key={loc.id}
+            data-testid={`reservation-location-${loc.id}`}
+            onClick={() => onSelect(loc)}
+            className="group text-left p-6 transition-all duration-300"
+            style={{
+              background: '#FFFFFF',
+              borderRadius: '1.25rem',
+              border: '1px solid rgba(0,0,0,0.06)',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = 'rgba(0,0,0,0.15)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = 'rgba(0,0,0,0.06)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
           >
-            {/* Restaurant Image */}
-            <div className="relative h-48 overflow-hidden">
-              <img
-                src={restaurant?.image}
-                alt={restaurant?.imageAlt}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            <div className="flex items-start justify-between mb-4">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ background: '#F5F5F7' }}
+              >
+                <MapPin size={18} style={{ color: '#1D1D1F' }} strokeWidth={1.5} />
+              </div>
+              <ChevronRight
+                size={16}
+                className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 mt-2"
+                style={{ color: '#86868B' }}
               />
-              <div className="absolute inset-0 bg-black bg-opacity-20 group-hover:bg-opacity-10 transition-opacity duration-300" />
-              <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1">
-                <span className="text-sm font-body font-medium text-foreground">
-                  {restaurant?.capacity} seats
-                </span>
-              </div>
             </div>
-
-            {/* Restaurant Info */}
-            <div className="p-6">
-              <h3 className="text-xl font-heading font-bold text-foreground mb-2">
-                {restaurant?.name}
-              </h3>
-              
-              <div className="space-y-3 mb-4">
-                <div className="flex items-start space-x-2">
-                  <Icon name="MapPin" size={16} className="text-muted-foreground mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-muted-foreground">
-                    {restaurant?.address}
-                  </p>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Icon name="Clock" size={16} className="text-muted-foreground flex-shrink-0" />
-                  <p className="text-sm text-muted-foreground">
-                    {restaurant?.hours}
-                  </p>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Icon name="Phone" size={16} className="text-muted-foreground flex-shrink-0" />
-                  <p className="text-sm text-muted-foreground">
-                    {restaurant?.phone}
-                  </p>
-                </div>
-              </div>
-
-              {/* Features */}
-              <div className="mb-4">
-                <div className="flex flex-wrap gap-2">
-                  {restaurant?.features?.map((feature) => (
-                    <span
-                      key={feature}
-                      className="inline-flex items-center px-2.5 py-1 bg-muted rounded-full text-xs font-body font-medium text-muted-foreground"
-                    >
-                      {feature}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Select Button */}
-              <button className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-body font-medium hover:bg-primary/90 transition-all duration-200 group-hover:scale-[1.02] flex items-center justify-center space-x-2">
-                <span>Select This Location</span>
-                <Icon name="ArrowRight" size={16} />
-              </button>
-            </div>
-          </div>
+            <h3
+              className="text-base font-medium tracking-tight mb-1"
+              style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
+            >
+              {loc.name}
+            </h3>
+            {loc.address && loc.address !== loc.name && (
+              <p className="text-xs leading-relaxed" style={{ color: '#86868B' }}>
+                {loc.address}
+              </p>
+            )}
+          </button>
         ))}
       </div>
 
-      {/* Additional Info */}
-      <div className="mt-8 p-6 bg-muted rounded-xl">
-        <div className="flex items-start space-x-3">
-          <div className="w-10 h-10 bg-accent rounded-full flex items-center justify-center flex-shrink-0">
-            <Icon name="Info" size={20} color="#4C1D0A" />
-          </div>
-          <div>
-            <h3 className="font-heading font-bold text-foreground mb-2">
-              Reservation Information
-            </h3>
-            <div className="space-y-1 text-sm text-muted-foreground">
-              <p>• Reservations can be made up to 30 days in advance</p>
-              <p>• Large parties (8+ guests) may require a deposit</p>
-              <p>• Cancellations must be made at least 2 hours in advance</p>
-              <p>• Special dietary requirements can be noted in your reservation</p>
-            </div>
-          </div>
-        </div>
+      {/* Info note */}
+      <div
+        className="mt-8 px-6 py-5 text-center"
+        style={{ background: '#F5F5F7', borderRadius: '1rem' }}
+      >
+        <p className="text-xs leading-relaxed" style={{ color: '#86868B' }}>
+          Reservations can be made up to 30 days in advance. Large parties (8+ guests) may require a deposit.
+        </p>
       </div>
     </div>
   );
 };
 
-export default RestaurantSelector;
+export default LocationStep;

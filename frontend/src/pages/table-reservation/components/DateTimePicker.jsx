@@ -1,166 +1,226 @@
 import React, { useState, useEffect } from 'react';
-import Icon from '../../../components/AppIcon';
+import { ArrowLeft, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+
+const ease = [0.16, 1, 0.3, 1];
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+const timeSlots = [
+  '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM',
+  '1:00 PM', '1:30 PM', '2:00 PM', '5:00 PM',
+  '5:30 PM', '6:00 PM', '6:30 PM', '7:00 PM',
+  '7:30 PM', '8:00 PM', '8:30 PM', '9:00 PM',
+];
 
 const DateTimePicker = ({ restaurant, onSelect, onBack }) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
+  const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
   const [guestCount, setGuestCount] = useState(2);
   const [availableSlots, setAvailableSlots] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
-  // Generate next 30 days
-  const generateDates = () => {
-    const dates = [];
-    const today = new Date();
-    
-    for (let i = 0; i < 30; i++) {
-      const date = new Date(today);
-      date?.setDate(today?.getDate() + i);
-      dates?.push(date);
-    }
-    
-    return dates;
-  };
-
-  const dates = generateDates();
-
-  // Mock time slots
-  const timeSlots = [
-    '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM',
-    '1:00 PM', '1:30 PM', '2:00 PM', '2:30 PM',
-    '5:00 PM', '5:30 PM', '6:00 PM', '6:30 PM',
-    '7:00 PM', '7:30 PM', '8:00 PM', '8:30 PM',
-    '9:00 PM', '9:30 PM'
-  ];
-
-  // Simulate loading available slots when date changes
   useEffect(() => {
     if (selectedDate) {
-      setLoading(true);
+      setLoadingSlots(true);
       setAvailableSlots([]);
-      
-      setTimeout(() => {
-        // Mock availability - some slots might be unavailable
-        const availableToday = timeSlots?.filter(() => Math.random() > 0.3);
-        setAvailableSlots(availableToday);
-        setLoading(false);
-      }, 1000);
+      const timer = setTimeout(() => {
+        const available = timeSlots.filter(() => Math.random() > 0.25);
+        setAvailableSlots(available);
+        setLoadingSlots(false);
+      }, 600);
+      return () => clearTimeout(timer);
     }
   }, [selectedDate]);
 
-  const formatDate = (date) => {
-    return date?.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric'
-    });
+  const getDaysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
+  const getFirstDayOfMonth = (month, year) => new Date(year, month, 1).getDay();
+
+  const prevMonth = () => {
+    if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(y => y - 1); }
+    else setCurrentMonth(m => m - 1);
   };
 
-  const isDateDisabled = (date) => {
-    const today = new Date();
-    today?.setHours(0, 0, 0, 0);
-    return date < today;
+  const nextMonth = () => {
+    if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(y => y + 1); }
+    else setCurrentMonth(m => m + 1);
   };
 
-  const handleDateSelect = (date) => {
-    setSelectedDate(date);
+  const isDateDisabled = (day) => {
+    const d = new Date(currentYear, currentMonth, day);
+    d.setHours(0, 0, 0, 0);
+    return d < today;
+  };
+
+  const isDateSelected = (day) => {
+    if (!selectedDate) return false;
+    return selectedDate.getDate() === day && selectedDate.getMonth() === currentMonth && selectedDate.getFullYear() === currentYear;
+  };
+
+  const handleDayClick = (day) => {
+    if (isDateDisabled(day)) return;
+    setSelectedDate(new Date(currentYear, currentMonth, day));
     setSelectedTime(null);
   };
 
-  const handleTimeSelect = (time) => {
-    setSelectedTime(time);
+  const canGoPrev = () => {
+    return currentMonth > today.getMonth() || currentYear > today.getFullYear();
   };
 
-  const handleContinue = () => {
-    if (selectedDate && selectedTime) {
-      onSelect?.(selectedDate, selectedTime);
-    }
+  const formatSelectedDate = () => {
+    if (!selectedDate) return '';
+    return selectedDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   };
+
+  const daysInMonth = getDaysInMonth(currentMonth, currentYear);
+  const firstDay = getFirstDayOfMonth(currentMonth, currentYear);
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      {/* Back + location label */}
+      <div className="flex items-center justify-between mb-8">
         <button
+          data-testid="datetime-back-btn"
           onClick={onBack}
-          className="flex items-center space-x-2 text-muted-foreground hover:text-foreground transition-colors duration-200"
+          className="inline-flex items-center gap-2 text-sm font-medium transition-colors duration-200"
+          style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}
+          onMouseEnter={e => e.currentTarget.style.color = '#1D1D1F'}
+          onMouseLeave={e => e.currentTarget.style.color = '#86868B'}
         >
-          <Icon name="ArrowLeft" size={16} />
-          <span className="font-body">Back to Locations</span>
+          <ArrowLeft size={15} />
+          Back
         </button>
-        
-        <div className="text-center">
-          <h2 className="text-xl lg:text-2xl font-heading font-bold text-foreground">
-            {restaurant?.name}
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {restaurant?.address}
-          </p>
+        <div
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm"
+          style={{ background: '#F5F5F7', color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
+        >
+          <Calendar size={14} style={{ color: '#86868B' }} />
+          {restaurant?.name}
         </div>
-        
-        <div /> {/* Spacer for centering */}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Guest Count & Date Selection */}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+        {/* Left: Calendar */}
         <div>
-          <h3 className="text-lg font-heading font-bold text-foreground mb-4">
-            Select Date & Party Size
+          <h3
+            className="text-lg font-semibold tracking-tight mb-5"
+            style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
+          >
+            Pick a date.
           </h3>
 
-          {/* Guest Count */}
-          <div className="mb-6">
-            <label className="block text-sm font-body font-medium text-foreground mb-2">
-              Number of Guests
-            </label>
-            <div className="flex items-center space-x-4">
+          {/* Guest count */}
+          <div className="flex items-center gap-3 mb-6">
+            <span className="text-sm" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>Guests</span>
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setGuestCount(Math.max(1, guestCount - 1))}
                 disabled={guestCount <= 1}
-                className="w-10 h-10 rounded-full border border-border flex items-center justify-center hover:bg-muted transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-colors disabled:opacity-40"
+                style={{ background: '#F5F5F7', color: '#1D1D1F' }}
               >
-                <Icon name="Minus" size={16} />
+                <span className="text-lg leading-none">−</span>
               </button>
-              <span className="text-lg font-body font-medium text-foreground min-w-[3rem] text-center">
+              <span
+                className="w-8 text-center text-sm font-medium"
+                style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
+              >
                 {guestCount}
               </span>
               <button
                 onClick={() => setGuestCount(Math.min(12, guestCount + 1))}
                 disabled={guestCount >= 12}
-                className="w-10 h-10 rounded-full border border-border flex items-center justify-center hover:bg-muted transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-colors disabled:opacity-40"
+                style={{ background: '#F5F5F7', color: '#1D1D1F' }}
               >
-                <Icon name="Plus" size={16} />
+                <span className="text-lg leading-none">+</span>
               </button>
             </div>
           </div>
 
-          {/* Date Grid */}
-          <div>
-            <label className="block text-sm font-body font-medium text-foreground mb-3">
-              Available Dates
-            </label>
-            <div className="grid grid-cols-7 gap-2 mb-4">
-              {dates?.slice(0, 21)?.map((date) => {
-                const isSelected = selectedDate?.toDateString() === date?.toDateString();
-                const isDisabled = isDateDisabled(date);
-                
+          {/* Calendar header */}
+          <div
+            className="p-5"
+            style={{ background: '#FFFFFF', borderRadius: '1.25rem', border: '1px solid rgba(0,0,0,0.06)' }}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <button
+                onClick={prevMonth}
+                disabled={!canGoPrev()}
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-colors disabled:opacity-30"
+                style={{ background: '#F5F5F7' }}
+              >
+                <ChevronLeft size={16} style={{ color: '#1D1D1F' }} />
+              </button>
+              <span
+                className="text-sm font-semibold"
+                style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
+              >
+                {MONTHS[currentMonth]} {currentYear}
+              </span>
+              <button
+                onClick={nextMonth}
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+                style={{ background: '#F5F5F7' }}
+              >
+                <ChevronRight size={16} style={{ color: '#1D1D1F' }} />
+              </button>
+            </div>
+
+            {/* Day headers */}
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {DAYS.map(d => (
+                <div
+                  key={d}
+                  className="text-center text-xs font-medium py-1"
+                  style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}
+                >
+                  {d}
+                </div>
+              ))}
+            </div>
+
+            {/* Days grid */}
+            <div className="grid grid-cols-7 gap-1">
+              {/* Empty cells for offset */}
+              {Array.from({ length: firstDay }).map((_, i) => (
+                <div key={`empty-${i}`} />
+              ))}
+              {/* Day cells */}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const disabled = isDateDisabled(day);
+                const selected = isDateSelected(day);
+                const isToday = day === today.getDate() && currentMonth === today.getMonth() && currentYear === today.getFullYear();
+
                 return (
                   <button
-                    key={date?.toISOString()}
-                    onClick={() => !isDisabled && handleDateSelect(date)}
-                    disabled={isDisabled}
-                    className={`p-2 rounded-lg text-sm font-body font-medium transition-all duration-200 ${
-                      isSelected
-                        ? 'bg-primary text-primary-foreground shadow-warm'
-                        : isDisabled
-                        ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-50'
-                        : 'bg-card hover:bg-muted border border-border hover:shadow-warm-sm'
-                    }`}
+                    key={day}
+                    data-testid={`calendar-day-${day}`}
+                    onClick={() => handleDayClick(day)}
+                    disabled={disabled}
+                    className="relative w-full aspect-square rounded-xl flex items-center justify-center text-sm font-medium transition-all duration-200"
+                    style={{
+                      background: selected ? '#1D1D1F' : 'transparent',
+                      color: selected ? '#FFFFFF' : disabled ? 'rgba(0,0,0,0.15)' : '#1D1D1F',
+                      fontFamily: 'Outfit, sans-serif',
+                      cursor: disabled ? 'default' : 'pointer',
+                    }}
+                    onMouseEnter={e => { if (!disabled && !selected) e.currentTarget.style.background = '#F5F5F7'; }}
+                    onMouseLeave={e => { if (!disabled && !selected) e.currentTarget.style.background = 'transparent'; }}
                   >
-                    <div className="text-xs opacity-70">
-                      {formatDate(date)?.split(' ')?.[0]}
-                    </div>
-                    <div className="text-sm">
-                      {date?.getDate()}
-                    </div>
+                    {day}
+                    {isToday && !selected && (
+                      <span
+                        className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
+                        style={{ background: '#1D1D1F' }}
+                      />
+                    )}
                   </button>
                 );
               })}
@@ -168,82 +228,84 @@ const DateTimePicker = ({ restaurant, onSelect, onBack }) => {
           </div>
         </div>
 
-        {/* Time Selection */}
+        {/* Right: Time slots */}
         <div>
-          <h3 className="text-lg font-heading font-bold text-foreground mb-4">
-            Available Times
+          <h3
+            className="text-lg font-semibold tracking-tight mb-5"
+            style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
+          >
+            Pick a time.
           </h3>
 
           {!selectedDate ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Icon name="Calendar" size={48} className="mx-auto mb-4 opacity-50" />
-              <p className="font-body">
-                Please select a date to view available times
+            <div className="text-center py-16">
+              <Calendar size={36} style={{ color: '#D1D1D6' }} className="mx-auto mb-4" strokeWidth={1.2} />
+              <p className="text-sm" style={{ color: '#86868B' }}>
+                Select a date to view available times.
               </p>
             </div>
-          ) : loading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4" />
-              <p className="text-muted-foreground font-body">
-                Loading available times...
+          ) : loadingSlots ? (
+            <div className="text-center py-16">
+              <div
+                className="w-8 h-8 rounded-full border-2 animate-spin mx-auto mb-4"
+                style={{ borderColor: '#F5F5F7', borderTopColor: '#1D1D1F' }}
+              />
+              <p className="text-sm" style={{ color: '#86868B' }}>Loading times...</p>
+            </div>
+          ) : availableSlots.length === 0 ? (
+            <div className="text-center py-16">
+              <p className="text-sm" style={{ color: '#86868B' }}>
+                No available times for this date. Try another.
               </p>
             </div>
           ) : (
             <div>
-              <div className="text-sm text-muted-foreground mb-3">
-                {formatDate(selectedDate)} • {guestCount} {guestCount === 1 ? 'guest' : 'guests'}
-              </div>
-              <div className="grid grid-cols-3 gap-2 max-h-80 overflow-y-auto">
-                {availableSlots?.map((time) => {
+              <p className="text-xs mb-4" style={{ color: '#86868B' }}>
+                {formatSelectedDate()} &middot; {guestCount} {guestCount === 1 ? 'guest' : 'guests'}
+              </p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {availableSlots.map((time) => {
                   const isSelected = selectedTime === time;
-                  
                   return (
                     <button
                       key={time}
-                      onClick={() => handleTimeSelect(time)}
-                      className={`p-3 rounded-lg text-sm font-body font-medium transition-all duration-200 ${
-                        isSelected
-                          ? 'bg-primary text-primary-foreground shadow-warm'
-                          : 'bg-card hover:bg-muted border border-border hover:shadow-warm-sm'
-                      }`}
+                      data-testid={`time-slot-${time.replace(/[\s:]/g, '-')}`}
+                      onClick={() => setSelectedTime(time)}
+                      className="py-3 rounded-xl text-sm font-medium transition-all duration-200"
+                      style={{
+                        background: isSelected ? '#1D1D1F' : '#FFFFFF',
+                        color: isSelected ? '#FFFFFF' : '#1D1D1F',
+                        border: isSelected ? '1px solid #1D1D1F' : '1px solid rgba(0,0,0,0.06)',
+                        fontFamily: 'Outfit, sans-serif',
+                      }}
+                      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.borderColor = 'rgba(0,0,0,0.15)'; }}
+                      onMouseLeave={e => { if (!isSelected) e.currentTarget.style.borderColor = 'rgba(0,0,0,0.06)'; }}
                     >
                       {time}
                     </button>
                   );
                 })}
               </div>
-              
-              {availableSlots?.length === 0 && !loading && (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Icon name="XCircle" size={32} className="mx-auto mb-2 opacity-50" />
-                  <p className="font-body text-sm">
-                    No available times for this date
-                  </p>
-                </div>
-              )}
+            </div>
+          )}
+
+          {/* Continue button */}
+          {selectedDate && selectedTime && (
+            <div className="mt-8">
+              <button
+                data-testid="datetime-continue-btn"
+                onClick={() => onSelect(selectedDate, selectedTime)}
+                className="w-full py-3.5 rounded-full text-sm font-medium tracking-wide transition-colors duration-300"
+                style={{ background: '#1D1D1F', color: '#FFFFFF', fontFamily: 'Outfit, sans-serif' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#333336'}
+                onMouseLeave={e => e.currentTarget.style.background = '#1D1D1F'}
+              >
+                Continue to Details
+              </button>
             </div>
           )}
         </div>
       </div>
-      {/* Continue Button */}
-      {selectedDate && selectedTime && (
-        <div className="mt-8 pt-6 border-t border-border">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">Selected:</span>{' '}
-              {formatDate(selectedDate)} at {selectedTime} for {guestCount} {guestCount === 1 ? 'guest' : 'guests'}
-            </div>
-            
-            <button
-              onClick={handleContinue}
-              className="bg-primary text-primary-foreground px-8 py-3 rounded-lg font-body font-medium hover:bg-primary/90 transition-all duration-200 hover:scale-105 flex items-center space-x-2"
-            >
-              <span>Continue to Details</span>
-              <Icon name="ArrowRight" size={16} />
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

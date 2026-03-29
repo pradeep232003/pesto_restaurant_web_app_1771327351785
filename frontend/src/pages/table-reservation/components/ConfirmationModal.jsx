@@ -1,162 +1,144 @@
 import React from 'react';
-import Icon from '../../../components/AppIcon';
+import { motion } from 'framer-motion';
+import { CheckCircle, MapPin, Calendar, Clock, Users, X } from 'lucide-react';
+
+const ease = [0.16, 1, 0.3, 1];
 
 const ConfirmationModal = ({ restaurant, date, time, reservationData, onClose }) => {
-  const formatDate = (date) => {
-    return date?.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
+  const formatDate = (d) =>
+    d?.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-  const generateConfirmationNumber = () => {
-    return `PST-${Math.random()?.toString(36)?.substr(2, 9)?.toUpperCase()}`;
-  };
-
-  const confirmationNumber = generateConfirmationNumber();
+  const confirmationNumber = `JK-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-card rounded-2xl p-8 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-warm-xl">
-        {/* Success Icon */}
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-success rounded-full flex items-center justify-center mx-auto mb-4">
-            <Icon name="Check" size={24} color="white" />
-          </div>
-          <h2 className="text-2xl font-heading font-bold text-foreground mb-2">
-            Reservation Confirmed!
-          </h2>
-          <p className="text-muted-foreground">
-            We're excited to welcome you to Pesto
-          </p>
-        </div>
+    <>
+      {/* Backdrop */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="fixed inset-0 z-[60]"
+        style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+        onClick={onClose}
+      />
 
-        {/* Confirmation Details */}
-        <div className="space-y-4 mb-6">
-          <div className="p-4 bg-muted rounded-lg">
-            <div className="text-center">
-              <div className="text-sm text-muted-foreground mb-1">Confirmation Number</div>
-              <div className="text-lg font-heading font-bold text-foreground font-mono">
+      {/* Modal */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        transition={{ duration: 0.3, ease }}
+        className="fixed inset-0 z-[61] flex items-center justify-center px-5"
+      >
+        <div
+          className="w-full max-w-md max-h-[90vh] overflow-y-auto"
+          style={{
+            background: 'rgba(255,255,255,0.95)',
+            backdropFilter: 'blur(40px)',
+            WebkitBackdropFilter: 'blur(40px)',
+            borderRadius: '1.5rem',
+            border: '1px solid rgba(255,255,255,0.5)',
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Close btn */}
+          <div className="flex justify-end px-5 pt-5">
+            <button
+              data-testid="confirmation-close-btn"
+              onClick={onClose}
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+              style={{ background: 'rgba(0,0,0,0.05)' }}
+            >
+              <X size={16} style={{ color: '#86868B' }} />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="px-6 pb-6 text-center">
+            {/* Success icon */}
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"
+              style={{ background: 'rgba(52,199,89,0.1)' }}
+            >
+              <CheckCircle size={32} style={{ color: '#34C759' }} strokeWidth={1.5} />
+            </div>
+
+            <h2
+              className="text-2xl font-semibold tracking-tight mb-2"
+              style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
+            >
+              Reservation Confirmed.
+            </h2>
+            <p className="text-sm mb-8" style={{ color: '#86868B' }}>
+              We look forward to welcoming you.
+            </p>
+
+            {/* Confirmation number */}
+            <div
+              className="py-4 px-5 mb-6"
+              style={{ background: '#F5F5F7', borderRadius: '1rem' }}
+            >
+              <p className="text-xs tracking-[0.1em] uppercase mb-1" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>
+                Confirmation
+              </p>
+              <p
+                className="text-xl font-semibold tracking-wide"
+                style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
+              >
                 {confirmationNumber}
-              </div>
+              </p>
             </div>
-          </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between py-2 border-b border-border">
-              <span className="text-muted-foreground">Restaurant</span>
-              <span className="font-medium text-foreground">{restaurant?.name}</span>
+            {/* Details */}
+            <div className="space-y-3 mb-8 text-left">
+              <DetailRow icon={MapPin} label={restaurant?.name} sub={restaurant?.address} />
+              <DetailRow icon={Calendar} label={formatDate(date)} />
+              <DetailRow icon={Clock} label={time} />
+              <DetailRow icon={Users} label={`${reservationData?.guestCount || 2} guests`} />
+              {reservationData?.firstName && (
+                <DetailRow
+                  icon={() => <div className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold" style={{ background: '#F5F5F7', color: '#1D1D1F' }}>{reservationData.firstName.charAt(0)}</div>}
+                  label={`${reservationData.firstName} ${reservationData.lastName}`}
+                  sub={reservationData.email}
+                />
+              )}
             </div>
-            
-            <div className="flex items-center justify-between py-2 border-b border-border">
-              <span className="text-muted-foreground">Date</span>
-              <span className="font-medium text-foreground">{formatDate(date)}</span>
+
+            {/* Notice */}
+            <div
+              className="px-5 py-3 mb-6 text-xs text-left leading-relaxed"
+              style={{ background: 'rgba(255,149,0,0.06)', borderRadius: '0.75rem', color: '#FF9500' }}
+            >
+              Please arrive 10 minutes early. A confirmation email has been sent to {reservationData?.email}.
             </div>
-            
-            <div className="flex items-center justify-between py-2 border-b border-border">
-              <span className="text-muted-foreground">Time</span>
-              <span className="font-medium text-foreground">{time}</span>
-            </div>
-            
-            <div className="flex items-center justify-between py-2 border-b border-border">
-              <span className="text-muted-foreground">Party Size</span>
-              <span className="font-medium text-foreground">
-                {reservationData?.guestCount} {reservationData?.guestCount === 1 ? 'Guest' : 'Guests'}
-              </span>
-            </div>
-            
-            <div className="flex items-center justify-between py-2 border-b border-border">
-              <span className="text-muted-foreground">Name</span>
-              <span className="font-medium text-foreground">
-                {reservationData?.firstName} {reservationData?.lastName}
-              </span>
-            </div>
-            
-            <div className="flex items-center justify-between py-2 border-b border-border">
-              <span className="text-muted-foreground">Contact</span>
-              <div className="text-right">
-                <div className="font-medium text-foreground">{reservationData?.email}</div>
-                <div className="text-sm text-muted-foreground">{reservationData?.phone}</div>
-              </div>
-            </div>
-            
-            {reservationData?.seatingPreference && reservationData?.seatingPreference !== 'no-preference' && (
-              <div className="flex items-center justify-between py-2 border-b border-border">
-                <span className="text-muted-foreground">Seating</span>
-                <span className="font-medium text-foreground">
-                  {reservationData?.seatingPreference?.replace('-', ' ')?.replace(/\b\w/g, l => l?.toUpperCase())}
-                </span>
-              </div>
-            )}
-            
-            {reservationData?.specialRequests && (
-              <div className="py-2">
-                <div className="text-muted-foreground mb-1">Special Requests</div>
-                <div className="text-sm text-foreground bg-muted p-3 rounded-lg">
-                  {reservationData?.specialRequests}
-                </div>
-              </div>
-            )}
+
+            {/* CTA */}
+            <button
+              data-testid="confirmation-done-btn"
+              onClick={onClose}
+              className="w-full py-3.5 rounded-full text-sm font-medium tracking-wide transition-colors duration-300"
+              style={{ background: '#1D1D1F', color: '#FFFFFF', fontFamily: 'Outfit, sans-serif' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#333336'}
+              onMouseLeave={e => e.currentTarget.style.background = '#1D1D1F'}
+            >
+              Done
+            </button>
           </div>
         </div>
-
-        {/* Next Steps */}
-        <div className="p-4 bg-accent/10 rounded-lg mb-6">
-          <h3 className="font-heading font-bold text-foreground mb-3">What's Next?</h3>
-          <div className="space-y-2 text-sm text-foreground">
-            <div className="flex items-center space-x-2">
-              <Icon name="Mail" size={14} className="text-accent flex-shrink-0" />
-              <span>Confirmation email sent to {reservationData?.email}</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Icon name="MessageSquare" size={14} className="text-accent flex-shrink-0" />
-              <span>SMS reminder sent to {reservationData?.phone}</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Icon name="Clock" size={14} className="text-accent flex-shrink-0" />
-              <span>Please arrive 10 minutes early</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Restaurant Contact */}
-        <div className="p-4 bg-muted rounded-lg mb-6">
-          <h3 className="font-heading font-bold text-foreground mb-2">Restaurant Contact</h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center space-x-2">
-              <Icon name="MapPin" size={14} className="text-muted-foreground flex-shrink-0" />
-              <span className="text-muted-foreground">{restaurant?.address}</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Icon name="Phone" size={14} className="text-muted-foreground flex-shrink-0" />
-              <span className="text-muted-foreground">{restaurant?.phone}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <a
-            href={`tel:${restaurant?.phone}`}
-            className="flex-1 bg-muted text-foreground px-4 py-3 rounded-lg font-body font-medium hover:bg-muted/80 transition-all duration-200 text-center flex items-center justify-center space-x-2"
-          >
-            <Icon name="Phone" size={16} />
-            <span>Call Restaurant</span>
-          </a>
-          
-          <button
-            onClick={onClose}
-            className="flex-1 bg-primary text-primary-foreground px-4 py-3 rounded-lg font-body font-medium hover:bg-primary/90 transition-all duration-200 flex items-center justify-center space-x-2"
-          >
-            <Icon name="X" size={16} />
-            <span>Close</span>
-          </button>
-        </div>
-      </div>
-    </div>
+      </motion.div>
+    </>
   );
 };
+
+const DetailRow = ({ icon: Icon, label, sub }) => (
+  <div className="flex items-center gap-3 py-2" style={{ borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
+    <Icon size={15} style={{ color: '#86868B' }} strokeWidth={1.5} />
+    <div>
+      <p className="text-sm font-medium" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>{label}</p>
+      {sub && <p className="text-xs" style={{ color: '#86868B' }}>{sub}</p>}
+    </div>
+  </div>
+);
 
 export default ConfirmationModal;

@@ -202,8 +202,7 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
               </button>
             ))}
 
-            {/* Reservations - only for specific locations */}
-            {showReservations && (
+            {/* Reservations */}
               <button
                 onClick={() => handleNavigation('/table-reservation')}
                 className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-body font-medium transition-all duration-200 hover:bg-muted hover:scale-102 ${
@@ -214,7 +213,6 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
                 <Icon name="Calendar" size={18} />
                 <span>Reservations</span>
               </button>
-            )}
 
             {/* Cafes Button / Selected Location Label */}
             <div className="relative flex items-center space-x-2">
@@ -496,7 +494,6 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
             ))}
 
             {/* Mobile Reservations */}
-            {showReservations && (
               <button
                 onClick={() => handleNavigation('/table-reservation')}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-body font-medium transition-all duration-200 hover:bg-muted ${
@@ -507,7 +504,6 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
                 <Icon name="Calendar" size={20} />
                 <span>Reservations</span>
               </button>
-            )}
 
             {/* Mobile Cafes — dropdown or selected label */}
             <div className="relative">

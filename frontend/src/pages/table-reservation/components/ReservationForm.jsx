@@ -1,12 +1,8 @@
 import React, { useState } from 'react';
-import Icon from '../../../components/AppIcon';
-import Input from '../../../components/ui/Input';
-import Button from '../../../components/ui/Button';
-import { Checkbox } from '../../../components/ui/Checkbox';
-import Select from '../../../components/ui/Select';
+import { ArrowLeft, MapPin, Calendar, Clock, Users } from 'lucide-react';
 
 const ReservationForm = ({ restaurant, date, time, onSubmit, onBack, loading }) => {
-  const [formData, setFormData] = useState({
+  const [form, setForm] = useState({
     guestCount: 2,
     firstName: '',
     lastName: '',
@@ -14,298 +10,263 @@ const ReservationForm = ({ restaurant, date, time, onSubmit, onBack, loading }) 
     phone: '',
     specialRequests: '',
     seatingPreference: 'no-preference',
-    accessibilityNeeds: false
   });
   const [errors, setErrors] = useState({});
 
-  const formatDate = (date) => {
-    return date?.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
+  const formatDate = (d) =>
+    d?.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData?.firstName?.trim()) {
-      newErrors.firstName = 'First name is required';
-    }
-
-    if (!formData?.lastName?.trim()) {
-      newErrors.lastName = 'Last name is required';
-    }
-
-    if (!formData?.email?.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/?.test(formData?.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-
-    if (!formData?.phone?.trim()) {
-      newErrors.phone = 'Phone number is required';
-    } else if (!/^\(\d{3}\)\s\d{3}-\d{4}$/?.test(formData?.phone)) {
-      newErrors.phone = 'Please enter a valid phone number (XXX) XXX-XXXX';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors)?.length === 0;
-  };
-
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    
-    // Clear error when user starts typing
-    if (errors?.[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
+  const set = (field, value) => {
+    setForm(p => ({ ...p, [field]: value }));
+    if (errors[field]) setErrors(p => ({ ...p, [field]: '' }));
   };
 
   const handlePhoneChange = (value) => {
-    // Auto-format phone number
-    const cleaned = value?.replace(/\D/g, '');
+    const cleaned = value.replace(/\D/g, '');
     let formatted = cleaned;
-    
-    if (cleaned?.length >= 6) {
-      formatted = `(${cleaned?.slice(0, 3)}) ${cleaned?.slice(3, 6)}-${cleaned?.slice(6, 10)}`;
-    } else if (cleaned?.length >= 3) {
-      formatted = `(${cleaned?.slice(0, 3)}) ${cleaned?.slice(3)}`;
-    }
-    
-    handleInputChange('phone', formatted);
+    if (cleaned.length >= 6) formatted = `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6, 10)}`;
+    else if (cleaned.length >= 3) formatted = `(${cleaned.slice(0, 3)}) ${cleaned.slice(3)}`;
+    set('phone', formatted);
   };
 
-  const handleSubmit = (e) => {
-    e?.preventDefault();
-    
-    if (validateForm()) {
-      onSubmit?.(formData);
-    }
+  const validate = () => {
+    const e = {};
+    if (!form.firstName.trim()) e.firstName = 'Required';
+    if (!form.lastName.trim()) e.lastName = 'Required';
+    if (!form.email.trim()) e.email = 'Required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Invalid email';
+    if (!form.phone.trim()) e.phone = 'Required';
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const seatingOptions = [
-    { value: 'no-preference', label: 'No Preference' },
-    { value: 'indoor', label: 'Indoor Seating' },
-    { value: 'outdoor', label: 'Outdoor Seating' },
-    { value: 'window', label: 'Window Seat' },
-    { value: 'booth', label: 'Booth Seating' },
-    { value: 'bar', label: 'Bar Seating' }
-  ];
+  const handleSubmit = (ev) => {
+    ev.preventDefault();
+    if (validate()) onSubmit(form);
+  };
+
+  const inputStyle = {
+    background: '#F5F5F7',
+    color: '#1D1D1F',
+    border: '1px solid transparent',
+    fontFamily: 'Outfit, sans-serif',
+    borderRadius: '0.75rem',
+  };
+
+  const InputField = ({ label, value, onChange, type = 'text', placeholder, error, ...props }) => (
+    <div>
+      <label
+        className="block text-xs tracking-[0.08em] uppercase mb-2"
+        style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}
+      >
+        {label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="w-full px-4 py-3 text-sm outline-none transition-all duration-200"
+        style={{
+          ...inputStyle,
+          borderColor: error ? 'rgba(255,59,48,0.5)' : 'transparent',
+        }}
+        onFocus={e => { if (!error) e.target.style.borderColor = 'rgba(0,0,0,0.15)'; }}
+        onBlur={e => { if (!error) e.target.style.borderColor = 'transparent'; }}
+        {...props}
+      />
+      {error && <p className="text-xs mt-1" style={{ color: '#FF3B30' }}>{error}</p>}
+    </div>
+  );
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      {/* Back */}
+      <div className="flex items-center justify-between mb-8">
         <button
+          data-testid="form-back-btn"
           onClick={onBack}
-          className="flex items-center space-x-2 text-muted-foreground hover:text-foreground transition-colors duration-200"
+          className="inline-flex items-center gap-2 text-sm font-medium transition-colors duration-200"
+          style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}
+          onMouseEnter={e => e.currentTarget.style.color = '#1D1D1F'}
+          onMouseLeave={e => e.currentTarget.style.color = '#86868B'}
         >
-          <Icon name="ArrowLeft" size={16} />
-          <span className="font-body">Back to Date & Time</span>
+          <ArrowLeft size={15} />
+          Back
         </button>
-        
-        <div className="text-center">
-          <h2 className="text-xl lg:text-2xl font-heading font-bold text-foreground">
-            Reservation Details
-          </h2>
-        </div>
-        
-        <div /> {/* Spacer for centering */}
       </div>
-      {/* Reservation Summary */}
-      <div className="bg-muted rounded-xl p-6 mb-8">
-        <h3 className="font-heading font-bold text-foreground mb-4">
-          Your Reservation
+
+      {/* Summary strip */}
+      <div
+        className="flex flex-wrap items-center gap-4 sm:gap-6 px-6 py-4 mb-8"
+        style={{ background: '#F5F5F7', borderRadius: '1rem' }}
+      >
+        <div className="flex items-center gap-2">
+          <MapPin size={14} style={{ color: '#86868B' }} />
+          <span className="text-sm font-medium" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>
+            {restaurant?.name}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Calendar size={14} style={{ color: '#86868B' }} />
+          <span className="text-sm" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>
+            {formatDate(date)}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Clock size={14} style={{ color: '#86868B' }} />
+          <span className="text-sm" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>{time}</span>
+        </div>
+      </div>
+
+      {/* Form */}
+      <div
+        className="p-6 sm:p-8"
+        style={{ background: '#FFFFFF', borderRadius: '1.5rem', border: '1px solid rgba(0,0,0,0.06)' }}
+      >
+        <h3
+          className="text-lg font-semibold tracking-tight mb-6"
+          style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
+        >
+          Your details.
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-          <div className="flex items-center space-x-2">
-            <Icon name="MapPin" size={16} className="text-muted-foreground flex-shrink-0" />
-            <div>
-              <div className="font-medium text-foreground">{restaurant?.name}</div>
-              <div className="text-muted-foreground text-xs">{restaurant?.address}</div>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <Icon name="Calendar" size={16} className="text-muted-foreground flex-shrink-0" />
-            <div>
-              <div className="font-medium text-foreground">{formatDate(date)}</div>
-              <div className="text-muted-foreground text-xs">Date</div>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <Icon name="Clock" size={16} className="text-muted-foreground flex-shrink-0" />
-            <div>
-              <div className="font-medium text-foreground">{time}</div>
-              <div className="text-muted-foreground text-xs">Time</div>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <Icon name="Users" size={16} className="text-muted-foreground flex-shrink-0" />
-            <div>
-              <div className="font-medium text-foreground">{formData?.guestCount} {formData?.guestCount === 1 ? 'Guest' : 'Guests'}</div>
-              <div className="text-muted-foreground text-xs">Party Size</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Guest Count */}
-        <div>
-          <label className="block text-sm font-body font-medium text-foreground mb-2">
-            Party Size
-          </label>
-          <div className="flex items-center space-x-4">
-            <button
-              type="button"
-              onClick={() => handleInputChange('guestCount', Math.max(1, formData?.guestCount - 1))}
-              disabled={formData?.guestCount <= 1}
-              className="w-10 h-10 rounded-full border border-border flex items-center justify-center hover:bg-muted transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Icon name="Minus" size={16} />
-            </button>
-            <span className="text-lg font-body font-medium text-foreground min-w-[3rem] text-center">
-              {formData?.guestCount}
-            </span>
-            <button
-              type="button"
-              onClick={() => handleInputChange('guestCount', Math.min(12, formData?.guestCount + 1))}
-              disabled={formData?.guestCount >= 12}
-              className="w-10 h-10 rounded-full border border-border flex items-center justify-center hover:bg-muted transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Icon name="Plus" size={16} />
-            </button>
-            <span className="text-sm text-muted-foreground ml-4">
-              Maximum 12 guests per reservation
-            </span>
-          </div>
-        </div>
 
-        {/* Contact Information */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <Input
-              label="First Name"
-              type="text"
-              value={formData?.firstName}
-              onChange={(e) => handleInputChange('firstName', e?.target?.value)}
-              error={errors?.firstName}
-              required
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Guest count */}
+          <div className="flex items-center gap-4">
+            <label
+              className="text-xs tracking-[0.08em] uppercase"
+              style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}
+            >
+              Party size
+            </label>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => set('guestCount', Math.max(1, form.guestCount - 1))}
+                disabled={form.guestCount <= 1}
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-colors disabled:opacity-40"
+                style={{ background: '#F5F5F7', color: '#1D1D1F' }}
+              >
+                <span className="text-lg leading-none">−</span>
+              </button>
+              <span
+                className="w-8 text-center text-sm font-medium"
+                style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
+              >
+                {form.guestCount}
+              </span>
+              <button
+                type="button"
+                onClick={() => set('guestCount', Math.min(12, form.guestCount + 1))}
+                disabled={form.guestCount >= 12}
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-colors disabled:opacity-40"
+                style={{ background: '#F5F5F7', color: '#1D1D1F' }}
+              >
+                <span className="text-lg leading-none">+</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Name */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <InputField
+              label="First name"
+              value={form.firstName}
+              onChange={e => set('firstName', e.target.value)}
+              error={errors.firstName}
+            />
+            <InputField
+              label="Last name"
+              value={form.lastName}
+              onChange={e => set('lastName', e.target.value)}
+              error={errors.lastName}
             />
           </div>
-          <div>
-            <Input
-              label="Last Name"
-              type="text"
-              value={formData?.lastName}
-              onChange={(e) => handleInputChange('lastName', e?.target?.value)}
-              error={errors?.lastName}
-              required
-            />
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <Input
-              label="Email Address"
+          {/* Contact */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <InputField
+              label="Email"
               type="email"
-              value={formData?.email}
-              onChange={(e) => handleInputChange('email', e?.target?.value)}
-              error={errors?.email}
-              required
+              value={form.email}
+              onChange={e => set('email', e.target.value)}
+              error={errors.email}
             />
-          </div>
-          <div>
-            <Input
-              label="Phone Number"
+            <InputField
+              label="Phone"
               type="tel"
-              value={formData?.phone}
-              onChange={(e) => handlePhoneChange(e?.target?.value)}
-              error={errors?.phone}
+              value={form.phone}
+              onChange={e => handlePhoneChange(e.target.value)}
               placeholder="(555) 123-4567"
-              required
+              error={errors.phone}
             />
           </div>
-        </div>
 
-        {/* Seating Preference */}
-        <div>
-          <Select
-            label="Seating Preference"
-            value={formData?.seatingPreference}
-            onChange={(e) => handleInputChange('seatingPreference', e?.target?.value)}
-            options={seatingOptions}
-          />
-        </div>
-
-        {/* Accessibility Needs */}
-        <div>
-          <Checkbox
-            id="accessibility"
-            checked={formData?.accessibilityNeeds}
-            onChange={(checked) => handleInputChange('accessibilityNeeds', checked)}
-            label="I have accessibility requirements"
-            description="We'll ensure your table accommodates any accessibility needs"
-          />
-        </div>
-
-        {/* Special Requests */}
-        <div>
-          <label className="block text-sm font-body font-medium text-foreground mb-2">
-            Special Requests
-          </label>
-          <textarea
-            value={formData?.specialRequests}
-            onChange={(e) => handleInputChange('specialRequests', e?.target?.value)}
-            rows={4}
-            placeholder="Let us know about any dietary restrictions, allergies, special occasions, or other requests..."
-            className="w-full px-3 py-2 border border-border rounded-lg bg-input text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-ring focus:border-ring transition-colors duration-200"
-          />
-        </div>
-
-        {/* Terms Notice */}
-        <div className="p-4 bg-muted rounded-lg">
-          <div className="flex items-start space-x-3">
-            <Icon name="Info" size={16} className="text-muted-foreground flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-muted-foreground">
-              <p className="mb-2">
-                <strong className="text-foreground">Reservation Policy:</strong>
-              </p>
-              <ul className="space-y-1 text-xs">
-                <li>• Reservations are held for 15 minutes past the scheduled time</li>
-                <li>• Large parties may require a credit card to hold the reservation</li>
-                <li>• Cancellations must be made at least 2 hours in advance</li>
-                <li>• We'll send a confirmation email with your reservation details</li>
-              </ul>
-            </div>
+          {/* Seating */}
+          <div>
+            <label
+              className="block text-xs tracking-[0.08em] uppercase mb-2"
+              style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}
+            >
+              Seating preference
+            </label>
+            <select
+              value={form.seatingPreference}
+              onChange={e => set('seatingPreference', e.target.value)}
+              className="w-full px-4 py-3 text-sm outline-none appearance-none cursor-pointer"
+              style={inputStyle}
+            >
+              <option value="no-preference">No Preference</option>
+              <option value="indoor">Indoor</option>
+              <option value="outdoor">Outdoor</option>
+              <option value="window">Window Seat</option>
+              <option value="booth">Booth</option>
+            </select>
           </div>
-        </div>
 
-        {/* Submit Button */}
-        <div className="pt-6 border-t border-border">
-          <Button
+          {/* Special requests */}
+          <div>
+            <label
+              className="block text-xs tracking-[0.08em] uppercase mb-2"
+              style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}
+            >
+              Special requests
+            </label>
+            <textarea
+              value={form.specialRequests}
+              onChange={e => set('specialRequests', e.target.value)}
+              rows={3}
+              placeholder="Allergies, celebrations, dietary needs..."
+              className="w-full px-4 py-3 text-sm outline-none resize-none transition-all duration-200"
+              style={inputStyle}
+              onFocus={e => e.target.style.borderColor = 'rgba(0,0,0,0.15)'}
+              onBlur={e => e.target.style.borderColor = 'transparent'}
+            />
+          </div>
+
+          {/* Policy */}
+          <div
+            className="px-5 py-4 text-xs leading-relaxed"
+            style={{ background: '#F5F5F7', borderRadius: '0.75rem', color: '#86868B' }}
+          >
+            Reservations are held for 15 minutes. Cancellations must be made at least 2 hours in advance.
+          </div>
+
+          {/* Submit */}
+          <button
+            data-testid="confirm-reservation-btn"
             type="submit"
             disabled={loading}
-            className="w-full sm:w-auto sm:min-w-[200px] bg-primary text-primary-foreground hover:bg-primary/90"
+            className="w-full py-3.5 rounded-full text-sm font-medium tracking-wide transition-all duration-300 disabled:opacity-60"
+            style={{ background: '#1D1D1F', color: '#FFFFFF', fontFamily: 'Outfit, sans-serif' }}
+            onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#333336'; }}
+            onMouseLeave={e => { if (!loading) e.currentTarget.style.background = '#1D1D1F'; }}
           >
-            {loading ? (
-              <div className="flex items-center space-x-2">
-                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                <span>Confirming...</span>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-2">
-                <span>Confirm Reservation</span>
-                <Icon name="Check" size={16} />
-              </div>
-            )}
-          </Button>
-        </div>
-      </form>
+            {loading ? 'Confirming...' : 'Confirm Reservation'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 };
