@@ -7,7 +7,7 @@ const NAV_ITEMS = [
   { path: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { path: '/admin/menu', label: 'Menu', icon: UtensilsCrossed },
   { path: '/admin/orders', label: 'Orders', icon: ClipboardList },
-  { path: '/admin/site-settings', label: 'Settings', icon: Settings },
+  { path: '/admin/site-settings', label: 'Locations', icon: Settings },
   { path: '/admin/residents', label: 'Wallets', icon: Wallet },
   { path: '/admin/transactions', label: 'Reports', icon: Receipt },
 ];
