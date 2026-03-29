@@ -212,9 +212,9 @@ const FooterSection = ({ onOrderOnline }) => {
                 Connect
               </h4>
               <ul className="space-y-2.5">
-                <li><a href="#" className="text-sm transition-colors duration-200 hover:underline" style={{ color: '#1D1D1F' }}>Facebook</a></li>
-                <li><a href="#" className="text-sm transition-colors duration-200 hover:underline" style={{ color: '#1D1D1F' }}>Instagram</a></li>
-                <li><a href="#" className="text-sm transition-colors duration-200 hover:underline" style={{ color: '#1D1D1F' }}>Twitter</a></li>
+                <li><a href="https://www.facebook.com/jollyskaf/?locale=en_GB" target="_blank" rel="noopener noreferrer" className="text-sm transition-colors duration-200 hover:underline" style={{ color: '#1D1D1F' }}>Facebook</a></li>
+                <li><a href="https://www.instagram.com/jollyskafe/" target="_blank" rel="noopener noreferrer" className="text-sm transition-colors duration-200 hover:underline" style={{ color: '#1D1D1F' }}>Instagram</a></li>
+                <li><a href="https://x.com/jollyskafe" target="_blank" rel="noopener noreferrer" className="text-sm transition-colors duration-200 hover:underline" style={{ color: '#1D1D1F' }}>Twitter</a></li>
               </ul>
             </div>
           </div>
