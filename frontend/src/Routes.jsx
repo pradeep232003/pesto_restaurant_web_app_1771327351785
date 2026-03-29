@@ -23,6 +23,7 @@ import TransactionReport from './pages/transaction-report';
 import CustomerAuth from './pages/customer-auth';
 import GoogleAuthCallback from './pages/customer-auth/GoogleAuthCallback';
 import OrderStatus from './pages/order-status';
+import ContactUs from './pages/contact-us';
 import AdminLayout from './components/AdminLayout';
 import { LocationProvider } from './contexts/LocationContext';
 import { CustomerProvider } from './contexts/CustomerContext';
@@ -55,6 +56,7 @@ const AppRouter = () => {
       <Route path="/order-tracking" element={<OrderTracking />} />
       <Route path="/customer-auth" element={<CustomerAuth />} />
       <Route path="/order-status" element={<OrderStatus />} />
+      <Route path="/contact-us" element={<ContactUs />} />
       
       {/* Admin Login (no layout) */}
       <Route path="/admin-login" element={<AdminLogin />} />

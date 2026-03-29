@@ -542,7 +542,7 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
           </div>
 
           {/* Contact Info */}
-          <div className="mt-8 pt-6 border-t border-border">
+          <div className="mt-8 pt-6 border-t border-border space-y-3">
             <a
               href={selectedCafeLocation?.phone ? `tel:${selectedCafeLocation.phone.replace(/\s/g, '')}` : 'tel:01618833707'}
               className="flex items-center space-x-3 text-sm font-body text-muted-foreground hover:text-foreground transition-colors"
@@ -550,6 +550,13 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
               <Icon name="Phone" size={16} />
               <span>Call us: {selectedCafeLocation?.phone || '0161 883 3707'}</span>
             </a>
+            <button
+              onClick={() => { navigate('/contact-us'); setIsMobileMenuOpen(false); }}
+              className="flex items-center space-x-3 text-sm font-body text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Icon name="Mail" size={16} />
+              <span>Contact Us</span>
+            </button>
           </div>
         </div>
       </div>

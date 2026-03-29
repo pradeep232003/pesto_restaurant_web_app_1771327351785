@@ -101,6 +101,7 @@ const FooterSection = ({ onOrderOnline }) => {
     { label: 'Menu', action: () => navigate('/menu-catalog') },
     { label: 'Order Online', action: onOrderOnline || (() => navigate('/menu-catalog')) },
     { label: 'Track Order', action: () => navigate('/order-status') },
+    { label: 'Contact Us', action: () => navigate('/contact-us') },
   ];
 
   return (

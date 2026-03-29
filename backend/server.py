@@ -1832,6 +1832,57 @@ async def admin_toggle_ordering(location_id: str, user: dict = Depends(get_admin
     return serialize_doc(updated)
 
 
+# ============== CONTACT FORM ==============
+class ContactMessage(BaseModel):
+    name: str
+    email: str
+    phone: Optional[str] = ""
+    subject: Optional[str] = ""
+    message: str
+    location_id: Optional[str] = ""
+    _hp: Optional[str] = ""
+    _ts: Optional[int] = 0
+
+    class Config:
+        extra = "allow"
+
+@app.post("/api/contact")
+async def submit_contact(request: Request):
+    body = await request.json()
+
+    # Spam checks
+    # 1. Honeypot — bots fill hidden fields
+    if body.get("_hp", ""):
+        return {"success": True}  # silent fail for bots
+
+    # 2. Time check — form submitted too fast (< 3 seconds = bot)
+    ts = body.get("_ts", 0)
+    if isinstance(ts, (int, float)) and ts < 3000:
+        return {"success": True}  # silent fail
+
+    name = body.get("name", "").strip()
+    email = body.get("email", "").strip()
+    message = body.get("message", "").strip()
+
+    if not name or not email or not message:
+        raise HTTPException(status_code=400, detail="Name, email, and message are required")
+    if len(message) < 10:
+        raise HTTPException(status_code=400, detail="Message must be at least 10 characters")
+
+    contact_doc = {
+        "name": name,
+        "email": email,
+        "phone": body.get("phone", "").strip(),
+        "subject": body.get("subject", "").strip(),
+        "message": message,
+        "location_id": body.get("location_id", ""),
+        "status": "new",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    db["contact_messages"].insert_one(contact_doc)
+    return {"success": True, "message": "Thank you for your message. We'll get back to you soon."}
+
+
 
 # ============== SERVE FRONTEND (PRODUCTION) ==============
 # In production (Docker/Railway), serve the built React frontend if available
