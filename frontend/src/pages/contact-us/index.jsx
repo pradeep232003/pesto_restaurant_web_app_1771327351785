@@ -346,7 +346,7 @@ const ContactUs = () => {
                   <Mail size={16} style={{ color: '#86868B' }} />
                   <div>
                     <p className="text-xs tracking-[0.08em] uppercase" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>Email</p>
-                    <p className="text-sm font-medium" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>hello@jollyskafe.com</p>
+                    <p className="text-sm font-medium" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>info@jollyskafe.com</p>
                   </div>
                 </div>
               </motion.div>
