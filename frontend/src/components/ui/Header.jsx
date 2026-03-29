@@ -153,6 +153,11 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
               <img
                 src="/assets/images/logo-2-1774630354696.png"
                 alt="Jollys Kafe logo"
+                loading="eager"
+                decoding="sync"
+                fetchPriority="high"
+                width="40"
+                height="40"
                 className="h-10 w-auto object-contain group-hover:scale-105 transition-transform duration-200"
               />
               <span className="text-xl font-heading font-bold text-primary">Jollys Kafe</span>
