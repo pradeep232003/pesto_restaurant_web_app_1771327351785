@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Clock } from 'lucide-react';
 
-const MenuItemCard = ({ item, onAddToCart }) => {
+const MenuItemCard = ({ item, onAddToCart, isOrderingOpen = true }) => {
   const [adding, setAdding] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
 
@@ -41,6 +41,7 @@ const MenuItemCard = ({ item, onAddToCart }) => {
             />
 
             {/* Hover overlay with Quick Add */}
+            {isOrderingOpen && (
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center">
               <button
                 onClick={(e) => { e.stopPropagation(); handleAdd(); }}
@@ -54,6 +55,7 @@ const MenuItemCard = ({ item, onAddToCart }) => {
                 {adding ? 'Added' : 'Quick Add'}
               </button>
             </div>
+            )}
           </div>
         </div>
       )}
@@ -115,6 +117,7 @@ const MenuItemCard = ({ item, onAddToCart }) => {
             )}
           </div>
 
+          {isOrderingOpen && (
           <button
             data-testid={`add-to-cart-${item.id}`}
             onClick={handleAdd}
@@ -127,6 +130,7 @@ const MenuItemCard = ({ item, onAddToCart }) => {
           >
             <Plus size={18} className={`transition-transform duration-200 ${adding ? 'rotate-45' : ''}`} />
           </button>
+          )}
         </div>
       </div>
     </div>

@@ -5,7 +5,7 @@ import { Search } from 'lucide-react';
 
 const ease = [0.16, 1, 0.3, 1];
 
-const MenuGrid = ({ items, loading = false, onAddToCart }) => {
+const MenuGrid = ({ items, loading = false, onAddToCart, isOrderingOpen = true }) => {
   if (loading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6">
@@ -63,7 +63,7 @@ const MenuGrid = ({ items, loading = false, onAddToCart }) => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: Math.min(i * 0.05, 0.3), ease }}
           >
-            <MenuItemCard item={item} onAddToCart={onAddToCart} />
+            <MenuItemCard item={item} onAddToCart={onAddToCart} isOrderingOpen={isOrderingOpen} />
           </motion.div>
         ))}
       </div>

@@ -309,6 +309,7 @@ const MenuCatalog = () => {
               items={filteredItems}
               loading={loading}
               onAddToCart={handleAddToCart}
+              isOrderingOpen={siteStatus?.is_open !== false}
             />
           </div>
         </section>
