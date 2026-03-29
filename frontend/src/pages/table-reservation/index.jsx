@@ -20,8 +20,8 @@ const steps = [
 const TableReservation = () => {
   const navigate = useNavigate();
   const { locations, selectedLocation } = useLocation2();
-  const [currentStep, setCurrentStep] = useState(1);
-  const [selectedRestaurant, setSelectedRestaurant] = useState(null);
+  const [currentStep, setCurrentStep] = useState(selectedLocation ? 2 : 1);
+  const [selectedRestaurant, setSelectedRestaurant] = useState(selectedLocation || null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
   const [reservationData, setReservationData] = useState(null);
