@@ -29,8 +29,14 @@ if RESEND_API_KEY:
 
 # CORS middleware - allow frontend origins with credentials
 _cors_env = os.environ.get("CORS_ORIGINS", "")
+_frontend_url = os.environ.get("FRONTEND_URL", "")
+CORS_ORIGINS = []
 if _cors_env:
     CORS_ORIGINS = [o.strip() for o in _cors_env.split(",") if o.strip()]
+if _frontend_url and _frontend_url not in CORS_ORIGINS:
+    CORS_ORIGINS.append(_frontend_url.strip().rstrip("/"))
+
+if CORS_ORIGINS:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=CORS_ORIGINS,
@@ -42,7 +48,7 @@ else:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_credentials=False,
+        allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -72,8 +78,8 @@ JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
-# Cookie settings - cross-origin safe when CORS_ORIGINS is set (production)
-IS_PRODUCTION = bool(os.environ.get("CORS_ORIGINS"))
+# Cookie settings - cross-origin safe when CORS_ORIGINS or FRONTEND_URL is set (production)
+IS_PRODUCTION = bool(os.environ.get("CORS_ORIGINS") or os.environ.get("FRONTEND_URL"))
 COOKIE_SECURE = IS_PRODUCTION
 COOKIE_SAMESITE = "none" if IS_PRODUCTION else "lax"
 
