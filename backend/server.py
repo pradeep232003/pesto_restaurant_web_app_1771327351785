@@ -209,11 +209,13 @@ class Location(BaseModel):
     is_active: bool = True
     sort_order: int = 0
     wallet_enabled: bool = False
+    reservation_enabled: bool = False
 
 class LocationCreate(BaseModel):
     name: str
     address: Optional[str] = ""
     wallet_enabled: bool = False
+    reservation_enabled: bool = False
 
 class LocationUpdate(BaseModel):
     name: Optional[str] = None
@@ -221,6 +223,7 @@ class LocationUpdate(BaseModel):
     is_active: Optional[bool] = None
     sort_order: Optional[int] = None
     wallet_enabled: Optional[bool] = None
+    reservation_enabled: Optional[bool] = None
 
 class MenuItem(BaseModel):
     id: str
@@ -371,6 +374,16 @@ async def startup_event():
     locations_collection.update_many(
         {"id": {"$in": ["oakmere-handforth", "willowmere-middlewich"]}, "wallet_enabled": False},
         {"$set": {"wallet_enabled": True}}
+    )
+    # Ensure all locations have reservation_enabled field
+    locations_collection.update_many(
+        {"reservation_enabled": {"$exists": False}},
+        {"$set": {"reservation_enabled": False}}
+    )
+    # Set correct reservation_enabled for known reservation locations
+    locations_collection.update_many(
+        {"id": {"$in": ["oakmere-handforth", "willowmere-middlewich"]}},
+        {"$set": {"reservation_enabled": True}}
     )
 
 def seed_admin():
@@ -638,6 +651,7 @@ async def admin_create_location(data: LocationCreate, user: dict = Depends(get_a
         "is_active": True,
         "sort_order": next_sort,
         "wallet_enabled": data.wallet_enabled,
+        "reservation_enabled": data.reservation_enabled,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     locations_collection.insert_one(location_doc)
@@ -683,6 +697,8 @@ async def admin_update_location(location_id: str, data: LocationUpdate, user: di
         update_fields["sort_order"] = data.sort_order
     if data.wallet_enabled is not None:
         update_fields["wallet_enabled"] = data.wallet_enabled
+    if data.reservation_enabled is not None:
+        update_fields["reservation_enabled"] = data.reservation_enabled
 
     if update_fields:
         locations_collection.update_one({"id": location_id}, {"$set": update_fields})

@@ -107,6 +107,17 @@ const AdminSiteSettings = () => {
     }
   };
 
+  const handleReservationToggle = async (locationId, currentValue) => {
+    setError('');
+    try {
+      await api.adminUpdateLocation(locationId, { reservation_enabled: !currentValue });
+      showSuccess(`Reservations ${!currentValue ? 'enabled' : 'disabled'}`);
+      await refreshLocations();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const handleAddLocation = async (e) => {
     e.preventDefault();
     if (!newLocationName.trim()) return;
@@ -305,6 +316,23 @@ const AdminSiteSettings = () => {
                             </button>
                             <span className={`text-xs font-body font-medium ${loc?.wallet_enabled ? 'text-emerald-600' : 'text-muted-foreground'}`}>
                               Wallet
+                            </span>
+                          </div>
+                          {/* Reservation toggle */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              data-testid={`reservation-toggle-${setting.location_id}`}
+                              onClick={() => handleReservationToggle(setting.location_id, loc?.reservation_enabled)}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                loc?.reservation_enabled ? 'bg-blue-500' : 'bg-gray-300'
+                              }`}
+                            >
+                              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                                loc?.reservation_enabled ? 'translate-x-6' : 'translate-x-1'
+                              }`} />
+                            </button>
+                            <span className={`text-xs font-body font-medium ${loc?.reservation_enabled ? 'text-blue-600' : 'text-muted-foreground'}`}>
+                              Reservations
                             </span>
                           </div>
                           {/* Override toggle */}
