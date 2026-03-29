@@ -1,17 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import api from '../../../lib/api';
 
 const ease = [0.16, 1, 0.3, 1];
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-const timeSlots = [
-  '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM',
-  '1:00 PM', '1:30 PM', '2:00 PM', '5:00 PM',
-  '5:30 PM', '6:00 PM', '6:30 PM', '7:00 PM',
-  '7:30 PM', '8:00 PM', '8:30 PM', '9:00 PM',
-];
+// Generate 30-min slots between open and close (HH:MM 24h format)
+const generateSlots = (openTime, closeTime) => {
+  if (!openTime || !closeTime) return [];
+  const [openH, openM] = openTime.split(':').map(Number);
+  const [closeH, closeM] = closeTime.split(':').map(Number);
+  const startMin = openH * 60 + openM;
+  const endMin = closeH * 60 + closeM;
+  const slots = [];
+  for (let m = startMin; m < endMin; m += 30) {
+    const h = Math.floor(m / 60);
+    const min = m % 60;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    slots.push(`${h12}:${min.toString().padStart(2, '0')} ${ampm}`);
+  }
+  return slots;
+};
 
 const DateTimePicker = ({ restaurant, onSelect, onBack }) => {
   const today = new Date();
@@ -24,19 +37,38 @@ const DateTimePicker = ({ restaurant, onSelect, onBack }) => {
   const [guestCount, setGuestCount] = useState(2);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [openingHours, setOpeningHours] = useState(null);
+  const [dayHours, setDayHours] = useState(null);
 
+  // Fetch opening hours for the location
   useEffect(() => {
-    if (selectedDate) {
+    if (restaurant?.id) {
+      api.getSiteStatus(restaurant.id).then(data => {
+        setOpeningHours(data.opening_hours || {});
+      }).catch(() => {});
+    }
+  }, [restaurant]);
+
+  // Generate time slots based on selected date's day-of-week
+  useEffect(() => {
+    if (selectedDate && openingHours) {
       setLoadingSlots(true);
       setAvailableSlots([]);
+      const dayIndex = selectedDate.getDay(); // 0=Sun
+      const dayKey = DAY_KEYS[dayIndex];
+      const hours = openingHours[dayKey];
+      setDayHours(hours || null);
       const timer = setTimeout(() => {
-        const available = timeSlots.filter(() => Math.random() > 0.25);
-        setAvailableSlots(available);
+        if (hours?.open && hours?.close) {
+          setAvailableSlots(generateSlots(hours.open, hours.close));
+        } else {
+          setAvailableSlots([]);
+        }
         setLoadingSlots(false);
-      }, 600);
+      }, 300);
       return () => clearTimeout(timer);
     }
-  }, [selectedDate]);
+  }, [selectedDate, openingHours]);
 
   const getDaysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
   const getFirstDayOfMonth = (month, year) => new Date(year, month, 1).getDay();
@@ -255,13 +287,14 @@ const DateTimePicker = ({ restaurant, onSelect, onBack }) => {
           ) : availableSlots.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-sm" style={{ color: '#86868B' }}>
-                No available times for this date. Try another.
+                {dayHours === null ? 'The cafe is closed on this day. Try another date.' : 'No available times for this date.'}
               </p>
             </div>
           ) : (
             <div>
               <p className="text-xs mb-4" style={{ color: '#86868B' }}>
                 {formatSelectedDate()} &middot; {guestCount} {guestCount === 1 ? 'guest' : 'guests'}
+                {dayHours && <span> &middot; Open {dayHours.open} — {dayHours.close}</span>}
               </p>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {availableSlots.map((time) => {
