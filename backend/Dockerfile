@@ -9,7 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements-prod.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY server.py .
+COPY server.py db.py models.py auth.py helpers.py ./
+COPY routes/ ./routes/
 
 ENV PYTHONUNBUFFERED=1
 
