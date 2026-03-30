@@ -5,7 +5,7 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 
 ## Architecture
 - **Frontend**: React 18 + Vite + TailwindCSS + Framer Motion
-- **Backend**: FastAPI + MongoDB + JWT Auth
+- **Backend**: FastAPI + MongoDB + JWT Auth + httpx (Google API)
 - **Image Processing**: Pillow (400x400 auto-thumbnails)
 - **Auth**: Cookie-based JWT + localStorage Bearer token fallback + Emergent Google OAuth + Email OTP verification
 - **Email**: Resend (when API key provided)
@@ -59,7 +59,6 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 ### Apple Table Reservation (Mar 2026)
 - 3-step flow: Location -> Calendar/Time -> Details -> Confirmation modal
 - Dynamic locations from API, glassmorphism confirmation
-- "Reservations" link always visible in header nav (desktop + mobile)
 
 ### Contact Us Page (Mar 2026)
 - Apple-designed form with Honeypot + Speed Check + Math Captcha spam protection
@@ -67,13 +66,23 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 ### Mobile Admin Auth Fix (Mar 2026)
 - Dual-auth: cookies (same-origin) + localStorage Bearer tokens (cross-origin/mobile)
 - Fixed mobile browsers blocking third-party cookies on Railway deployment
-- Tokens returned in login/refresh response bodies, stored in localStorage
-- All admin pages verified working on mobile viewport (375x812)
+
+### Mobile Admin Stretch Fix (Mar 2026)
+- Removed vertical centering on mobile login (top-aligned with pt-16)
+- Removed redundant min-h-screen from admin pages inside AdminLayout
+
+### Google Reviews Integration (Mar 2026)
+- Admin Settings: Google Place ID + Google API Key fields per location (save-on-blur)
+- Backend: /api/reviews endpoint fetches from Google Places API with 6h cache
+- Filters to 4+ star reviews only, shows location name per review
+- Home page: Dynamic carousel replacing static testimonials
+- Security: google_api_key stripped from public /api/locations endpoints
+- Section hidden when no reviews/Place IDs configured
 
 ## Key Routes
 | Route | Description |
 |-------|-------------|
-| / | Apple-inspired landing page |
+| / | Apple-inspired landing page with Google Reviews |
 | /menu-catalog | Apple-inspired menu with category tabs |
 | /customer-auth | Apple auth with Google OAuth + email verification |
 | /shopping-cart | Apple-designed cart with checkout |
@@ -84,7 +93,7 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 | /admin | Apple-styled dashboard |
 | /admin/menu | Menu CRUD management |
 | /admin/orders | Order management |
-| /admin/site-settings | Location CRUD, site hours, wallet toggle |
+| /admin/site-settings | Location CRUD, site hours, wallet toggle, Google Reviews config |
 | /admin/residents | Prepaid wallet management |
 | /admin/transactions | Transaction reports |
 
@@ -101,4 +110,4 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 ### P3 (Low)
 - Multiple admin users with roles
 - Loyalty rewards program
-- Backend server.py modularization (~1900 lines -> /routes/)
+- Backend server.py modularization (~2000 lines -> /routes/)
