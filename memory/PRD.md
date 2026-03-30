@@ -10,6 +10,25 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - **Auth**: Cookie-based JWT + localStorage Bearer token fallback + Emergent Google OAuth + Email OTP verification
 - **Email**: Resend (when API key provided)
 
+### Backend Structure (Modularized Mar 2026)
+```
+/app/backend/
+├── server.py          (~250 lines: app init, CORS, routers, startup seed, frontend serve)
+├── db.py              (MongoDB connection & collections)
+├── models.py          (All Pydantic models)
+├── auth.py            (JWT, password, brute force, auth dependencies)
+├── helpers.py         (serialize_doc, serialize_user)
+├── routes/
+│   ├── auth.py        (/api/auth/login, logout, me, refresh)
+│   ├── locations.py   (/api/locations + /api/reviews + /api/admin/locations)
+│   ├── menu.py        (/api/menu-items + /api/admin/menu-items + /api/images)
+│   ├── residents.py   (/api/admin/residents + transactions + balance-summary)
+│   ├── customers.py   (/api/customer/* + Google OAuth)
+│   ├── orders.py      (/api/orders + /api/site-status + /api/admin/orders)
+│   ├── settings.py    (/api/admin/site-settings)
+│   └── contact.py     (/api/contact)
+```
+
 ## Implemented Features
 
 ### Core (Jan 2026)
@@ -34,68 +53,25 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 ### Mobile Responsiveness (Mar 2026)
 - All admin pages optimized for 375px+
 
-### Apple-Inspired Homepage Redesign (Mar 2026)
+### Apple-Inspired Redesign (Mar 2026)
 - Outfit font, monochrome palette, cinematic hero, bento grid, glass-morphism
-- Whitespace between sections tightened for better flow
-
-### Apple-Inspired Menu Catalog Redesign (Mar 2026)
-- Sticky frosted-glass category bar, minimal white cards
-- Quick Add hidden when ordering closed
+- Homepage, Menu Catalog, Shopping Cart, Table Reservation, Order Status, Contact Us
 
 ### Customer Auth + Google OAuth + Email Verification (Mar 2026)
 - Apple-designed auth page with Google OAuth via Emergent Auth
 - Registration requires email OTP verification
 
-### Apple-Inspired Admin Pages (Mar 2026)
-- Dark sidebar, stat cards, clean headers, all pages redesigned
-
-### Location Picker Modal (Mar 2026)
-- Glassmorphism modal triggered when navigating to menu without selecting cafe
-
-### Apple Shopping Cart (Mar 2026)
-- Redesigned with Apple aesthetic (empty, filled, success states)
-- Mobile-responsive layout
-
-### Apple Table Reservation (Mar 2026)
-- 3-step flow: Location -> Calendar/Time -> Details -> Confirmation modal
-- Dynamic locations from API, glassmorphism confirmation
-
-### Contact Us Page (Mar 2026)
-- Apple-designed form with Honeypot + Speed Check + Math Captcha spam protection
-
 ### Mobile Admin Auth Fix (Mar 2026)
-- Dual-auth: cookies (same-origin) + localStorage Bearer tokens (cross-origin/mobile)
-- Fixed mobile browsers blocking third-party cookies on Railway deployment
-
-### Mobile Admin Stretch Fix (Mar 2026)
-- Removed vertical centering on mobile login (top-aligned with pt-16)
-- Removed redundant min-h-screen from admin pages inside AdminLayout
+- Dual-auth: cookies + localStorage Bearer tokens for cross-origin mobile
 
 ### Google Reviews Integration (Mar 2026)
-- Admin Settings: Google Place ID + Google API Key fields per location (save-on-blur)
-- Backend: /api/reviews endpoint fetches from Google Places API with 6h cache
-- Filters to 4+ star reviews only, shows location name per review
-- Home page: Dynamic carousel replacing static testimonials
-- Security: google_api_key stripped from public /api/locations endpoints
-- Section hidden when no reviews/Place IDs configured
+- Admin: Google Place ID + API Key per location
+- /api/reviews fetches from Google Places API with 6h cache, 4+ stars only
+- Home page dynamic carousel, hidden when no reviews configured
 
-## Key Routes
-| Route | Description |
-|-------|-------------|
-| / | Apple-inspired landing page with Google Reviews |
-| /menu-catalog | Apple-inspired menu with category tabs |
-| /customer-auth | Apple auth with Google OAuth + email verification |
-| /shopping-cart | Apple-designed cart with checkout |
-| /table-reservation | Apple-designed reservation with calendar |
-| /order-status | Track order by number |
-| /contact-us | Contact form with spam protection |
-| /admin-login | Apple-styled admin login |
-| /admin | Apple-styled dashboard |
-| /admin/menu | Menu CRUD management |
-| /admin/orders | Order management |
-| /admin/site-settings | Location CRUD, site hours, wallet toggle, Google Reviews config |
-| /admin/residents | Prepaid wallet management |
-| /admin/transactions | Transaction reports |
+### Backend Modularization (Mar 2026)
+- Refactored ~2000-line server.py into modular /routes/ structure
+- Zero functional changes, all 27 backend + all frontend tests passed
 
 ## Prioritized Backlog
 
@@ -110,4 +86,3 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 ### P3 (Low)
 - Multiple admin users with roles
 - Loyalty rewards program
-- Backend server.py modularization (~2000 lines -> /routes/)
