@@ -84,6 +84,11 @@ class ApiService {
     return this.fetch(`/api/locations/${slug}`);
   }
 
+  // Google Reviews
+  async getGoogleReviews() {
+    return this.fetch('/api/reviews');
+  }
+
   // Menu Items (Public)
   async getMenuItems(locationId = null, category = null) {
     const params = new URLSearchParams();

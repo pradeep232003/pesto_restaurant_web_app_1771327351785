@@ -364,6 +364,49 @@ const AdminSiteSettings = () => {
                           </div>
                         </div>
 
+                        {/* Google Reviews */}
+                        <div className="border-t border-border pt-4 mb-4">
+                          <p className="text-sm font-body font-semibold text-foreground mb-3">Google Reviews</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1 font-body">Google Place ID</label>
+                              <input
+                                data-testid={`google-place-id-${setting.location_id}`}
+                                type="text"
+                                defaultValue={loc?.google_place_id || ''}
+                                placeholder="e.g. ChIJN1t_tD..."
+                                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm font-body"
+                                onBlur={(e) => {
+                                  const val = e.target.value.trim();
+                                  if (val !== (loc?.google_place_id || '')) {
+                                    api.adminUpdateLocation(setting.location_id, { google_place_id: val })
+                                      .then(() => { showSuccess('Google Place ID updated'); refreshLocations(); })
+                                      .catch(err => setError(err.message));
+                                  }
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1 font-body">Google API Key</label>
+                              <input
+                                data-testid={`google-api-key-${setting.location_id}`}
+                                type="password"
+                                defaultValue={loc?.google_api_key || ''}
+                                placeholder="AIzaSy..."
+                                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm font-body"
+                                onBlur={(e) => {
+                                  const val = e.target.value.trim();
+                                  if (val !== (loc?.google_api_key || '')) {
+                                    api.adminUpdateLocation(setting.location_id, { google_api_key: val })
+                                      .then(() => { showSuccess('Google API Key updated'); refreshLocations(); })
+                                      .catch(err => setError(err.message));
+                                  }
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
                         {/* Opening Hours */}
                         {editingLocation === setting.location_id ? (
                           <div className="border-t border-border pt-4">

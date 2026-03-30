@@ -4,7 +4,7 @@ import Header from '../../components/ui/Header';
 import HeroSection from './components/HeroSection';
 import MenuPreviewSection from './components/MenuPreviewSection';
 import WhyChooseUsSection from './components/WhyChooseUsSection';
-import TestimonialsSection from './components/TestimonialsSection';
+import GoogleReviewsSection from './components/GoogleReviewsSection';
 import FooterSection from './components/FooterSection';
 import LocationPickerModal from '../../components/LocationPickerModal';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -75,7 +75,7 @@ const HomeLanding = () => {
         <HeroSection onViewMenu={handleViewMenu} onOrderNow={handleOrderOnline} />
         <MenuPreviewSection />
         <WhyChooseUsSection />
-        <TestimonialsSection />
+        <GoogleReviewsSection />
         <FooterSection onOrderOnline={handleOrderOnline} />
       </main>
 

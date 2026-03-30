@@ -18,6 +18,7 @@ import jwt
 import uuid
 from PIL import Image as PILImage
 import io
+import httpx
 
 app = FastAPI(title="Pesto Restaurant API")
 
@@ -217,6 +218,8 @@ class Location(BaseModel):
     wallet_enabled: bool = False
     reservation_enabled: bool = False
     phone: str = ""
+    google_place_id: str = ""
+    google_api_key: str = ""
 
 class LocationCreate(BaseModel):
     name: str
@@ -224,6 +227,8 @@ class LocationCreate(BaseModel):
     wallet_enabled: bool = False
     reservation_enabled: bool = False
     phone: Optional[str] = ""
+    google_place_id: Optional[str] = ""
+    google_api_key: Optional[str] = ""
 
 class LocationUpdate(BaseModel):
     name: Optional[str] = None
@@ -233,6 +238,8 @@ class LocationUpdate(BaseModel):
     wallet_enabled: Optional[bool] = None
     reservation_enabled: Optional[bool] = None
     phone: Optional[str] = None
+    google_place_id: Optional[str] = None
+    google_api_key: Optional[str] = None
 
 class MenuItem(BaseModel):
     id: str
@@ -411,6 +418,15 @@ async def startup_event():
             {"id": loc_id},
             {"$set": {"phone": phone}}
         )
+    # Ensure all locations have google_place_id and google_api_key fields
+    locations_collection.update_many(
+        {"google_place_id": {"$exists": False}},
+        {"$set": {"google_place_id": ""}}
+    )
+    locations_collection.update_many(
+        {"google_api_key": {"$exists": False}},
+        {"$set": {"google_api_key": ""}}
+    )
 
 def seed_admin():
     """Seed admin user from environment variables"""
@@ -649,7 +665,12 @@ async def root():
 async def get_locations():
     """Get all active locations"""
     locations = list(locations_collection.find({"is_active": True}).sort("sort_order", 1))
-    return [serialize_doc(loc) for loc in locations]
+    result = []
+    for loc in locations:
+        doc = serialize_doc(loc)
+        doc.pop("google_api_key", None)
+        result.append(doc)
+    return result
 
 @app.get("/api/locations/{slug}")
 async def get_location_by_slug(slug: str):
@@ -657,10 +678,82 @@ async def get_location_by_slug(slug: str):
     location = locations_collection.find_one({"slug": slug})
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
-    return serialize_doc(location)
+    doc = serialize_doc(location)
+    doc.pop("google_api_key", None)
+    return doc
 
+
+# ============== GOOGLE REVIEWS ==============
+
+# In-memory cache: { location_id: { "data": [...], "fetched_at": datetime } }
+_reviews_cache = {}
+REVIEWS_CACHE_TTL = timedelta(hours=6)
+
+@app.get("/api/reviews")
+async def get_google_reviews():
+    """Fetch Google reviews for all locations that have Place ID + API Key configured. Returns only 4+ star reviews."""
+    now = datetime.now(timezone.utc)
+    all_reviews = []
+
+    locations = list(locations_collection.find({"is_active": True}).sort("sort_order", 1))
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        for loc in locations:
+            loc_id = loc.get("id", "")
+            place_id = loc.get("google_place_id", "")
+            api_key = loc.get("google_api_key", "")
+            loc_name = loc.get("name", "")
+
+            if not place_id or not api_key:
+                continue
+
+            # Check cache
+            cached = _reviews_cache.get(loc_id)
+            if cached and (now - cached["fetched_at"]) < REVIEWS_CACHE_TTL:
+                all_reviews.extend(cached["data"])
+                continue
+
+            # Fetch from Google Places API
+            try:
+                resp = await client.get(
+                    "https://maps.googleapis.com/maps/api/place/details/json",
+                    params={
+                        "place_id": place_id,
+                        "fields": "reviews",
+                        "key": api_key,
+                    },
+                )
+                data = resp.json()
+                reviews_raw = data.get("result", {}).get("reviews", [])
+
+                loc_reviews = []
+                for r in reviews_raw:
+                    rating = r.get("rating", 0)
+                    if rating >= 4:
+                        loc_reviews.append({
+                            "author_name": r.get("author_name", ""),
+                            "rating": rating,
+                            "text": r.get("text", ""),
+                            "time": r.get("time", 0),
+                            "relative_time": r.get("relative_time_description", ""),
+                            "profile_photo_url": r.get("profile_photo_url", ""),
+                            "location_name": loc_name,
+                            "location_id": loc_id,
+                        })
+
+                _reviews_cache[loc_id] = {"data": loc_reviews, "fetched_at": now}
+                all_reviews.extend(loc_reviews)
+            except Exception:
+                # If fetch fails, use cached data if available
+                if cached:
+                    all_reviews.extend(cached["data"])
+
+    # Sort by most recent
 
 # ============== ADMIN LOCATION CRUD ==============
+
+    all_reviews.sort(key=lambda r: r.get("time", 0), reverse=True)
+    return all_reviews
 
 @app.get("/api/admin/locations")
 async def admin_get_all_locations(user: dict = Depends(get_admin_user)):
@@ -740,6 +833,10 @@ async def admin_update_location(location_id: str, data: LocationUpdate, user: di
         update_fields["reservation_enabled"] = data.reservation_enabled
     if data.phone is not None:
         update_fields["phone"] = data.phone
+    if data.google_place_id is not None:
+        update_fields["google_place_id"] = data.google_place_id
+    if data.google_api_key is not None:
+        update_fields["google_api_key"] = data.google_api_key
 
     if update_fields:
         locations_collection.update_one({"id": location_id}, {"$set": update_fields})
