@@ -14,8 +14,10 @@ const ease = [0.16, 1, 0.3, 1];
 const CATEGORIES = [
   { id: 'all', name: 'All' },
   { id: 'breakfast', name: 'Breakfast' },
-  { id: 'lunch', name: 'Lunch' },
-  { id: 'desserts', name: 'Dessert' },
+  { id: 'sandwiches', name: 'Sandwiches' },
+  { id: 'specials', name: 'Specials' },
+  { id: 'sides', name: 'Sides' },
+  { id: 'desserts', name: 'Desserts' },
   { id: 'beverages', name: 'Beverages' },
 ];
 
