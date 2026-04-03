@@ -129,6 +129,7 @@ async def startup_event():
     # Run menu migrations
     migrate_cheshire_menu()
     migrate_atherton_menu()
+    migrate_timperley_menu()
 
 
 def migrate_cheshire_menu():
@@ -329,6 +330,153 @@ def migrate_atherton_menu():
 
     migrations.insert_one({"name": "atherton_menu_v2", "applied_at": datetime.now(timezone.utc).isoformat()})
     print(f"Atherton menu migration applied ({total} items)")
+
+
+def migrate_timperley_menu():
+    """Replace Timperley Altrincham menu with data from Zettle POS export"""
+    migrations = db["migrations"]
+    if migrations.find_one({"name": "timperley_menu_v1"}):
+        return
+
+    import uuid
+    loc_id = "timperley-altrincham"
+    deleted = menu_items_collection.delete_many({"location_id": loc_id})
+    print(f"Timperley migration: deleted {deleted.deleted_count} existing items")
+
+    new_items = [
+        # ── BREAKFAST ──
+        {"name": "Classic Breakfast", "subtitle": "Full English", "description": "Classic full English breakfast with all the trimmings.", "price": 9.00, "category": "breakfast", "tags": ["breakfast", "popular"], "featured": True},
+        {"name": "Mega Breakfast", "subtitle": "Extra hungry?", "description": "Our biggest breakfast with extra portions of everything.", "price": 10.00, "category": "breakfast", "tags": ["breakfast"], "featured": True},
+        {"name": "Veggie English", "subtitle": "Vegetarian full breakfast", "description": "Full vegetarian breakfast with veggie sausages and all the trimmings.", "price": 9.50, "category": "breakfast", "dietary": ["vegetarian"], "tags": ["breakfast"]},
+        {"name": "Breakfast Omelette", "subtitle": "Fluffy omelette breakfast", "description": "Freshly made omelette served as part of a full breakfast.", "price": 8.00, "category": "breakfast", "dietary": ["vegetarian"], "tags": ["breakfast"]},
+        {"name": "Big Breakfast Burrito", "subtitle": "Wrapped and loaded", "description": "Loaded breakfast burrito with sausage, bacon, egg and cheese.", "price": 6.50, "category": "breakfast", "tags": ["breakfast"]},
+        {"name": "Eggs Benedict", "subtitle": "Poached eggs & hollandaise", "description": "Poached eggs on English muffin with hollandaise sauce.", "price": 9.00, "category": "breakfast", "tags": ["breakfast", "popular"], "featured": True},
+        {"name": "Avocado Eggs Halloumi Toast", "subtitle": "Brunch favourite", "description": "Smashed avocado with eggs and grilled halloumi on toast.", "price": 11.00, "category": "breakfast", "dietary": ["vegetarian"], "tags": ["breakfast", "healthy"]},
+        {"name": "Smoked Salmon Omelette", "subtitle": "Premium omelette", "description": "Fluffy omelette with smoked salmon.", "price": 8.50, "category": "breakfast", "tags": ["breakfast"]},
+        {"name": "Cheese Mushroom & Onion Omelette", "subtitle": "Served with salad or toast", "description": "Fluffy omelette filled with cheese, mushroom and onion.", "price": 7.50, "category": "breakfast", "dietary": ["vegetarian"], "tags": ["breakfast"]},
+        {"name": "Loaded Veggie Omelette", "subtitle": "Onion, peppers, chilli, mushroom & cheese", "description": "Loaded omelette with onion, peppers, green chilli, mushroom and cheese.", "price": 8.50, "category": "breakfast", "dietary": ["vegetarian"], "tags": ["breakfast", "spicy"]},
+        {"name": "Fried Egg Barm/Toast", "subtitle": "Quick breakfast", "description": "Fried egg on your choice of barm or toast.", "price": 3.50, "category": "breakfast", "dietary": ["vegetarian"], "tags": ["breakfast"]},
+        {"name": "Sausage Barm/Toast", "subtitle": "Quick breakfast", "description": "Pork sausage on your choice of barm or toast.", "price": 3.50, "category": "breakfast", "tags": ["breakfast"]},
+        {"name": "Bacon Barm/Toast", "subtitle": "Quick breakfast", "description": "Crispy bacon on your choice of barm or toast.", "price": 4.00, "category": "breakfast", "tags": ["breakfast"]},
+        {"name": "Sausage & Egg Barm/Toast", "subtitle": "Breakfast barm", "description": "Pork sausage and fried egg on barm or toast.", "price": 4.00, "category": "breakfast", "tags": ["breakfast"]},
+        {"name": "Bacon & Egg Barm/Toast", "subtitle": "Breakfast barm", "description": "Crispy bacon and fried egg on barm or toast.", "price": 4.50, "category": "breakfast", "tags": ["breakfast"]},
+        {"name": "Bacon & Sausage Barm/Toast", "subtitle": "Breakfast barm", "description": "Crispy bacon and sausage on barm or toast.", "price": 4.50, "category": "breakfast", "tags": ["breakfast"]},
+        {"name": "Bacon, Sausage & Egg Barm/Toast", "subtitle": "The full works", "description": "Bacon, sausage and egg on barm or toast.", "price": 5.00, "category": "breakfast", "tags": ["breakfast", "popular"]},
+        {"name": "Fried Egg Binlid", "subtitle": "Breakfast binlid", "description": "Fried egg served in a binlid.", "price": 4.50, "category": "breakfast", "dietary": ["vegetarian"], "tags": ["breakfast"]},
+        {"name": "Sausage Binlid", "subtitle": "Breakfast binlid", "description": "Pork sausage served in a binlid.", "price": 4.50, "category": "breakfast", "tags": ["breakfast"]},
+        {"name": "Bacon Binlid", "subtitle": "Breakfast binlid", "description": "Crispy bacon served in a binlid.", "price": 5.00, "category": "breakfast", "tags": ["breakfast"]},
+        {"name": "Sausage & Egg Binlid", "subtitle": "Breakfast binlid", "description": "Sausage and egg in a binlid.", "price": 5.00, "category": "breakfast", "tags": ["breakfast"]},
+        {"name": "Bacon & Egg Binlid", "subtitle": "Breakfast binlid", "description": "Bacon and egg in a binlid.", "price": 5.50, "category": "breakfast", "tags": ["breakfast"]},
+        {"name": "Bacon & Sausage Binlid", "subtitle": "Breakfast binlid", "description": "Bacon and sausage in a binlid.", "price": 5.50, "category": "breakfast", "tags": ["breakfast"]},
+        {"name": "Bacon, Sausage & Egg Binlid", "subtitle": "Loaded binlid", "description": "Bacon, sausage and egg in a binlid.", "price": 6.00, "category": "breakfast", "tags": ["breakfast"]},
+        {"name": "Spam, Black Pudding & Egg Binlid", "subtitle": "Traditional binlid", "description": "Spam, black pudding and egg in a binlid.", "price": 6.00, "category": "breakfast", "tags": ["breakfast"]},
+        {"name": "Beans on Toast", "subtitle": "Simple classic", "description": "Baked beans served on toast.", "price": 5.50, "category": "breakfast", "dietary": ["vegetarian", "vegan"], "tags": ["breakfast"]},
+        {"name": "Toast with Jam & Butter", "subtitle": "Light bite", "description": "Toasted bread with jam and butter.", "price": 2.00, "category": "breakfast", "dietary": ["vegetarian"], "tags": ["breakfast"]},
+        {"name": "Toasted Tea Cake", "subtitle": "Warm and buttery", "description": "Toasted tea cake served with butter.", "price": 2.50, "category": "breakfast", "dietary": ["vegetarian"], "tags": ["breakfast"]},
+        {"name": "Plain Waffle", "subtitle": "Simple waffle", "description": "Plain waffle served warm.", "price": 1.50, "category": "breakfast", "dietary": ["vegetarian"], "tags": ["breakfast"]},
+        {"name": "Belgium Waffle", "subtitle": "Premium waffle", "description": "Belgium-style waffle with toppings.", "price": 3.00, "category": "breakfast", "dietary": ["vegetarian"], "tags": ["breakfast"]},
+        {"name": "Hash Browns x 2", "subtitle": "Crispy potato", "description": "Two golden crispy hash browns.", "price": 2.00, "category": "breakfast", "dietary": ["vegetarian", "vegan"], "tags": ["breakfast"]},
+        # ── SANDWICHES ──
+        {"name": "Cheese Sandwich", "subtitle": "Fresh sandwich", "description": "Cheddar cheese on your choice of bread.", "price": 4.50, "category": "sandwiches", "dietary": ["vegetarian"], "tags": ["lunch"]},
+        {"name": "Cheese & Onion Sandwich", "subtitle": "Fresh sandwich", "description": "Cheddar cheese with onion on your choice of bread.", "price": 4.50, "category": "sandwiches", "dietary": ["vegetarian"], "tags": ["lunch"]},
+        {"name": "Chicken Salad Sandwich", "subtitle": "Fresh sandwich", "description": "Chicken with fresh salad on your choice of bread.", "price": 4.50, "category": "sandwiches", "tags": ["lunch"]},
+        {"name": "Ham Salad Sandwich", "subtitle": "Fresh sandwich", "description": "Ham with fresh salad on your choice of bread.", "price": 4.50, "category": "sandwiches", "tags": ["lunch"]},
+        {"name": "Tuna Salad Sandwich", "subtitle": "Fresh sandwich", "description": "Tuna mayo with fresh salad on your choice of bread.", "price": 4.50, "category": "sandwiches", "tags": ["lunch"]},
+        {"name": "BLT", "subtitle": "Bacon, lettuce & tomato", "description": "Crispy bacon, fresh lettuce and tomato on your choice of bread.", "price": 4.50, "category": "sandwiches", "tags": ["lunch", "popular"]},
+        {"name": "Cheese & Coleslaw Sandwich", "subtitle": "Fresh sandwich", "description": "Cheddar cheese with creamy coleslaw.", "price": 5.00, "category": "sandwiches", "dietary": ["vegetarian"], "tags": ["lunch"]},
+        {"name": "Cheese & Tomato Sandwich", "subtitle": "Fresh sandwich", "description": "Cheddar cheese with fresh tomato.", "price": 5.00, "category": "sandwiches", "dietary": ["vegetarian"], "tags": ["lunch"]},
+        {"name": "Ham & Cheese Sandwich", "subtitle": "Fresh sandwich", "description": "Ham and cheddar cheese on your choice of bread.", "price": 5.00, "category": "sandwiches", "tags": ["lunch"]},
+        {"name": "Tuna Mayo Panini", "subtitle": "Toasted panini", "description": "Tuna mayo in a toasted panini.", "price": 6.00, "category": "sandwiches", "tags": ["lunch"]},
+        {"name": "Chicken Cheese Panini", "subtitle": "Toasted panini", "description": "Chicken and melted cheese in a toasted panini.", "price": 6.00, "category": "sandwiches", "tags": ["lunch"]},
+        {"name": "Bacon & Cheese Toastie", "subtitle": "Toastie", "description": "Crispy bacon and melted cheese toastie.", "price": 6.00, "category": "sandwiches", "tags": ["lunch"]},
+        {"name": "Tuna Mayo & Cheese Toastie", "subtitle": "Toastie", "description": "Tuna mayo and melted cheese toastie.", "price": 6.50, "category": "sandwiches", "tags": ["lunch"]},
+        {"name": "Francesca's Panini Melt", "subtitle": "House special panini", "description": "Our signature panini melt.", "price": 7.00, "category": "sandwiches", "tags": ["lunch", "popular"], "featured": True},
+        {"name": "Chicken & Cheese Panini", "subtitle": "Toasted panini", "description": "Chicken and melted cheese panini.", "price": 7.00, "category": "sandwiches", "tags": ["lunch"]},
+        {"name": "Chorizo & Cheese Panini", "subtitle": "Toasted panini", "description": "Spicy chorizo and melted cheese panini.", "price": 7.00, "category": "sandwiches", "tags": ["lunch"]},
+        {"name": "Ham & Cheese Panini", "subtitle": "Toasted panini", "description": "Ham and melted cheese panini.", "price": 7.00, "category": "sandwiches", "tags": ["lunch"]},
+        {"name": "Salmon Sandwich on Bagel", "subtitle": "Bagel sandwich", "description": "Salmon on a freshly baked bagel.", "price": 7.50, "category": "sandwiches", "tags": ["lunch"]},
+        {"name": "Salmon Cream Cheese Bagel", "subtitle": "Bagel sandwich", "description": "Salmon with cream cheese on a bagel.", "price": 7.50, "category": "sandwiches", "tags": ["lunch"]},
+        {"name": "Salmon Fried Egg Bagel", "subtitle": "Bagel sandwich", "description": "Salmon with fried egg on a bagel.", "price": 8.50, "category": "sandwiches", "tags": ["lunch"]},
+        {"name": "Avocado Salmon Cream Cheese Bagel", "subtitle": "Premium bagel", "description": "Avocado, salmon and cream cheese on a bagel.", "price": 9.50, "category": "sandwiches", "tags": ["lunch", "healthy"], "featured": True},
+        {"name": "Smoked Salmon Cream Cheese Bagel", "subtitle": "Loaded bagel", "description": "Smoked salmon with cream cheese on a bagel.", "price": 10.50, "category": "sandwiches", "tags": ["lunch"]},
+        # ── SPECIALS ──
+        {"name": "4 Piece Tender Chicken", "subtitle": "Crispy chicken", "description": "4 pieces of crispy tender chicken.", "price": 4.00, "category": "specials", "tags": ["special"]},
+        {"name": "Cheese & Chips", "subtitle": "Loaded chips", "description": "Chips topped with melted cheese.", "price": 4.00, "category": "specials", "dietary": ["vegetarian"], "tags": ["special"]},
+        {"name": "Cheese Burger", "subtitle": "Classic burger", "description": "Beef burger with melted cheddar cheese.", "price": 4.50, "category": "specials", "tags": ["special"]},
+        {"name": "Chicken Wrap", "subtitle": "Wrapped and ready", "description": "Chicken wrap with fresh fillings.", "price": 5.00, "category": "specials", "tags": ["special", "lunch"]},
+        {"name": "Sanitos Dirty Fries", "subtitle": "Loaded fries", "description": "Fries loaded with toppings and sauces.", "price": 5.50, "category": "specials", "tags": ["special"]},
+        {"name": "Cheese & Beans Jacket", "subtitle": "Jacket potato", "description": "Jacket potato with cheese and baked beans.", "price": 6.00, "category": "specials", "dietary": ["vegetarian"], "tags": ["lunch"]},
+        {"name": "8 Piece Tender Chicken", "subtitle": "Sharing size", "description": "8 pieces of crispy tender chicken.", "price": 7.00, "category": "specials", "tags": ["special"]},
+        {"name": "Veggie Burger", "subtitle": "Vegetarian option", "description": "Veggie burger with fresh toppings.", "price": 7.00, "category": "specials", "dietary": ["vegetarian"], "tags": ["special"]},
+        {"name": "Classic Chicken Burger", "subtitle": "With fries or salad", "description": "Crispy chicken burger with cheese, lettuce and mayo.", "price": 7.50, "category": "specials", "tags": ["special", "popular"], "featured": True},
+        {"name": "Chicken Curry", "subtitle": "With rice or fries", "description": "Homemade chicken curry served with rice or fries.", "price": 7.50, "category": "specials", "tags": ["special"]},
+        {"name": "Chilli Con Carne", "subtitle": "With rice or fries", "description": "Homemade chilli con carne served with rice or fries.", "price": 7.50, "category": "specials", "tags": ["special", "spicy"]},
+        {"name": "Afternoon Tea", "subtitle": "Classic afternoon tea", "description": "Selection of sandwiches, scones and cakes with tea.", "price": 7.99, "category": "specials", "tags": ["special"]},
+        {"name": "Royal Cheese Burger", "subtitle": "Premium burger", "description": "Premium beef burger with cheese and all the toppings.", "price": 8.00, "category": "specials", "tags": ["special"]},
+        {"name": "Kafe Club", "subtitle": "Club sandwich", "description": "Triple-decker club sandwich with fillings and fries.", "price": 8.00, "category": "specials", "tags": ["special", "popular"], "featured": True},
+        {"name": "Veg Curry", "subtitle": "With rice", "description": "Homemade vegetable curry served with rice.", "price": 8.00, "category": "specials", "dietary": ["vegan"], "tags": ["special"]},
+        {"name": "Beef Chilli", "subtitle": "With rice or fries & salad", "description": "Homemade beef chilli served with rice or fries and salad.", "price": 8.50, "category": "specials", "tags": ["special", "spicy"]},
+        {"name": "Chicken Kadai", "subtitle": "With rice or fries", "description": "Aromatic chicken kadai served with rice or fries.", "price": 9.00, "category": "specials", "tags": ["special", "spicy"], "featured": True},
+        {"name": "Roast Chicken", "subtitle": "Sunday roast", "description": "Roast chicken dinner with all the trimmings.", "price": 8.99, "category": "specials", "tags": ["special", "sunday"]},
+        {"name": "Roast Pork", "subtitle": "Sunday roast", "description": "Roast pork dinner with all the trimmings.", "price": 8.99, "category": "specials", "tags": ["special", "sunday"]},
+        {"name": "Roast Beef", "subtitle": "Sunday roast", "description": "Roast beef dinner with all the trimmings.", "price": 9.99, "category": "specials", "tags": ["special", "sunday"]},
+        {"name": "Mixed Sunday Roast", "subtitle": "Best of everything", "description": "Mixed roast dinner with a selection of meats.", "price": 11.99, "category": "specials", "tags": ["special", "sunday", "popular"], "featured": True},
+        {"name": "Luxury Afternoon Tea", "subtitle": "Premium afternoon tea", "description": "Luxury selection of sandwiches, scones, cakes and premium tea.", "price": 11.99, "category": "specials", "tags": ["special"]},
+        {"name": "Chicken Roast Dinner", "subtitle": "Full roast dinner", "description": "Full chicken roast dinner with all the trimmings.", "price": 13.00, "category": "specials", "tags": ["special", "sunday"]},
+        {"name": "Veggie Roast", "subtitle": "Vegetarian roast dinner", "description": "Full vegetarian roast dinner with all the trimmings.", "price": 13.00, "category": "specials", "dietary": ["vegetarian"], "tags": ["special", "sunday"]},
+        {"name": "Beef Roast Dinner", "subtitle": "Full roast dinner", "description": "Full beef roast dinner with all the trimmings.", "price": 15.00, "category": "specials", "tags": ["special", "sunday"]},
+        {"name": "Mixed Roast Dinner", "subtitle": "Premium roast dinner", "description": "Full mixed roast dinner with all the trimmings.", "price": 16.00, "category": "specials", "tags": ["special", "sunday"]},
+        # ── SIDES ──
+        {"name": "Crisps", "subtitle": "Packet of crisps", "description": "Packet of crisps.", "price": 1.50, "category": "sides", "dietary": ["vegan"], "tags": ["snack"]},
+        {"name": "Chips", "subtitle": "Portion of chips", "description": "Portion of chips.", "price": 2.00, "category": "sides", "dietary": ["vegan"], "tags": ["side"]},
+        # ── DESSERTS ──
+        {"name": "Muffin", "subtitle": "Freshly baked", "description": "Freshly baked muffin.", "price": 2.00, "category": "desserts", "dietary": ["vegetarian"], "tags": ["dessert"]},
+        {"name": "Blueberry / Coffee Muffin", "subtitle": "Freshly baked", "description": "Freshly baked blueberry or coffee muffin.", "price": 2.00, "category": "desserts", "dietary": ["vegetarian"], "tags": ["dessert"]},
+        {"name": "Chocolate Brownie", "subtitle": "Rich and fudgy", "description": "Rich chocolate brownie.", "price": 2.00, "category": "desserts", "dietary": ["vegetarian"], "tags": ["dessert"]},
+        {"name": "Carrot Cake", "subtitle": "Slice of cake", "description": "Homemade carrot cake.", "price": 2.00, "category": "desserts", "dietary": ["vegetarian"], "tags": ["dessert"]},
+        {"name": "Cherry Scone", "subtitle": "Freshly baked", "description": "Freshly baked cherry scone.", "price": 2.50, "category": "desserts", "dietary": ["vegetarian"], "tags": ["dessert"]},
+        {"name": "Mince Pies", "subtitle": "Seasonal treat", "description": "Homemade mince pies.", "price": 2.00, "category": "desserts", "dietary": ["vegetarian"], "tags": ["dessert"]},
+        {"name": "Cherry Scone & Cake Set", "subtitle": "Afternoon treat", "description": "Cherry scone and cake combination.", "price": 7.99, "category": "desserts", "dietary": ["vegetarian"], "tags": ["dessert"]},
+        # ── BEVERAGES ──
+        {"name": "Tea", "subtitle": "Regular £1.50 / Large £2.00", "description": "Classic English tea. Regular or large.", "price": 1.50, "original_price": 2.00, "category": "beverages", "dietary": ["vegan"], "tags": ["hot-drink"]},
+        {"name": "Masala Sweet Chai", "subtitle": "Regular £1.50 / Large £2.50", "description": "Masala sweet chai tea. Regular or large.", "price": 1.50, "original_price": 2.50, "category": "beverages", "dietary": ["vegan"], "tags": ["hot-drink"]},
+        {"name": "Espresso", "subtitle": "Single shot", "description": "Classic espresso shot.", "price": 2.50, "category": "beverages", "dietary": ["vegan"], "tags": ["coffee", "hot-drink"]},
+        {"name": "Coffee", "subtitle": "Regular £3.00 / Large £4.00", "description": "Classic brewed coffee. Regular or large.", "price": 3.00, "original_price": 4.00, "category": "beverages", "dietary": ["vegan"], "tags": ["coffee", "hot-drink"]},
+        {"name": "Hot Chocolate", "subtitle": "Regular £3.00 / Large £4.00", "description": "Rich hot chocolate. Regular or large.", "price": 3.00, "original_price": 4.00, "category": "beverages", "dietary": ["vegetarian"], "tags": ["hot-drink"]},
+        {"name": "Mocha", "subtitle": "Regular £3.50 / Large £4.00", "description": "Chocolate mocha. Regular or large.", "price": 3.50, "original_price": 4.00, "category": "beverages", "dietary": ["vegetarian"], "tags": ["coffee", "hot-drink"]},
+        {"name": "Spring Water", "subtitle": "Bottled water", "description": "Bottle of spring water.", "price": 1.00, "category": "beverages", "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Cold Cans (330ml)", "subtitle": "Soft drinks", "description": "Selection of cold drink cans.", "price": 1.20, "category": "beverages", "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Vimto 500ml", "subtitle": "Still drink", "description": "Vimto 500ml still.", "price": 1.25, "category": "beverages", "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Sanpellegrino", "subtitle": "Sparkling drink", "description": "Sanpellegrino sparkling drink.", "price": 1.50, "category": "beverages", "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Sparkling Water", "subtitle": "Bottled", "description": "Sparkling water.", "price": 1.50, "category": "beverages", "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Aloe Vera Drink", "subtitle": "Refreshing", "description": "Aloe vera drink.", "price": 1.75, "category": "beverages", "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Red Bull", "subtitle": "Energy drink", "description": "Red Bull energy drink.", "price": 1.75, "category": "beverages", "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Coca-Cola 500ml", "subtitle": "Bottled", "description": "Coca-Cola 500ml bottle.", "price": 2.00, "category": "beverages", "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Oasis Summer Fruit", "subtitle": "Fruit drink", "description": "Oasis summer fruit drink.", "price": 2.00, "category": "beverages", "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Lucozade 500ml", "subtitle": "Energy drink", "description": "Lucozade 500ml.", "price": 2.00, "category": "beverages", "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Bottled Drinks (500ml)", "subtitle": "Assorted", "description": "Selection of bottled drinks.", "price": 2.00, "category": "beverages", "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Monster 500ml", "subtitle": "Energy drink", "description": "Monster energy drink 500ml.", "price": 2.50, "category": "beverages", "dietary": ["vegan"], "tags": ["cold-drink"]},
+    ]
+
+    total = 0
+    for item in new_items:
+        item_id = str(uuid.uuid4())[:8]
+        doc = {
+            "id": item_id, "location_id": loc_id,
+            "name": item["name"], "subtitle": item.get("subtitle", ""),
+            "description": item.get("description", ""),
+            "price": item["price"], "original_price": item.get("original_price"),
+            "image_url": "", "image_alt": "",
+            "category": item["category"], "categories": item.get("categories", []),
+            "dietary": item.get("dietary", []), "tags": item.get("tags", []),
+            "featured": item.get("featured", False),
+            "rating": 0.0, "review_count": 0, "prep_time": 0, "is_available": True,
+        }
+        menu_items_collection.insert_one(doc)
+        total += 1
+
+    migrations.insert_one({"name": "timperley_menu_v1", "applied_at": datetime.now(timezone.utc).isoformat()})
+    print(f"Timperley menu migration applied ({total} items)")
 
 
 def seed_admin():

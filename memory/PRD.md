@@ -73,6 +73,15 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - Refactored ~2000-line server.py into modular /routes/ structure
 - Zero functional changes, all 27 backend + all frontend tests passed
 
+### Timperley Menu Migration (Apr 2026)
+- Parsed Zettle POS export (157 raw items) into 106 categorized menu items
+- Categories: Breakfast (31), Sandwiches (22), Specials (26), Sides (2), Desserts (7), Beverages (18)
+- Includes binlids, bagels, paninis, roasts, curries, afternoon teas
+
+### JK Locations Page (Apr 2026)
+- Jolly's Kafe logo added to /jklocations page
+- All 5 locations displayed with Apple-inspired card design
+
 ## Prioritized Backlog
 
 ### P1 (High)

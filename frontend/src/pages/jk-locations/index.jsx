@@ -35,7 +35,7 @@ const JKLocations = () => {
           className="text-center mb-12"
         >
           <img
-            src="/images/logo.png"
+            src="/assets/images/logo-2-1774630354696.png"
             alt="Jolly's Kafe"
             className="h-16 mx-auto mb-6"
             onError={(e) => { e.target.style.display = 'none'; }}
