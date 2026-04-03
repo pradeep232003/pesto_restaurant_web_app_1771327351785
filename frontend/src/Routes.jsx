@@ -24,6 +24,7 @@ import CustomerAuth from './pages/customer-auth';
 import GoogleAuthCallback from './pages/customer-auth/GoogleAuthCallback';
 import OrderStatus from './pages/order-status';
 import ContactUs from './pages/contact-us';
+import JKLocations from './pages/jk-locations';
 import AdminLayout from './components/AdminLayout';
 import { LocationProvider } from './contexts/LocationContext';
 import { CustomerProvider } from './contexts/CustomerContext';
@@ -57,6 +58,7 @@ const AppRouter = () => {
       <Route path="/customer-auth" element={<CustomerAuth />} />
       <Route path="/order-status" element={<OrderStatus />} />
       <Route path="/contact-us" element={<ContactUs />} />
+      <Route path="/jklocations" element={<JKLocations />} />
       
       {/* Admin Login (no layout) */}
       <Route path="/admin-login" element={<AdminLogin />} />
