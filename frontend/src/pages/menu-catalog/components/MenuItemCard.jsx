@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Clock } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 const MenuItemCard = ({ item, onAddToCart, isOrderingOpen = true }) => {
   const [adding, setAdding] = useState(false);
@@ -104,12 +104,6 @@ const MenuItemCard = ({ item, onAddToCart, isOrderingOpen = true }) => {
         {/* Bottom row */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {item.prepTime && (
-              <span className="flex items-center gap-1 text-xs" style={{ color: '#86868B' }}>
-                <Clock size={12} />
-                {item.prepTime} min
-              </span>
-            )}
             {item.dietary?.length > 0 && (
               <span className="text-xs" style={{ color: '#86868B' }}>
                 {item.dietary.map(d => d === 'vegetarian' ? 'V' : d === 'vegan' ? 'VG' : d === 'gluten-free' ? 'GF' : d.charAt(0).toUpperCase()).join(' · ')}

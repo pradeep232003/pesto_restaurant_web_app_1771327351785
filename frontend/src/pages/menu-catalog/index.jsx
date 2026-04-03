@@ -53,7 +53,6 @@ const MenuCatalog = () => {
         featured: item?.featured,
         rating: parseFloat(item?.rating),
         reviewCount: item?.review_count,
-        prepTime: item?.prep_time,
         createdAt: item?.created_at,
       }));
       setMenuItems(mapped);

@@ -341,28 +341,16 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
             </div>
           </div>
 
-          {/* Tags & Prep Time Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-body font-semibold text-foreground mb-1.5">Tags (comma-separated)</label>
-              <input
-                type="text"
-                value={form?.tags}
-                onChange={(e) => handleChange('tags', e?.target?.value)}
-                placeholder="e.g. spicy, popular, seasonal"
-                className="w-full px-4 py-2.5 rounded-lg border border-border bg-background text-foreground font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors duration-200"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-body font-semibold text-foreground mb-1.5">Prep Time (mins)</label>
-              <input
-                type="number"
-                min="1"
-                value={form?.prepTime}
-                onChange={(e) => handleChange('prepTime', e?.target?.value)}
-                className="w-full px-4 py-2.5 rounded-lg border border-border bg-background text-foreground font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors duration-200"
-              />
-            </div>
+          {/* Tags Row */}
+          <div>
+            <label className="block text-sm font-body font-semibold text-foreground mb-1.5">Tags (comma-separated)</label>
+            <input
+              type="text"
+              value={form?.tags}
+              onChange={(e) => handleChange('tags', e?.target?.value)}
+              placeholder="e.g. spicy, popular, seasonal"
+              className="w-full px-4 py-2.5 rounded-lg border border-border bg-background text-foreground font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors duration-200"
+            />
           </div>
 
           {/* Toggles */}
