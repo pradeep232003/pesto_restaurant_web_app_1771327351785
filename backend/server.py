@@ -133,12 +133,14 @@ async def startup_event():
 def migrate_cheshire_menu():
     """Replace Oakmere & Willowmere menu with Cheshire Menu (from ProductList.xlsx)"""
     migrations = db["migrations"]
-    if migrations.find_one({"name": "cheshire_menu_v1"}):
+    if migrations.find_one({"name": "cheshire_menu_v2"}):
         return  # Already migrated
 
     import uuid
     locations_to_update = ["oakmere-handforth", "willowmere-middlewich"]
-    menu_items_collection.delete_many({"location_id": {"$in": locations_to_update}})
+    # Delete ALL existing menu items for these locations before inserting new ones
+    deleted = menu_items_collection.delete_many({"location_id": {"$in": locations_to_update}})
+    print(f"Cheshire menu migration: deleted {deleted.deleted_count} existing items")
 
     new_items = [
         # BREAKFAST
@@ -214,7 +216,7 @@ def migrate_cheshire_menu():
             }
             menu_items_collection.insert_one(doc)
 
-    migrations.insert_one({"name": "cheshire_menu_v1", "applied_at": datetime.now(timezone.utc).isoformat()})
+    migrations.insert_one({"name": "cheshire_menu_v2", "applied_at": datetime.now(timezone.utc).isoformat()})
     print("Cheshire menu migration applied for Oakmere & Willowmere (48 items each)")
 
 

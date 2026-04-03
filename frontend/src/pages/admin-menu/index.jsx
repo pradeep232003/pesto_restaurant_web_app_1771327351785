@@ -10,10 +10,13 @@ import AdminMenuTable from './components/AdminMenuTable';
 
 const MENU_CATEGORIES = [
   { id: 'breakfast', name: 'Breakfast', icon: 'Sunrise' },
-  { id: 'lunch', name: 'Lunch', icon: 'Sun' },
-  { id: 'dinner', name: 'Dinner', icon: 'Moon' },
-  { id: 'dessert', name: 'Dessert', icon: 'Cake' },
-  { id: 'beverage', name: 'Beverage', icon: 'Coffee' },
+  { id: 'sandwiches', name: 'Sandwiches', icon: 'Sandwich' },
+  { id: 'specials', name: 'Specials', icon: 'Star' },
+  { id: 'sides', name: 'Sides', icon: 'UtensilsCrossed' },
+  { id: 'desserts', name: 'Desserts', icon: 'Cake' },
+  { id: 'beverages', name: 'Beverages', icon: 'Coffee' },
+  { id: 'mains', name: 'Mains', icon: 'ChefHat' },
+  { id: 'appetizers', name: 'Appetizers', icon: 'Salad' },
 ];
 
 const AdminMenuManagement = () => {
@@ -29,6 +32,7 @@ const AdminMenuManagement = () => {
   const [activeCategory, setActiveCategory] = useState('all');
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   // Redirect to login if not authenticated as admin
   useEffect(() => {
@@ -70,7 +74,9 @@ const AdminMenuManagement = () => {
   }, [navigate]);
 
   useEffect(() => {
-    fetchMenuItems(selectedLocationId);
+    if (selectedLocationId) {
+      fetchMenuItems(selectedLocationId);
+    }
   }, [selectedLocationId, fetchMenuItems]);
 
   const handleSaveItem = async (formData) => {
@@ -125,15 +131,21 @@ const AdminMenuManagement = () => {
   };
 
   const handleDeleteItem = async (itemId) => {
-    if (!window.confirm('Are you sure you want to delete this item?')) return;
+    setDeleteConfirm(itemId);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
     setError(null);
     try {
-      await api.adminDeleteMenuItem(itemId);
+      await api.adminDeleteMenuItem(deleteConfirm);
       setSuccessMsg('Item deleted successfully!');
       await fetchMenuItems(selectedLocationId);
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
       setError(err?.message);
+    } finally {
+      setDeleteConfirm(null);
     }
   };
 
@@ -321,6 +333,39 @@ const AdminMenuManagement = () => {
           onClose={() => { setIsModalOpen(false); setEditingItem(null); }}
           saving={saving}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)' }}>
+          <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: '#FFFFFF' }}>
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full" style={{ background: 'rgba(255,59,48,0.1)' }}>
+              <Icon name="Trash2" size={22} style={{ color: '#FF3B30' }} />
+            </div>
+            <h3 className="text-lg font-semibold text-center mb-1" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Delete Menu Item?</h3>
+            <p className="text-sm text-center mb-6" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>
+              This action cannot be undone. The item will be permanently removed.
+            </p>
+            <div className="flex gap-3">
+              <button
+                data-testid="delete-cancel-btn"
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 px-4 py-2.5 rounded-full text-sm font-medium transition-all"
+                style={{ background: '#F5F5F7', color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
+              >
+                Cancel
+              </button>
+              <button
+                data-testid="delete-confirm-btn"
+                onClick={confirmDelete}
+                className="flex-1 px-4 py-2.5 rounded-full text-sm font-medium transition-all"
+                style={{ background: '#FF3B30', color: '#FFFFFF', fontFamily: 'Outfit, sans-serif' }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
