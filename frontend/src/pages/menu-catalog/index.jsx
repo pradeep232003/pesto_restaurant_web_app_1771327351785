@@ -15,9 +15,8 @@ const CATEGORIES = [
   { id: 'all', name: 'All' },
   { id: 'breakfast', name: 'Breakfast' },
   { id: 'lunch', name: 'Lunch' },
-  { id: 'dinner', name: 'Dinner' },
-  { id: 'dessert', name: 'Dessert' },
-  { id: 'beverage', name: 'Beverage' },
+  { id: 'desserts', name: 'Dessert' },
+  { id: 'beverages', name: 'Beverages' },
 ];
 
 const MenuCatalog = () => {
@@ -99,6 +98,9 @@ const MenuCatalog = () => {
     return new Promise((resolve) => setTimeout(resolve, 300));
   };
 
+  // Category display order
+  const CATEGORY_ORDER = { breakfast: 0, sandwiches: 1, specials: 2, mains: 3, sides: 4, desserts: 5, beverages: 6, appetizers: 7 };
+
   // Filter + sort
   let filteredItems = [...menuItems];
   if (activeCategory !== 'all') {
@@ -108,7 +110,7 @@ const MenuCatalog = () => {
   }
   if (sortBy === 'price-low') filteredItems.sort((a, b) => a.price - b.price);
   else if (sortBy === 'price-high') filteredItems.sort((a, b) => b.price - a.price);
-  else filteredItems.sort((a, b) => a.name.localeCompare(b.name));
+  else filteredItems.sort((a, b) => (CATEGORY_ORDER[a.category] ?? 99) - (CATEGORY_ORDER[b.category] ?? 99) || a.name.localeCompare(b.name));
 
   const categoryCounts = CATEGORIES.map(c => ({
     ...c,

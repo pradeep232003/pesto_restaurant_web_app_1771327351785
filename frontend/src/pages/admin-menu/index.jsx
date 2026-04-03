@@ -12,10 +12,10 @@ const MENU_CATEGORIES = [
   { id: 'breakfast', name: 'Breakfast', icon: 'Sunrise' },
   { id: 'sandwiches', name: 'Sandwiches', icon: 'Sandwich' },
   { id: 'specials', name: 'Specials', icon: 'Star' },
+  { id: 'mains', name: 'Mains', icon: 'ChefHat' },
   { id: 'sides', name: 'Sides', icon: 'UtensilsCrossed' },
   { id: 'desserts', name: 'Desserts', icon: 'Cake' },
   { id: 'beverages', name: 'Beverages', icon: 'Coffee' },
-  { id: 'mains', name: 'Mains', icon: 'ChefHat' },
   { id: 'appetizers', name: 'Appetizers', icon: 'Salad' },
 ];
 
