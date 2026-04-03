@@ -128,6 +128,7 @@ async def startup_event():
 
     # Run menu migrations
     migrate_cheshire_menu()
+    migrate_chaddesden_menu()
 
 
 def migrate_cheshire_menu():
@@ -218,6 +219,88 @@ def migrate_cheshire_menu():
 
     migrations.insert_one({"name": "cheshire_menu_v2", "applied_at": datetime.now(timezone.utc).isoformat()})
     print("Cheshire menu migration applied for Oakmere & Willowmere (48 items each)")
+
+
+def migrate_chaddesden_menu():
+    """Replace Chaddesden Derby menu with data from ProductList-2.xlsx"""
+    migrations = db["migrations"]
+    if migrations.find_one({"name": "chaddesden_menu_v1"}):
+        return
+
+    import uuid
+    loc_id = "chaddesden-derby"
+    deleted = menu_items_collection.delete_many({"location_id": loc_id})
+    print(f"Chaddesden migration: deleted {deleted.deleted_count} existing items")
+
+    new_items = [
+        # BREAKFAST & SNACKS
+        {"name": "Classic Breakfast", "subtitle": "Full English breakfast", "description": "Full classic breakfast with all the trimmings.", "price": 8.50, "category": "breakfast", "categories": ["breakfast"], "dietary": [], "tags": ["breakfast", "popular"], "featured": True},
+        {"name": "Bacon Sausage Cob", "subtitle": "Breakfast cob", "description": "Crispy bacon and pork sausage served on a soft cob.", "price": 4.50, "category": "breakfast", "categories": ["breakfast"], "dietary": [], "tags": ["breakfast"]},
+        {"name": "Fried Egg Cob", "subtitle": "Breakfast cob", "description": "Freshly fried egg served on a soft cob.", "price": 4.50, "category": "breakfast", "categories": ["breakfast"], "dietary": ["vegetarian"], "tags": ["breakfast"]},
+        {"name": "Fruit Scone with Jam & Clotted Cream", "subtitle": "Warm scone", "description": "Freshly baked fruit scone served with jam and clotted cream.", "price": 4.50, "category": "breakfast", "categories": ["breakfast"], "dietary": ["vegetarian"], "tags": ["breakfast"]},
+        # SANDWICHES
+        {"name": "BLT", "subtitle": "Bacon, lettuce & tomato", "description": "Crispy bacon, fresh lettuce and tomato on your choice of bread.", "price": 4.50, "category": "sandwiches", "categories": ["lunch", "sandwiches"], "dietary": [], "tags": ["lunch", "popular"]},
+        {"name": "Tuna Salad", "subtitle": "Fresh sandwich", "description": "Tuna mayonnaise with fresh salad on your choice of bread.", "price": 4.50, "category": "sandwiches", "categories": ["lunch", "sandwiches"], "dietary": [], "tags": ["lunch"]},
+        {"name": "Chicken Salad", "subtitle": "Fresh sandwich", "description": "Chicken with fresh salad on your choice of bread.", "price": 4.50, "category": "sandwiches", "categories": ["lunch", "sandwiches"], "dietary": [], "tags": ["lunch"]},
+        {"name": "Ham Coleslaw", "subtitle": "Fresh sandwich", "description": "Ham with creamy coleslaw on your choice of bread.", "price": 4.50, "category": "sandwiches", "categories": ["lunch", "sandwiches"], "dietary": [], "tags": ["lunch"]},
+        {"name": "Ham Salad", "subtitle": "Fresh sandwich", "description": "Ham with fresh salad on your choice of bread.", "price": 4.50, "category": "sandwiches", "categories": ["lunch", "sandwiches"], "dietary": [], "tags": ["lunch"]},
+        {"name": "Cheese & Onion or Coleslaw", "subtitle": "Fresh sandwich", "description": "Cheddar cheese with onion or coleslaw on your choice of bread.", "price": 4.00, "category": "sandwiches", "categories": ["lunch", "sandwiches"], "dietary": ["vegetarian"], "tags": ["lunch"]},
+        # SPECIALS
+        {"name": "Classic Beef Burger", "subtitle": "House special", "description": "Classic beef burger served in a bun.", "price": 2.00, "category": "specials", "categories": ["lunch", "dinner", "specials"], "dietary": [], "tags": ["special"], "featured": True},
+        {"name": "Dog Sausage", "subtitle": "Hot dog sausage", "description": "Hot dog sausage.", "price": 3.50, "category": "specials", "categories": ["lunch", "specials"], "dietary": [], "tags": ["special"]},
+        # SIDES
+        {"name": "Chips & Gravy / Cheese", "subtitle": "Classic side", "description": "Straight cut chips served with gravy or melted cheese.", "price": 3.50, "category": "sides", "categories": ["sides"], "dietary": [], "tags": ["side"]},
+        {"name": "Chips", "subtitle": "Straight cut", "description": "Portion of straight cut chips.", "price": 2.50, "category": "sides", "categories": ["sides"], "dietary": ["vegan"], "tags": ["side"]},
+        {"name": "Crisp", "subtitle": "Packet of crisps", "description": "Packet of crisps.", "price": 1.50, "category": "sides", "categories": ["sides"], "dietary": ["vegan", "gluten-free"], "tags": ["snack"]},
+        # DESSERTS
+        {"name": "Shortbread Cookie", "subtitle": "Sweet treat", "description": "Freshly baked shortbread cookie.", "price": 1.70, "category": "desserts", "categories": ["desserts"], "dietary": ["vegetarian"], "tags": ["dessert"]},
+        {"name": "Muffin / Croissant", "subtitle": "Baked goods", "description": "Freshly baked muffin or croissant.", "price": 2.00, "category": "desserts", "categories": ["desserts"], "dietary": ["vegetarian"], "tags": ["dessert"]},
+        {"name": "Cakes", "subtitle": "Daily selection", "description": "Ask our staff for today's cake selection.", "price": 2.50, "category": "desserts", "categories": ["desserts"], "dietary": ["vegetarian"], "tags": ["dessert"]},
+        # ICE CREAM
+        {"name": "Calippo", "subtitle": "Ice lolly", "description": "Calippo ice lolly.", "price": 2.00, "category": "desserts", "categories": ["desserts"], "dietary": [], "tags": ["ice-cream"]},
+        {"name": "Cornetto", "subtitle": "Ice cream cone", "description": "Classic Cornetto ice cream cone.", "price": 2.50, "category": "desserts", "categories": ["desserts"], "dietary": [], "tags": ["ice-cream"]},
+        {"name": "Feast", "subtitle": "Ice cream bar", "description": "Feast chocolate ice cream bar.", "price": 2.50, "category": "desserts", "categories": ["desserts"], "dietary": [], "tags": ["ice-cream"]},
+        {"name": "Twisters", "subtitle": "Ice lolly", "description": "Twisters fruit ice lolly.", "price": 2.50, "category": "desserts", "categories": ["desserts"], "dietary": [], "tags": ["ice-cream"]},
+        {"name": "Smarties Pop", "subtitle": "Ice cream", "description": "Smarties Pop ice cream.", "price": 2.50, "category": "desserts", "categories": ["desserts"], "dietary": [], "tags": ["ice-cream"]},
+        {"name": "Magnum", "subtitle": "Ice cream bar", "description": "Magnum classic ice cream bar.", "price": 2.90, "category": "desserts", "categories": ["desserts"], "dietary": [], "tags": ["ice-cream"]},
+        {"name": "Flake Cone", "subtitle": "Ice cream cone", "description": "Ice cream cone with a Flake.", "price": 3.00, "category": "desserts", "categories": ["desserts"], "dietary": [], "tags": ["ice-cream"]},
+        {"name": "Cadbury Dairy", "subtitle": "Ice cream", "description": "Cadbury Dairy Milk ice cream.", "price": 3.00, "category": "desserts", "categories": ["desserts"], "dietary": [], "tags": ["ice-cream"]},
+        {"name": "Oreo", "subtitle": "Ice cream", "description": "Oreo ice cream.", "price": 2.50, "category": "desserts", "categories": ["desserts"], "dietary": [], "tags": ["ice-cream"]},
+        {"name": "Ice Lolly", "subtitle": "Ice lolly", "description": "Assorted ice lolly.", "price": 2.50, "category": "desserts", "categories": ["desserts"], "dietary": [], "tags": ["ice-cream"]},
+        {"name": "Solar", "subtitle": "Ice lolly", "description": "Solero fruit ice lolly.", "price": 2.50, "category": "desserts", "categories": ["desserts"], "dietary": [], "tags": ["ice-cream"]},
+        # CHOCOLATES & SNACKS
+        {"name": "Squashies / Randoms", "subtitle": "Sweets", "description": "Bag of Squashies or Randoms sweets.", "price": 2.00, "category": "sides", "categories": ["sides"], "dietary": [], "tags": ["snack"]},
+        {"name": "Maltesers / Kit Kat / Jaffa Cakes", "subtitle": "Chocolate snacks", "description": "Choose from Maltesers, Kit Kat or Jaffa Cakes.", "price": 1.50, "category": "sides", "categories": ["sides"], "dietary": [], "tags": ["snack"]},
+        {"name": "Nutella & Go / Bueno", "subtitle": "Chocolate snacks", "description": "Nutella & Go or Kinder Bueno.", "price": 1.50, "category": "sides", "categories": ["sides"], "dietary": [], "tags": ["snack"]},
+        {"name": "Mars Bar / Twix / Snickers", "subtitle": "Chocolate bars", "description": "Choose from Mars Bar, Twix or Snickers.", "price": 1.30, "category": "sides", "categories": ["sides"], "dietary": [], "tags": ["snack"]},
+        # HOT DRINKS
+        {"name": "Decaf Coffee", "subtitle": "Hot drink", "description": "Decaffeinated coffee.", "price": 1.80, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["coffee", "hot-drink"]},
+        {"name": "Tea Flavoured", "subtitle": "Hot drink", "description": "Flavoured tea.", "price": 1.65, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["hot-drink"]},
+        # COLD DRINKS
+        {"name": "Energy Drink", "subtitle": "Cold drink", "description": "Energy drink.", "price": 2.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Oasis", "subtitle": "Cold drink", "description": "Oasis fruit drink.", "price": 2.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Red Bull", "subtitle": "Energy drink", "description": "Red Bull energy drink.", "price": 2.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
+    ]
+
+    total = 0
+    for item in new_items:
+        item_id = str(uuid.uuid4())[:8]
+        doc = {
+            "id": item_id, "location_id": loc_id,
+            "name": item["name"], "subtitle": item.get("subtitle", ""),
+            "description": item.get("description", ""),
+            "price": item["price"], "original_price": item.get("original_price"),
+            "image_url": "", "image_alt": "",
+            "category": item["category"], "categories": item.get("categories", []),
+            "dietary": item.get("dietary", []), "tags": item.get("tags", []),
+            "featured": item.get("featured", False),
+            "rating": 0.0, "review_count": 0, "prep_time": 0, "is_available": True,
+        }
+        menu_items_collection.insert_one(doc)
+        total += 1
+
+    migrations.insert_one({"name": "chaddesden_menu_v1", "applied_at": datetime.now(timezone.utc).isoformat()})
+    print(f"Chaddesden menu migration applied ({total} items)")
 
 
 def seed_admin():
