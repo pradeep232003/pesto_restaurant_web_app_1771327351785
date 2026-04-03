@@ -6,13 +6,22 @@ const LocationContext = createContext(null);
 export const LocationProvider = ({ children }) => {
   const [locations, setLocations] = useState([]);
   const [selectedLocation, setSelectedLocationState] = useState(null);
-  const [selectedCafeLocation, setSelectedCafeLocation] = useState(null);
+  const [selectedCafeLocation, setSelectedCafeLocationState] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const setSelectedLocation = (loc) => {
     setSelectedLocationState(loc);
     if (loc?.id) {
       localStorage.setItem('selectedLocationId', loc.id);
+    }
+  };
+
+  const setSelectedCafeLocation = (loc) => {
+    setSelectedCafeLocationState(loc);
+    if (loc?.id) {
+      localStorage.setItem('selectedCafeLocationId', loc.id);
+    } else if (loc === null) {
+      localStorage.removeItem('selectedCafeLocationId');
     }
   };
 
@@ -24,6 +33,12 @@ export const LocationProvider = ({ children }) => {
         const savedId = localStorage.getItem('selectedLocationId');
         const saved = savedId && data.find(l => l.id === savedId);
         setSelectedLocationState(saved || data[0]);
+      }
+      // Restore selectedCafeLocation
+      const savedCafeId = localStorage.getItem('selectedCafeLocationId');
+      if (savedCafeId && data.length > 0) {
+        const savedCafe = data.find(l => l.id === savedCafeId);
+        if (savedCafe) setSelectedCafeLocationState(savedCafe);
       }
     } catch (err) {
       console.error('Failed to fetch locations:', err);

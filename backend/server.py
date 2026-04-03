@@ -224,7 +224,7 @@ def migrate_cheshire_menu():
 def migrate_atherton_menu():
     """Replace Howe Bridge Atherton menu with data from ProductList-3.xlsx"""
     migrations = db["migrations"]
-    if migrations.find_one({"name": "atherton_menu_v1"}):
+    if migrations.find_one({"name": "atherton_menu_v2"}):
         return
 
     import uuid
@@ -286,6 +286,28 @@ def migrate_atherton_menu():
         {"name": "Kirkland Spring Water", "subtitle": "500ml", "description": "Kirkland Spring Water 500ml bottle.", "price": 1.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
         {"name": "Fruit Shoot Orange", "subtitle": "275ml", "description": "Fruit Shoot Orange 275ml.", "price": 1.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
         {"name": "Fruit Shoot Apple & Blackcurrant", "subtitle": "275ml", "description": "Fruit Shoot Apple & Blackcurrant 275ml.", "price": 1.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
+        # HOT DRINKS
+        {"name": "Cappuccino", "subtitle": "Regular \u00a33.00 / Large \u00a34.00", "description": "Classic cappuccino. Regular or large size available.", "price": 3.00, "original_price": 4.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegetarian"], "tags": ["coffee", "hot-drink"]},
+        {"name": "Latte", "subtitle": "Regular \u00a33.00 / Large \u00a34.00", "description": "Smooth latte. Regular or large size available.", "price": 3.00, "original_price": 4.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegetarian"], "tags": ["coffee", "hot-drink"]},
+        {"name": "Flat White", "subtitle": "Regular \u00a33.00 / Large \u00a34.00", "description": "Velvety flat white. Regular or large size available.", "price": 3.00, "original_price": 4.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegetarian"], "tags": ["coffee", "hot-drink"]},
+        {"name": "Americano", "subtitle": "Regular \u00a33.00 / Large \u00a34.00", "description": "Classic americano. Regular or large size available.", "price": 3.00, "original_price": 4.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["coffee", "hot-drink"]},
+        {"name": "Mocha", "subtitle": "Regular \u00a33.50 / Large \u00a34.50", "description": "Chocolate mocha. Regular or large size available.", "price": 3.50, "original_price": 4.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegetarian"], "tags": ["coffee", "hot-drink"]},
+        {"name": "Espresso", "subtitle": "Regular \u00a33.00 / Large \u00a34.00", "description": "Classic espresso shot. Regular or large size available.", "price": 3.00, "original_price": 4.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["coffee", "hot-drink"]},
+        {"name": "Hot Chocolate", "subtitle": "Regular \u00a33.00 / Large \u00a34.00", "description": "Rich hot chocolate. Regular or large size available.", "price": 3.00, "original_price": 4.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegetarian"], "tags": ["hot-drink"]},
+        {"name": "Flavoured Coffee", "subtitle": "Regular \u00a33.50 / Large \u00a34.50", "description": "Caramel, Hazelnut or Vanilla flavoured coffee. Regular or large size available.", "price": 3.50, "original_price": 4.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegetarian"], "tags": ["coffee", "hot-drink"]},
+        {"name": "Coffee", "subtitle": "Regular \u00a33.00 / Large \u00a34.00", "description": "Classic brewed coffee. Regular or large size available.", "price": 3.00, "original_price": 4.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["coffee", "hot-drink"]},
+        {"name": "Decaf Coffee", "subtitle": "Hot drink", "description": "Decaffeinated coffee.", "price": 3.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["coffee", "hot-drink"]},
+        {"name": "Tea", "subtitle": "Regular \u00a32.50 / Large \u00a33.50", "description": "Classic English tea. Regular or large size available.", "price": 2.50, "original_price": 3.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["hot-drink"]},
+        {"name": "Flavoured Tea", "subtitle": "Hot drink", "description": "Flavoured tea selection.", "price": 2.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["hot-drink"]},
+        # COLD DRINKS
+        {"name": "Milkshake", "subtitle": "Choice of flavours", "description": "Creamy milkshake in your choice of flavour.", "price": 4.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegetarian"], "tags": ["cold-drink"]},
+        {"name": "Frijj Milkshake", "subtitle": "Bottled milkshake", "description": "Frijj bottled milkshake.", "price": 2.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegetarian"], "tags": ["cold-drink"]},
+        {"name": "Coke / Diet Coke / Coke Zero / Sprite / Fanta", "subtitle": "330ml can", "description": "Soft drink cans - Coke, Diet Coke, Coke Zero, Sprite or Fanta.", "price": 1.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Lucozade", "subtitle": "Energy drink", "description": "Lucozade energy drink.", "price": 2.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Rubicon", "subtitle": "Exotic drink", "description": "Rubicon exotic fruit drink.", "price": 1.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Juicy Water", "subtitle": "Flavoured water", "description": "Juicy flavoured water.", "price": 1.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "Capri Sun", "subtitle": "Juice drink", "description": "Capri Sun juice drink.", "price": 1.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
+        {"name": "J2O", "subtitle": "Juice blend", "description": "J2O fruit juice blend.", "price": 2.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
     ]
 
     total = 0
@@ -305,7 +327,7 @@ def migrate_atherton_menu():
         menu_items_collection.insert_one(doc)
         total += 1
 
-    migrations.insert_one({"name": "atherton_menu_v1", "applied_at": datetime.now(timezone.utc).isoformat()})
+    migrations.insert_one({"name": "atherton_menu_v2", "applied_at": datetime.now(timezone.utc).isoformat()})
     print(f"Atherton menu migration applied ({total} items)")
 
 
