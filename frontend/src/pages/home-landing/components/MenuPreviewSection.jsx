@@ -56,7 +56,7 @@ const menuItems = [
   },
 ];
 
-const MenuPreviewSection = () => {
+const MenuPreviewSection = ({ onViewMenu }) => {
   const navigate = useNavigate();
 
   return (
@@ -95,7 +95,7 @@ const MenuPreviewSection = () => {
               transition={{ duration: 0.7, delay: i * 0.08, ease }}
               className={`${item.span} relative group cursor-pointer overflow-hidden`}
               style={{ borderRadius: '1.5rem' }}
-              onClick={() => navigate('/menu-catalog')}
+              onClick={onViewMenu || (() => navigate('/menu-catalog'))}
               data-testid={`menu-card-${item.name.toLowerCase().replace(/\s/g, '-')}`}
             >
               <div className={`relative ${item.height} overflow-hidden`} style={{ borderRadius: '1.5rem' }}>
@@ -136,7 +136,7 @@ const MenuPreviewSection = () => {
         <motion.div {...fadeUp} className="text-center mt-10">
           <button
             data-testid="menu-view-full-btn"
-            onClick={() => navigate('/menu-catalog')}
+            onClick={onViewMenu || (() => navigate('/menu-catalog'))}
             className="px-8 py-4 rounded-full text-sm font-medium tracking-wide transition-colors duration-300"
             style={{ background: '#F5F5F7', color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
             onMouseEnter={e => e.target.style.background = '#E8E8ED'}

@@ -92,13 +92,13 @@ const cookiesContent = (
   </div>
 );
 
-const FooterSection = ({ onOrderOnline }) => {
+const FooterSection = ({ onOrderOnline, onViewMenu }) => {
   const navigate = useNavigate();
   const { locations } = useLocation2();
   const [activeModal, setActiveModal] = useState(null);
 
   const exploreLinks = [
-    { label: 'Menu', action: () => navigate('/menu-catalog') },
+    { label: 'Menu', action: onViewMenu || (() => navigate('/menu-catalog')) },
     { label: 'Order Online', action: onOrderOnline || (() => navigate('/menu-catalog')) },
     { label: 'Track Order', action: () => navigate('/order-status') },
     { label: 'Contact Us', action: () => navigate('/contact-us') },

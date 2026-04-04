@@ -73,10 +73,10 @@ const HomeLanding = () => {
 
       <main className="pt-16">
         <HeroSection onViewMenu={handleViewMenu} onOrderNow={handleOrderOnline} />
-        <MenuPreviewSection />
+        <MenuPreviewSection onViewMenu={handleViewMenu} />
         <WhyChooseUsSection />
         <GoogleReviewsSection />
-        <FooterSection onOrderOnline={handleOrderOnline} />
+        <FooterSection onOrderOnline={handleOrderOnline} onViewMenu={handleViewMenu} />
       </main>
 
       <LocationPickerModal
