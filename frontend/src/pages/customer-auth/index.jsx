@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, User, Phone, ArrowRight, ShieldCheck } from 'lucide-react';
+import { useGoogleLogin } from '@react-oauth/google';
 import Header from '../../components/ui/Header';
 import { useCustomer } from '../../contexts/CustomerContext';
 import api from '../../lib/api';
@@ -44,10 +45,26 @@ const CustomerAuth = () => {
 
   if (customer && !verifyStep && !generatedPassword) return null;
 
-  const handleGoogleLogin = () => {
-    const redirectUrl = window.location.origin + '/customer-auth';
-    window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
-  };
+  // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+  const googleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setLoading(true);
+      setError('');
+      try {
+        const data = await api.customerGoogleLogin(tokenResponse.access_token);
+        if (data.token) {
+          localStorage.setItem('customer_token', data.token);
+        }
+        await fetchMe();
+        navigate('/menu-catalog', { replace: true });
+      } catch (err) {
+        setError('Google login failed. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    onError: () => setError('Google login was cancelled.'),
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -209,7 +226,7 @@ const CustomerAuth = () => {
                 {/* Google OAuth */}
                 <button
                   data-testid="google-login-btn"
-                  onClick={handleGoogleLogin}
+                  onClick={() => googleLogin()}
                   className="w-full flex items-center justify-center gap-3 py-3.5 rounded-full text-sm font-medium transition-all duration-200 mb-6"
                   style={{ background: '#FFFFFF', color: '#1D1D1F', fontFamily: 'Outfit, sans-serif', border: '1px solid rgba(0,0,0,0.12)' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#F5F5F7'}

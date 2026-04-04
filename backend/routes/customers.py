@@ -228,3 +228,59 @@ async def customer_google_session(request: Request, response: Response):
     customer = customers_collection.find_one({"id": customer_id})
     safe = {k: v for k, v in customer.items() if k not in ("_id", "password_hash", "otp_email", "otp_phone")}
     return {"message": "Google login successful", "token": token, "customer": safe}
+
+
+@router.post("/auth/google-login")
+async def customer_google_login(request: Request, response: Response):
+    """Exchange Google access_token for a customer session using user's own Google OAuth credentials"""
+    body = await request.json()
+    access_token = body.get("access_token")
+    if not access_token:
+        raise HTTPException(status_code=400, detail="access_token required")
+
+    # Fetch user info from Google using the access token
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+
+    google_data = resp.json()
+    email = google_data.get("email", "").lower().strip()
+    if not email:
+        raise HTTPException(status_code=401, detail="No email in Google response")
+
+    name = google_data.get("name", email.split("@")[0])
+    picture = google_data.get("picture", "")
+
+    existing = customers_collection.find_one({"email": email})
+    if existing:
+        customers_collection.update_one(
+            {"email": email},
+            {"$set": {"name": name, "picture": picture, "google_linked": True}},
+        )
+        customer_id = existing["id"]
+    else:
+        customer_id = str(uuid.uuid4())
+        customers_collection.insert_one({
+            "id": customer_id, "name": name, "email": email, "phone": "",
+            "password_hash": "", "email_verified": True, "phone_verified": False,
+            "google_linked": True, "picture": picture,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    token = jwt.encode(
+        {"sub": customer_id, "email": email, "type": "customer_access",
+         "exp": datetime.now(timezone.utc) + timedelta(days=30)},
+        JWT_SECRET, algorithm=JWT_ALGORITHM,
+    )
+    response.set_cookie(
+        "customer_token", token,
+        httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE, max_age=60 * 60 * 24 * 30,
+    )
+
+    customer = customers_collection.find_one({"id": customer_id})
+    safe = {k: v for k, v in customer.items() if k not in ("_id", "password_hash", "otp_email", "otp_phone")}
+    return {"message": "Google login successful", "token": token, "customer": safe}

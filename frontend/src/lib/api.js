@@ -301,6 +301,13 @@ class ApiService {
     });
   }
 
+  async customerGoogleLogin(accessToken) {
+    return this.fetch('/api/customer/auth/google-login', {
+      method: 'POST',
+      body: JSON.stringify({ access_token: accessToken }),
+    });
+  }
+
   async customerVerify(customerId, otp) {
     return this.fetch('/api/customer/verify', {
       method: 'POST',
