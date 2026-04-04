@@ -6,7 +6,7 @@ import Header from '../../components/ui/Header';
 import { useCustomer } from '../../contexts/CustomerContext';
 import api from '../../lib/api';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '484513340394-hcr42qplgekd9fu0qnqnshfu2mjp76rn.apps.googleusercontent.com';
 
 const ease = [0.16, 1, 0.3, 1];
 
