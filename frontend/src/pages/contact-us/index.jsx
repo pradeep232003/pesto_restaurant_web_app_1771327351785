@@ -14,6 +14,33 @@ const generateChallenge = () => {
   return { a, b, answer: a + b };
 };
 
+const inputStyle = {
+  background: '#F5F5F7',
+  color: '#1D1D1F',
+  border: '1px solid transparent',
+  fontFamily: 'Outfit, sans-serif',
+  borderRadius: '0.75rem',
+};
+
+const InputField = ({ label, value, onChange, type = 'text', error, required, ...props }) => (
+  <div>
+    <label className="block text-xs tracking-[0.08em] uppercase mb-2" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>
+      {label}{required && <span style={{ color: '#FF3B30' }}> *</span>}
+    </label>
+    <input
+      type={type}
+      value={value}
+      onChange={onChange}
+      className="w-full px-4 py-3 text-sm outline-none transition-all duration-200"
+      style={{ ...inputStyle, borderColor: error ? 'rgba(255,59,48,0.5)' : 'transparent' }}
+      onFocus={e => { if (!error) e.target.style.borderColor = 'rgba(0,0,0,0.15)'; }}
+      onBlur={e => { if (!error) e.target.style.borderColor = 'transparent'; }}
+      {...props}
+    />
+    {error && <p className="text-xs mt-1" style={{ color: '#FF3B30' }}>{error}</p>}
+  </div>
+);
+
 const ContactUs = () => {
   const navigate = useNavigate();
   const { locations, selectedLocation } = useLocation2();
@@ -88,33 +115,6 @@ const ContactUs = () => {
     setSubmitError('');
     formStartTime.current = Date.now();
   };
-
-  const inputStyle = {
-    background: '#F5F5F7',
-    color: '#1D1D1F',
-    border: '1px solid transparent',
-    fontFamily: 'Outfit, sans-serif',
-    borderRadius: '0.75rem',
-  };
-
-  const InputField = ({ label, value, onChange, type = 'text', error, required, ...props }) => (
-    <div>
-      <label className="block text-xs tracking-[0.08em] uppercase mb-2" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>
-        {label}{required && <span style={{ color: '#FF3B30' }}> *</span>}
-      </label>
-      <input
-        type={type}
-        value={value}
-        onChange={onChange}
-        className="w-full px-4 py-3 text-sm outline-none transition-all duration-200"
-        style={{ ...inputStyle, borderColor: error ? 'rgba(255,59,48,0.5)' : 'transparent' }}
-        onFocus={e => { if (!error) e.target.style.borderColor = 'rgba(0,0,0,0.15)'; }}
-        onBlur={e => { if (!error) e.target.style.borderColor = 'transparent'; }}
-        {...props}
-      />
-      {error && <p className="text-xs mt-1" style={{ color: '#FF3B30' }}>{error}</p>}
-    </div>
-  );
 
   const activeLocations = (locations || []).filter(l => l.is_active !== false);
 
@@ -207,12 +207,12 @@ const ContactUs = () => {
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <InputField label="Name" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} required />
-                        <InputField label="Email" type="email" value={form.email} onChange={e => set('email', e.target.value)} error={errors.email} required />
+                        <InputField data-testid="contact-name-input" label="Name" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} required />
+                        <InputField data-testid="contact-email-input" label="Email" type="email" value={form.email} onChange={e => set('email', e.target.value)} error={errors.email} required />
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <InputField label="Phone" type="tel" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="Optional" />
+                        <InputField data-testid="contact-phone-input" label="Phone" type="tel" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="Optional" />
                         <div>
                           <label className="block text-xs tracking-[0.08em] uppercase mb-2" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>
                             Location
@@ -232,7 +232,7 @@ const ContactUs = () => {
                         </div>
                       </div>
 
-                      <InputField label="Subject" value={form.subject} onChange={e => set('subject', e.target.value)} placeholder="Optional" />
+                      <InputField data-testid="contact-subject-input" label="Subject" value={form.subject} onChange={e => set('subject', e.target.value)} placeholder="Optional" />
 
                       <div>
                         <label className="block text-xs tracking-[0.08em] uppercase mb-2" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>
