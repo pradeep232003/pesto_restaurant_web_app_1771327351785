@@ -83,7 +83,7 @@ app.include_router(contact_router)
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "healthy"}
+    return {"status": "healthy", "version": "2.1-modular"}
 
 @app.get("/api/")
 async def root():

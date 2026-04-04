@@ -26,4 +26,4 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8001
 
-CMD ["sh", "-c", "uvicorn backend.server:app --host 0.0.0.0 --port ${PORT:-8001}"]
+CMD ["sh", "-c", "cd /app/backend && uvicorn server:app --host 0.0.0.0 --port ${PORT:-8001}"]
