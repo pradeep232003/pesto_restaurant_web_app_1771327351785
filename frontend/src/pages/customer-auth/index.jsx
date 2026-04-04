@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, User, Phone, ArrowRight, ShieldCheck } from 'lucide-react';
-import { useGoogleLogin } from '@react-oauth/google';
 import Header from '../../components/ui/Header';
 import { useCustomer } from '../../contexts/CustomerContext';
 import api from '../../lib/api';
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 const ease = [0.16, 1, 0.3, 1];
 
@@ -17,6 +18,59 @@ const GoogleIcon = () => (
     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
   </svg>
 );
+
+// Google login button that handles OAuth popup directly without useGoogleLogin hook
+const GoogleLoginBtn = ({ onSuccess, onError }) => {
+  if (!GOOGLE_CLIENT_ID) return null;
+
+  const handleClick = () => {
+    const width = 500, height = 600;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    const redirectUri = window.location.origin;
+    const scope = 'openid email profile';
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&prompt=select_account`;
+
+    const popup = window.open(authUrl, 'google-login', `width=${width},height=${height},left=${left},top=${top}`);
+
+    const interval = setInterval(() => {
+      try {
+        if (!popup || popup.closed) {
+          clearInterval(interval);
+          return;
+        }
+        if (popup.location.href.includes('access_token=')) {
+          const hash = popup.location.hash.substring(1);
+          const params = new URLSearchParams(hash);
+          const accessToken = params.get('access_token');
+          popup.close();
+          clearInterval(interval);
+          if (accessToken) {
+            onSuccess({ access_token: accessToken });
+          } else {
+            onError?.();
+          }
+        }
+      } catch {
+        // Cross-origin - popup still on Google domain, keep waiting
+      }
+    }, 500);
+  };
+
+  return (
+    <button
+      data-testid="google-login-btn"
+      onClick={handleClick}
+      className="w-full flex items-center justify-center gap-3 py-3.5 rounded-full text-sm font-medium transition-all duration-200 mb-6"
+      style={{ background: '#FFFFFF', color: '#1D1D1F', fontFamily: 'Outfit, sans-serif', border: '1px solid rgba(0,0,0,0.12)' }}
+      onMouseEnter={e => e.currentTarget.style.background = '#F5F5F7'}
+      onMouseLeave={e => e.currentTarget.style.background = '#FFFFFF'}
+    >
+      <GoogleIcon />
+      Continue with Google
+    </button>
+  );
+};
 
 const CustomerAuth = () => {
   const navigate = useNavigate();
@@ -44,27 +98,6 @@ const CustomerAuth = () => {
   }, [customer, verifyStep, generatedPassword, navigate]);
 
   if (customer && !verifyStep && !generatedPassword) return null;
-
-  // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-  const googleLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      setLoading(true);
-      setError('');
-      try {
-        const data = await api.customerGoogleLogin(tokenResponse.access_token);
-        if (data.token) {
-          localStorage.setItem('customer_token', data.token);
-        }
-        await fetchMe();
-        navigate('/menu-catalog', { replace: true });
-      } catch (err) {
-        setError('Google login failed. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    },
-    onError: () => setError('Google login was cancelled.'),
-  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -224,24 +257,34 @@ const CustomerAuth = () => {
                 </div>
 
                 {/* Google OAuth */}
-                <button
-                  data-testid="google-login-btn"
-                  onClick={() => googleLogin()}
-                  className="w-full flex items-center justify-center gap-3 py-3.5 rounded-full text-sm font-medium transition-all duration-200 mb-6"
-                  style={{ background: '#FFFFFF', color: '#1D1D1F', fontFamily: 'Outfit, sans-serif', border: '1px solid rgba(0,0,0,0.12)' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#F5F5F7'}
-                  onMouseLeave={e => e.currentTarget.style.background = '#FFFFFF'}
-                >
-                  <GoogleIcon />
-                  Continue with Google
-                </button>
+                <GoogleLoginBtn
+                  onSuccess={async (tokenResponse) => {
+                    setLoading(true);
+                    setError('');
+                    try {
+                      const data = await api.customerGoogleLogin(tokenResponse.access_token);
+                      if (data.token) {
+                        localStorage.setItem('customer_token', data.token);
+                      }
+                      await fetchMe();
+                      navigate('/menu-catalog', { replace: true });
+                    } catch (err) {
+                      setError('Google login failed. Please try again.');
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  onError={() => setError('Google login was cancelled.')}
+                />
 
-                {/* Divider */}
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="flex-1 h-px" style={{ background: 'rgba(0,0,0,0.08)' }} />
-                  <span className="text-xs" style={{ color: '#86868B' }}>or</span>
-                  <div className="flex-1 h-px" style={{ background: 'rgba(0,0,0,0.08)' }} />
-                </div>
+                {/* Divider - only show if Google login is available */}
+                {GOOGLE_CLIENT_ID && (
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="flex-1 h-px" style={{ background: 'rgba(0,0,0,0.08)' }} />
+                    <span className="text-xs" style={{ color: '#86868B' }}>or</span>
+                    <div className="flex-1 h-px" style={{ background: 'rgba(0,0,0,0.08)' }} />
+                  </div>
+                )}
 
                 {/* Toggle */}
                 <div className="flex p-1 rounded-full mb-8" style={{ background: '#F5F5F7' }}>
