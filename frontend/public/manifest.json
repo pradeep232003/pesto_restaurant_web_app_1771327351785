@@ -1,6 +1,6 @@
 {
-  "short_name": "jollys-kafe",
-  "name": "jollys-kafe",
+  "short_name": "Jolly's Kafe",
+  "name": "Jolly's Kafe",
   "icons": [
     {
       "src": "favicon.ico",
@@ -10,6 +10,9 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "theme_color": "#1D1D1F",
+  "background_color": "#FBFBFD",
+  "developer": {
+    "name": "JPTECK LTD"
+  }
 }

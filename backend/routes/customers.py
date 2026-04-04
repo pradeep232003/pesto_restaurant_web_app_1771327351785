@@ -176,11 +176,11 @@ async def customer_logout(response: Response):
     return {"message": "Logged out"}
 
 
-# ============== GOOGLE OAUTH (EMERGENT AUTH) ==============
+# ============== GOOGLE OAUTH (Legacy Session) ==============
 
 @router.post("/auth/google-session")
 async def customer_google_session(request: Request, response: Response):
-    """Exchange Emergent Auth session_id for a customer session"""
+    """Exchange legacy session_id for a customer session"""
     body = await request.json()
     session_id = body.get("session_id")
     if not session_id:

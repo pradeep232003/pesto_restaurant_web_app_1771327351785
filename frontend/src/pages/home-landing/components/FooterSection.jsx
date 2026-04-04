@@ -272,7 +272,7 @@ const FooterSection = ({ onOrderOnline, onViewMenu }) => {
           {/* Bottom Bar */}
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-8" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
             <p className="text-xs" style={{ color: '#86868B' }}>
-              &copy; 2018 Jolly's Kafe. All rights reserved.
+              &copy; 2018 Jolly's Kafe. All rights reserved. Developed by JPTECK LTD.
             </p>
             <div className="flex gap-6">
               <button onClick={() => setActiveModal('privacy')} className="text-xs transition-colors duration-200 hover:underline" style={{ color: '#86868B' }}>Privacy</button>
