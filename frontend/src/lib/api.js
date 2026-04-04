@@ -1,6 +1,8 @@
 // API service for connecting to MongoDB backend
-// Use empty string to make relative API calls through the proxy
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+// Use VITE_API_URL if set, otherwise auto-detect production backend
+const PROD_BACKEND = 'https://jollys-kafe-backend-production.up.railway.app';
+const API_BASE_URL = import.meta.env.VITE_API_URL ||
+  (typeof window !== 'undefined' && window.location.hostname === 'www.jollyskafe.com' ? PROD_BACKEND : '');
 
 // Helper to resolve image URLs - prepends API base for cross-origin setups
 export function resolveImageUrl(path) {

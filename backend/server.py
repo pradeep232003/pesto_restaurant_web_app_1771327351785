@@ -36,16 +36,16 @@ if RESEND_API_KEY:
 # CORS middleware
 _cors_env = os.environ.get("CORS_ORIGINS", "")
 _frontend_url = os.environ.get("FRONTEND_URL", "")
-CORS_ORIGINS = []
+CORS_ORIGINS = ["https://www.jollyskafe.com", "https://jollyskafe.com"]
 if _cors_env:
-    CORS_ORIGINS = [o.strip() for o in _cors_env.split(",") if o.strip()]
+    CORS_ORIGINS.extend([o.strip() for o in _cors_env.split(",") if o.strip()])
 if _frontend_url and _frontend_url not in CORS_ORIGINS:
     CORS_ORIGINS.append(_frontend_url.strip().rstrip("/"))
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS if CORS_ORIGINS else ["*"],
-    allow_credentials=bool(CORS_ORIGINS),
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
