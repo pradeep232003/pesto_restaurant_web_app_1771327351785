@@ -96,6 +96,41 @@ const FooterSection = ({ onOrderOnline, onViewMenu }) => {
   const navigate = useNavigate();
   const { locations } = useLocation2();
   const [activeModal, setActiveModal] = useState(null);
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterStatus, setNewsletterStatus] = useState(null); // 'loading' | 'success' | 'error'
+  const [newsletterMsg, setNewsletterMsg] = useState('');
+
+  const API_BASE = import.meta.env.VITE_API_URL ||
+    (typeof window !== 'undefined' && window.location.hostname === 'www.jollyskafe.com'
+      ? 'https://jollys-kafe-backend-production.up.railway.app' : '');
+
+  const handleSubscribe = async () => {
+    if (!newsletterEmail || !newsletterEmail.includes('@')) {
+      setNewsletterStatus('error');
+      setNewsletterMsg('Please enter a valid email.');
+      return;
+    }
+    setNewsletterStatus('loading');
+    try {
+      const res = await fetch(`${API_BASE}/api/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newsletterEmail }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNewsletterStatus('success');
+        setNewsletterMsg(data.message);
+        setNewsletterEmail('');
+      } else {
+        setNewsletterStatus('error');
+        setNewsletterMsg(data.detail || 'Something went wrong.');
+      }
+    } catch {
+      setNewsletterStatus('error');
+      setNewsletterMsg('Could not connect. Please try again.');
+    }
+  };
 
   const exploreLinks = [
     { label: 'Menu', action: onViewMenu || (() => navigate('/menu-catalog')) },
@@ -125,24 +160,38 @@ const FooterSection = ({ onOrderOnline, onViewMenu }) => {
           <p className="text-sm mb-8" style={{ color: '#86868B' }}>
             New dishes, seasonal specials, and exclusive offers — straight to your inbox.
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
-            <input
-              data-testid="newsletter-email-input"
-              type="email"
-              placeholder="you@email.com"
-              className="flex-1 px-5 py-3.5 rounded-full text-sm outline-none"
-              style={{ background: '#FFFFFF', color: '#1D1D1F', border: 'none' }}
-            />
-            <button
-              data-testid="newsletter-subscribe-btn"
-              className="px-7 py-3.5 rounded-full text-sm font-medium tracking-wide transition-colors duration-300"
-              style={{ background: '#1D1D1F', color: '#FFFFFF', fontFamily: 'Outfit, sans-serif' }}
-              onMouseEnter={e => e.target.style.background = '#333336'}
-              onMouseLeave={e => e.target.style.background = '#1D1D1F'}
-            >
-              Subscribe
-            </button>
-          </div>
+          {newsletterStatus === 'success' ? (
+            <p className="text-sm font-medium" style={{ color: '#34C759' }}>{newsletterMsg}</p>
+          ) : (
+            <>
+              <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+                <input
+                  data-testid="newsletter-email-input"
+                  type="email"
+                  placeholder="you@email.com"
+                  value={newsletterEmail}
+                  onChange={e => { setNewsletterEmail(e.target.value); setNewsletterStatus(null); }}
+                  onKeyDown={e => e.key === 'Enter' && handleSubscribe()}
+                  className="flex-1 px-5 py-3.5 rounded-full text-sm outline-none"
+                  style={{ background: '#FFFFFF', color: '#1D1D1F', border: 'none' }}
+                />
+                <button
+                  data-testid="newsletter-subscribe-btn"
+                  onClick={handleSubscribe}
+                  disabled={newsletterStatus === 'loading'}
+                  className="px-7 py-3.5 rounded-full text-sm font-medium tracking-wide transition-colors duration-300"
+                  style={{ background: '#1D1D1F', color: '#FFFFFF', fontFamily: 'Outfit, sans-serif', opacity: newsletterStatus === 'loading' ? 0.6 : 1 }}
+                  onMouseEnter={e => e.target.style.background = '#333336'}
+                  onMouseLeave={e => e.target.style.background = '#1D1D1F'}
+                >
+                  {newsletterStatus === 'loading' ? 'Subscribing...' : 'Subscribe'}
+                </button>
+              </div>
+              {newsletterStatus === 'error' && (
+                <p className="text-xs mt-3" style={{ color: '#FF3B30' }}>{newsletterMsg}</p>
+              )}
+            </>
+          )}
         </motion.div>
       </section>
 

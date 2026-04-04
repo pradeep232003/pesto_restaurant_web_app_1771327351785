@@ -126,7 +126,6 @@ async def startup_event():
 
     # Run menu migrations
     migrate_cheshire_menu()
-    migrate_atherton_menu()
 
 
 def migrate_cheshire_menu():
@@ -217,116 +216,6 @@ def migrate_cheshire_menu():
 
     migrations.insert_one({"name": "cheshire_menu_v2", "applied_at": datetime.now(timezone.utc).isoformat()})
     print("Cheshire menu migration applied for Oakmere & Willowmere (48 items each)")
-
-
-def migrate_atherton_menu():
-    """Replace Howe Bridge Atherton menu with data from ProductList-3.xlsx"""
-    migrations = db["migrations"]
-    if migrations.find_one({"name": "atherton_menu_v2"}):
-        return
-
-    import uuid
-    loc_id = "howe-bridge-atherton"
-    deleted = menu_items_collection.delete_many({"location_id": loc_id})
-    print(f"Atherton migration: deleted {deleted.deleted_count} existing items")
-
-    new_items = [
-        # BREAKFAST MENU
-        {"name": "Classic Full English", "subtitle": "Traditional breakfast", "description": "Classic full English breakfast with all the trimmings.", "price": 6.50, "category": "breakfast", "categories": ["breakfast"], "dietary": [], "tags": ["breakfast", "popular"], "featured": True},
-        {"name": "Mega Breakfast", "subtitle": "Extra hungry?", "description": "Our biggest breakfast with extra portions of everything.", "price": 9.00, "category": "breakfast", "categories": ["breakfast"], "dietary": [], "tags": ["breakfast"], "featured": True},
-        {"name": "Howes Veggie Breakfast", "subtitle": "Vegetarian full breakfast", "description": "Full vegetarian breakfast with veggie sausages and all the trimmings.", "price": 9.00, "category": "breakfast", "categories": ["breakfast"], "dietary": ["vegetarian"], "tags": ["breakfast"]},
-        {"name": "Breakfast Omelette", "subtitle": "Fluffy omelette breakfast", "description": "Freshly made omelette served as part of breakfast.", "price": 9.00, "category": "breakfast", "categories": ["breakfast"], "dietary": ["vegetarian"], "tags": ["breakfast"]},
-        # BREAKFAST SANDWICHES
-        {"name": "Sausage", "subtitle": "Breakfast barm/sandwich/toast", "description": "Pork sausage served on your choice of barm, sandwich or toast.", "price": 3.50, "category": "breakfast", "categories": ["breakfast"], "dietary": [], "tags": ["breakfast"]},
-        {"name": "Bacon", "subtitle": "Breakfast barm/sandwich/toast", "description": "Crispy bacon served on your choice of barm, sandwich or toast.", "price": 4.00, "category": "breakfast", "categories": ["breakfast"], "dietary": [], "tags": ["breakfast"]},
-        {"name": "Sausage & Egg", "subtitle": "Breakfast barm/sandwich/toast", "description": "Pork sausage and fried egg on your choice of barm, sandwich or toast.", "price": 4.00, "category": "breakfast", "categories": ["breakfast"], "dietary": [], "tags": ["breakfast"]},
-        {"name": "Bacon & Egg", "subtitle": "Breakfast barm/sandwich/toast", "description": "Crispy bacon and fried egg on your choice of barm, sandwich or toast.", "price": 4.50, "category": "breakfast", "categories": ["breakfast"], "dietary": [], "tags": ["breakfast"]},
-        {"name": "Scrambled Eggs", "subtitle": "On toast", "description": "Creamy scrambled eggs served on toast.", "price": 5.00, "category": "breakfast", "categories": ["breakfast"], "dietary": ["vegetarian"], "tags": ["breakfast"]},
-        {"name": "Beans & Toast", "subtitle": "Simple classic", "description": "Baked beans served on toast.", "price": 5.00, "category": "breakfast", "categories": ["breakfast"], "dietary": ["vegetarian", "vegan"], "tags": ["breakfast"]},
-        # OMELETTES
-        {"name": "Chorizo & Cheese Omelette", "subtitle": "Served with salad or toast", "description": "Fluffy omelette filled with chorizo and melted cheese, served with salad or toast.", "price": 7.00, "category": "breakfast", "categories": ["breakfast"], "dietary": [], "tags": ["breakfast"]},
-        {"name": "Cheese, Mushroom & Onion Omelette", "subtitle": "Served with salad or toast", "description": "Fluffy omelette filled with cheese, mushroom and onion, served with salad or toast.", "price": 7.50, "category": "breakfast", "categories": ["breakfast"], "dietary": ["vegetarian"], "tags": ["breakfast"]},
-        {"name": "Cheese, Mushroom, Onion, Peppers & Chilli Omelette", "subtitle": "Served with salad or toast", "description": "Loaded omelette with cheese, mushroom, onion, peppers and chilli, served with salad or toast.", "price": 8.50, "category": "breakfast", "categories": ["breakfast"], "dietary": ["vegetarian"], "tags": ["breakfast", "spicy"]},
-        # FRESH SANDWICHES
-        {"name": "Ham Coleslaw", "subtitle": "Fresh sandwich", "description": "Ham with creamy coleslaw on your choice of bread.", "price": 4.50, "category": "sandwiches", "categories": ["lunch", "sandwiches"], "dietary": [], "tags": ["lunch"]},
-        {"name": "Ham Salad", "subtitle": "Fresh sandwich", "description": "Ham with fresh salad on your choice of bread.", "price": 4.50, "category": "sandwiches", "categories": ["lunch", "sandwiches"], "dietary": [], "tags": ["lunch"]},
-        {"name": "Chicken Salad", "subtitle": "Fresh sandwich", "description": "Chicken with fresh salad on your choice of bread.", "price": 4.50, "category": "sandwiches", "categories": ["lunch", "sandwiches"], "dietary": [], "tags": ["lunch"]},
-        {"name": "Tuna Salad", "subtitle": "Fresh sandwich", "description": "Tuna mayonnaise with fresh salad on your choice of bread.", "price": 4.50, "category": "sandwiches", "categories": ["lunch", "sandwiches"], "dietary": [], "tags": ["lunch"]},
-        {"name": "BLT", "subtitle": "Bacon, lettuce & tomato", "description": "Crispy bacon, fresh lettuce and tomato on your choice of bread.", "price": 4.50, "category": "sandwiches", "categories": ["lunch", "sandwiches"], "dietary": [], "tags": ["lunch", "popular"]},
-        # TOASTIES & PANINIS
-        {"name": "Bacon & Cheese Toastie", "subtitle": "Toastie or panini", "description": "Crispy bacon and melted cheese toastie or panini.", "price": 6.00, "category": "sandwiches", "categories": ["lunch", "sandwiches"], "dietary": [], "tags": ["lunch"]},
-        {"name": "Tuna Mayonnaise & Cheese Toastie", "subtitle": "Toastie or panini", "description": "Tuna mayonnaise and melted cheese toastie or panini.", "price": 6.50, "category": "sandwiches", "categories": ["lunch", "sandwiches"], "dietary": [], "tags": ["lunch"]},
-        {"name": "Chicken & Cheese Melt", "subtitle": "Toastie or panini", "description": "Chicken and melted cheese toastie or panini.", "price": 6.00, "category": "sandwiches", "categories": ["lunch", "sandwiches"], "dietary": [], "tags": ["lunch"]},
-        # JACKET POTATOES
-        {"name": "Jacket Potato - Beans", "subtitle": "Hearty and filling", "description": "Fluffy jacket potato topped with baked beans.", "price": 5.50, "category": "specials", "categories": ["lunch", "specials"], "dietary": ["vegan", "gluten-free"], "tags": ["lunch"]},
-        {"name": "Jacket Potato - Cheddar Cheese & Coleslaw", "subtitle": "Cheesy and creamy", "description": "Fluffy jacket potato topped with cheddar cheese and coleslaw.", "price": 5.00, "category": "specials", "categories": ["lunch", "specials"], "dietary": ["vegetarian", "gluten-free"], "tags": ["lunch"]},
-        {"name": "Jacket Potato - Tuna Mayonnaise", "subtitle": "Classic tuna filling", "description": "Fluffy jacket potato topped with tuna mayonnaise.", "price": 6.00, "category": "specials", "categories": ["lunch", "specials"], "dietary": ["gluten-free"], "tags": ["lunch"]},
-        {"name": "Jacket Potato - Chilli Con Carne", "subtitle": "Spicy and hearty", "description": "Fluffy jacket potato topped with homemade chilli con carne.", "price": 7.50, "category": "specials", "categories": ["lunch", "specials"], "dietary": ["gluten-free"], "tags": ["lunch", "spicy"]},
-        {"name": "Jacket Potato - Chicken Curry", "subtitle": "Warming curry topping", "description": "Fluffy jacket potato topped with our homemade chicken curry.", "price": 7.50, "category": "specials", "categories": ["lunch", "specials"], "dietary": ["gluten-free"], "tags": ["lunch"]},
-        # LIGHT LUNCHES
-        {"name": "Kafe Club", "subtitle": "Club sandwich", "description": "Triple-decker club sandwich with fillings and fries.", "price": 8.00, "category": "specials", "categories": ["lunch", "specials"], "dietary": [], "tags": ["lunch", "popular"], "featured": True},
-        {"name": "Beef Chilli", "subtitle": "With rice or fries & salad", "description": "Homemade beef chilli served with rice or fries and fresh salad.", "price": 8.50, "category": "specials", "categories": ["lunch", "dinner", "specials"], "dietary": ["gluten-free"], "tags": ["lunch", "spicy"]},
-        {"name": "Classic Chicken Burger", "subtitle": "With fries or salad", "description": "Crispy chicken burger with melted cheese, lettuce and mayo. Served with fries or salad.", "price": 7.50, "category": "specials", "categories": ["lunch", "dinner", "specials"], "dietary": [], "tags": ["lunch", "popular"], "featured": True},
-        {"name": "Royal Cheese Burger", "subtitle": "Premium burger", "description": "Premium beef burger with cheese and all the toppings. Served with fries.", "price": 8.00, "category": "specials", "categories": ["lunch", "dinner", "specials"], "dietary": [], "tags": ["lunch"]},
-        {"name": "Cheese Burger", "subtitle": "Classic burger", "description": "Beef burger with melted cheese.", "price": 4.50, "category": "specials", "categories": ["lunch", "dinner", "specials"], "dietary": [], "tags": ["lunch"]},
-        {"name": "Veggie Burger", "subtitle": "Vegetarian option", "description": "Veggie burger with fresh toppings. Served with fries or salad.", "price": 7.00, "category": "specials", "categories": ["lunch", "dinner", "specials"], "dietary": ["vegetarian"], "tags": ["lunch"]},
-        # CAFE SPECIALS
-        {"name": "Chicken Nuggets", "subtitle": "Crispy bites", "description": "Crispy chicken nuggets.", "price": 3.50, "category": "specials", "categories": ["lunch", "specials"], "dietary": [], "tags": ["special"]},
-        {"name": "Fish", "subtitle": "Catch of the day", "description": "Freshly prepared fish.", "price": 6.70, "category": "specials", "categories": ["lunch", "dinner", "specials"], "dietary": [], "tags": ["special"]},
-        # SIDES & SNACKS
-        {"name": "Peanuts Crisp", "subtitle": "Packet of crisps", "description": "Peanut flavoured crisps.", "price": 1.50, "category": "sides", "categories": ["sides"], "dietary": ["vegan"], "tags": ["snack"]},
-        {"name": "Almonds Crisp", "subtitle": "Premium crisps", "description": "Almond flavoured crisps.", "price": 2.00, "category": "sides", "categories": ["sides"], "dietary": ["vegan"], "tags": ["snack"]},
-        # DESSERTS & SWEETS
-        {"name": "Chocolate Bunny", "subtitle": "Sweet treat", "description": "Chocolate bunny.", "price": 2.00, "category": "desserts", "categories": ["desserts"], "dietary": ["vegetarian"], "tags": ["dessert"]},
-        {"name": "Flapjack", "subtitle": "Baked treat", "description": "Freshly baked flapjack.", "price": 2.00, "category": "desserts", "categories": ["desserts"], "dietary": ["vegetarian"], "tags": ["dessert"]},
-        # BEVERAGES
-        {"name": "Smart Water", "subtitle": "500ml", "description": "Smart Water 500ml bottle.", "price": 1.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
-        {"name": "Kirkland Spring Water", "subtitle": "500ml", "description": "Kirkland Spring Water 500ml bottle.", "price": 1.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
-        {"name": "Fruit Shoot Orange", "subtitle": "275ml", "description": "Fruit Shoot Orange 275ml.", "price": 1.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
-        {"name": "Fruit Shoot Apple & Blackcurrant", "subtitle": "275ml", "description": "Fruit Shoot Apple & Blackcurrant 275ml.", "price": 1.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
-        # HOT DRINKS
-        {"name": "Cappuccino", "subtitle": "Regular \u00a33.00 / Large \u00a34.00", "description": "Classic cappuccino. Regular or large size available.", "price": 3.00, "original_price": 4.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegetarian"], "tags": ["coffee", "hot-drink"]},
-        {"name": "Latte", "subtitle": "Regular \u00a33.00 / Large \u00a34.00", "description": "Smooth latte. Regular or large size available.", "price": 3.00, "original_price": 4.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegetarian"], "tags": ["coffee", "hot-drink"]},
-        {"name": "Flat White", "subtitle": "Regular \u00a33.00 / Large \u00a34.00", "description": "Velvety flat white. Regular or large size available.", "price": 3.00, "original_price": 4.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegetarian"], "tags": ["coffee", "hot-drink"]},
-        {"name": "Americano", "subtitle": "Regular \u00a33.00 / Large \u00a34.00", "description": "Classic americano. Regular or large size available.", "price": 3.00, "original_price": 4.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["coffee", "hot-drink"]},
-        {"name": "Mocha", "subtitle": "Regular \u00a33.50 / Large \u00a34.50", "description": "Chocolate mocha. Regular or large size available.", "price": 3.50, "original_price": 4.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegetarian"], "tags": ["coffee", "hot-drink"]},
-        {"name": "Espresso", "subtitle": "Regular \u00a33.00 / Large \u00a34.00", "description": "Classic espresso shot. Regular or large size available.", "price": 3.00, "original_price": 4.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["coffee", "hot-drink"]},
-        {"name": "Hot Chocolate", "subtitle": "Regular \u00a33.00 / Large \u00a34.00", "description": "Rich hot chocolate. Regular or large size available.", "price": 3.00, "original_price": 4.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegetarian"], "tags": ["hot-drink"]},
-        {"name": "Flavoured Coffee", "subtitle": "Regular \u00a33.50 / Large \u00a34.50", "description": "Caramel, Hazelnut or Vanilla flavoured coffee. Regular or large size available.", "price": 3.50, "original_price": 4.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegetarian"], "tags": ["coffee", "hot-drink"]},
-        {"name": "Coffee", "subtitle": "Regular \u00a33.00 / Large \u00a34.00", "description": "Classic brewed coffee. Regular or large size available.", "price": 3.00, "original_price": 4.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["coffee", "hot-drink"]},
-        {"name": "Decaf Coffee", "subtitle": "Hot drink", "description": "Decaffeinated coffee.", "price": 3.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["coffee", "hot-drink"]},
-        {"name": "Tea", "subtitle": "Regular \u00a32.50 / Large \u00a33.50", "description": "Classic English tea. Regular or large size available.", "price": 2.50, "original_price": 3.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["hot-drink"]},
-        {"name": "Flavoured Tea", "subtitle": "Hot drink", "description": "Flavoured tea selection.", "price": 2.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["hot-drink"]},
-        # COLD DRINKS
-        {"name": "Milkshake", "subtitle": "Choice of flavours", "description": "Creamy milkshake in your choice of flavour.", "price": 4.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegetarian"], "tags": ["cold-drink"]},
-        {"name": "Frijj Milkshake", "subtitle": "Bottled milkshake", "description": "Frijj bottled milkshake.", "price": 2.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegetarian"], "tags": ["cold-drink"]},
-        {"name": "Coke / Diet Coke / Coke Zero / Sprite / Fanta", "subtitle": "330ml can", "description": "Soft drink cans - Coke, Diet Coke, Coke Zero, Sprite or Fanta.", "price": 1.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
-        {"name": "Lucozade", "subtitle": "Energy drink", "description": "Lucozade energy drink.", "price": 2.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
-        {"name": "Rubicon", "subtitle": "Exotic drink", "description": "Rubicon exotic fruit drink.", "price": 1.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
-        {"name": "Juicy Water", "subtitle": "Flavoured water", "description": "Juicy flavoured water.", "price": 1.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
-        {"name": "Capri Sun", "subtitle": "Juice drink", "description": "Capri Sun juice drink.", "price": 1.00, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
-        {"name": "J2O", "subtitle": "Juice blend", "description": "J2O fruit juice blend.", "price": 2.50, "category": "beverages", "categories": ["beverages"], "dietary": ["vegan"], "tags": ["cold-drink"]},
-    ]
-
-    total = 0
-    for item in new_items:
-        item_id = str(uuid.uuid4())[:8]
-        doc = {
-            "id": item_id, "location_id": loc_id,
-            "name": item["name"], "subtitle": item.get("subtitle", ""),
-            "description": item.get("description", ""),
-            "price": item["price"], "original_price": item.get("original_price"),
-            "image_url": "", "image_alt": "",
-            "category": item["category"], "categories": item.get("categories", []),
-            "dietary": item.get("dietary", []), "tags": item.get("tags", []),
-            "featured": item.get("featured", False),
-            "rating": 0.0, "review_count": 0, "prep_time": 0, "is_available": True,
-        }
-        menu_items_collection.insert_one(doc)
-        total += 1
-
-    migrations.insert_one({"name": "atherton_menu_v2", "applied_at": datetime.now(timezone.utc).isoformat()})
-    print(f"Atherton menu migration applied ({total} items)")
 
 
 def seed_admin():

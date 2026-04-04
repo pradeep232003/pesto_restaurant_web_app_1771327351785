@@ -96,3 +96,60 @@ async def submit_contact(request: Request):
     send_contact_email(name, email, phone, subject, message, location_id)
 
     return {"success": True, "message": "Thank you for your message. We'll get back to you soon."}
+
+
+@router.post("/api/subscribe")
+async def subscribe_newsletter(request: Request):
+    body = await request.json()
+    email = body.get("email", "").strip()
+
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Valid email address is required")
+
+    # Check for duplicate
+    existing = db["subscribers"].find_one({"email": email})
+    if existing:
+        return {"success": True, "message": "You're already subscribed!"}
+
+    db["subscribers"].insert_one({
+        "email": email,
+        "subscribed_at": datetime.now(timezone.utc).isoformat(),
+        "active": True,
+    })
+
+    # Send confirmation to subscriber
+    if all([SMTP_HOST, SMTP_EMAIL, SMTP_PASSWORD]):
+        try:
+            msg = MIMEMultipart()
+            msg["From"] = f"Jolly's Kafe <{SMTP_EMAIL}>"
+            msg["To"] = email
+            msg["Subject"] = "Welcome to Jolly's Kafe!"
+            body_text = """Thank you for subscribing to Jolly's Kafe!
+
+You'll be the first to hear about new dishes, seasonal specials, and exclusive offers.
+
+See you soon!
+The Jolly's Kafe Team
+www.jollyskafe.com
+"""
+            msg.attach(MIMEText(body_text, "plain"))
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+                server.starttls()
+                server.login(SMTP_EMAIL, SMTP_PASSWORD)
+                server.send_message(msg)
+            print(f"Subscription confirmation sent to {email}")
+
+            # Notify owner
+            notify = MIMEMultipart()
+            notify["From"] = f"Jolly's Kafe Website <{SMTP_EMAIL}>"
+            notify["To"] = CONTACT_RECIPIENT
+            notify["Subject"] = "New Newsletter Subscriber"
+            notify.attach(MIMEText(f"New subscriber: {email}\n\nSubscribed at: {datetime.now(timezone.utc).isoformat()}", "plain"))
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+                server.starttls()
+                server.login(SMTP_EMAIL, SMTP_PASSWORD)
+                server.send_message(notify)
+        except Exception as e:
+            print(f"Failed to send subscription email: {e}")
+
+    return {"success": True, "message": "You're subscribed! Check your inbox for a welcome message."}
