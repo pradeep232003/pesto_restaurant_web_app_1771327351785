@@ -17,13 +17,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements-docker.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY backend/ ./backend/
+# Copy backend files flat into /app (same structure as backend/Dockerfile)
+COPY backend/server.py backend/db.py backend/models.py backend/auth.py backend/helpers.py ./
+COPY backend/routes/ ./routes/
+
+# Copy frontend build
 COPY --from=frontend-build /app/frontend/build ./frontend/build
 
-RUN mkdir -p /app/backend/uploads/thumbnails
+RUN mkdir -p /app/uploads/thumbnails
 
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE 8001
-
-CMD ["sh", "-c", "cd /app/backend && uvicorn server:app --host 0.0.0.0 --port ${PORT:-8001}"]
+CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8001}"]
