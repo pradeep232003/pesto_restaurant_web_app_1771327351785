@@ -42,22 +42,13 @@ if _cors_env:
 if _frontend_url and _frontend_url not in CORS_ORIGINS:
     CORS_ORIGINS.append(_frontend_url.strip().rstrip("/"))
 
-if CORS_ORIGINS:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=CORS_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-else:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS if CORS_ORIGINS else ["*"],
+    allow_credentials=bool(CORS_ORIGINS),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ============== REGISTER ROUTERS ==============
 
@@ -446,9 +437,13 @@ def seed_data():
 
 # ============== SERVE FRONTEND (PRODUCTION) ==============
 
-FRONTEND_BUILD_DIR = Path(__file__).resolve().parent.parent / "frontend" / "build"
+_base = Path(__file__).resolve().parent
+FRONTEND_BUILD_DIR = _base.parent / "frontend" / "build"
 if not FRONTEND_BUILD_DIR.exists():
-    FRONTEND_BUILD_DIR = Path(__file__).resolve().parent / "frontend" / "build"
+    FRONTEND_BUILD_DIR = _base / "frontend" / "build"
+if not FRONTEND_BUILD_DIR.exists():
+    FRONTEND_BUILD_DIR = Path("/app/frontend/build")
+print(f"Frontend build dir: {FRONTEND_BUILD_DIR} (exists={FRONTEND_BUILD_DIR.exists()})")
 if FRONTEND_BUILD_DIR.exists():
     from fastapi.responses import FileResponse
     app.mount("/assets", StaticFiles(directory=str(FRONTEND_BUILD_DIR / "assets")), name="frontend_assets")
