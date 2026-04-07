@@ -50,6 +50,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Redirect non-www to www
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import RedirectResponse as StarletteRedirect
+
+class WWWRedirectMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        host = request.headers.get("host", "")
+        if host == "jollyskafe.com":
+            url = f"https://www.jollyskafe.com{request.url.path}"
+            if request.url.query:
+                url += f"?{request.url.query}"
+            return StarletteRedirect(url, status_code=301)
+        return await call_next(request)
+
+app.add_middleware(WWWRedirectMiddleware)
+
 # ============== REGISTER ROUTERS ==============
 
 from routes.auth import router as auth_router
