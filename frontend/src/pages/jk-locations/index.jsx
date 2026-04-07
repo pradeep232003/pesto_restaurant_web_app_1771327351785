@@ -10,6 +10,18 @@ const JKLocations = () => {
   const { locations, setSelectedLocation, setSelectedCafeLocation, loading } = useLocation2();
   const navigate = useNavigate();
 
+  // Force redirect to canonical URL
+  useEffect(() => {
+    const host = window.location.hostname;
+    if (host && host !== 'www.jollyskafe.com' && host.includes('jollyskafe.com')) {
+      window.location.replace('https://www.jollyskafe.com/jklocations');
+      return;
+    }
+    if (window.location.pathname.endsWith('.html')) {
+      navigate('/jklocations', { replace: true });
+    }
+  }, [navigate]);
+
   const handleSelectLocation = (loc) => {
     setSelectedLocation(loc);
     setSelectedCafeLocation(loc);
