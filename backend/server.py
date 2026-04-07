@@ -333,6 +333,14 @@ if not FRONTEND_BUILD_DIR.exists():
 if not FRONTEND_BUILD_DIR.exists():
     FRONTEND_BUILD_DIR = Path("/app/frontend/build")
 print(f"Frontend build dir: {FRONTEND_BUILD_DIR} (exists={FRONTEND_BUILD_DIR.exists()})")
+
+# 301 redirect for legacy .html URL
+from fastapi.responses import RedirectResponse
+
+@app.get("/jklocations.html")
+async def redirect_jklocations_html():
+    return RedirectResponse("https://www.jollyskafe.com/jklocations", status_code=301)
+
 if FRONTEND_BUILD_DIR.exists():
     from fastapi.responses import FileResponse
     app.mount("/assets", StaticFiles(directory=str(FRONTEND_BUILD_DIR / "assets")), name="frontend_assets")
