@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes as RouterRoutes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes as RouterRoutes, Route, Navigate, useLocation } from "react-router-dom";
 import ScrollToTop from "components/ScrollToTop";
 import ErrorBoundary from "components/ErrorBoundary";
 import NotFound from "pages/NotFound";
@@ -59,6 +59,7 @@ const AppRouter = () => {
       <Route path="/order-status" element={<OrderStatus />} />
       <Route path="/contact-us" element={<ContactUs />} />
       <Route path="/jklocations" element={<JKLocations />} />
+      <Route path="/jklocations.html" element={<Navigate to="/jklocations" replace />} />
       
       {/* Admin Login (no layout) */}
       <Route path="/admin-login" element={<AdminLogin />} />
