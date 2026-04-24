@@ -25,6 +25,7 @@ import GoogleAuthCallback from './pages/customer-auth/GoogleAuthCallback';
 import OrderStatus from './pages/order-status';
 import ContactUs from './pages/contact-us';
 import JKLocations from './pages/jk-locations';
+import LocationLanding from './pages/location-landing';
 import AdminLayout from './components/AdminLayout';
 import { LocationProvider } from './contexts/LocationContext';
 import { CustomerProvider } from './contexts/CustomerContext';
@@ -60,6 +61,11 @@ const AppRouter = () => {
       <Route path="/contact-us" element={<ContactUs />} />
       <Route path="/jklocations" element={<JKLocations />} />
       <Route path="/jklocations.html" element={<Navigate to="/jklocations" replace />} />
+      <Route path="/handforth" element={<LocationLanding />} />
+      <Route path="/middlewich" element={<LocationLanding />} />
+      <Route path="/timperley" element={<LocationLanding />} />
+      <Route path="/atherton" element={<LocationLanding />} />
+      <Route path="/chaddesden" element={<LocationLanding />} />
       
       {/* Admin Login (no layout) */}
       <Route path="/admin-login" element={<AdminLogin />} />

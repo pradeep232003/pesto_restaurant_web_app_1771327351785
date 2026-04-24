@@ -351,20 +351,33 @@ if not FRONTEND_BUILD_DIR.exists():
 print(f"Frontend build dir: {FRONTEND_BUILD_DIR} (exists={FRONTEND_BUILD_DIR.exists()})")
 
 # 301 redirect for legacy .html URL
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 
 @app.get("/jklocations.html")
 async def redirect_jklocations_html():
     return RedirectResponse("https://www.jollyskafe.com/jklocations", status_code=301)
 
+# Sitemap and robots.txt for SEO
+from seo import generate_sitemap, inject_meta_tags, LOCATION_SEO
+
+@app.get("/sitemap.xml")
+async def sitemap():
+    return HTMLResponse(content=generate_sitemap(), media_type="application/xml")
+
 if FRONTEND_BUILD_DIR.exists():
     from fastapi.responses import FileResponse
     app.mount("/assets", StaticFiles(directory=str(FRONTEND_BUILD_DIR / "assets")), name="frontend_assets")
 
+    # Read index.html template once at startup
+    _index_html = (FRONTEND_BUILD_DIR / "index.html").read_text()
+
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        """Serve React frontend for all non-API routes"""
+        """Serve React frontend with SEO meta tags injected per route"""
         file_path = FRONTEND_BUILD_DIR / full_path
         if file_path.is_file():
             return FileResponse(file_path)
-        return FileResponse(FRONTEND_BUILD_DIR / "index.html")
+        # Inject route-specific SEO meta tags
+        request_path = f"/{full_path}" if full_path else "/"
+        html = inject_meta_tags(_index_html, request_path)
+        return HTMLResponse(content=html)
