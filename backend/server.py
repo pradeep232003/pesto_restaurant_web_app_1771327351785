@@ -358,7 +358,7 @@ async def redirect_jklocations_html():
     return RedirectResponse("https://www.jollyskafe.com/jklocations", status_code=301)
 
 # Sitemap and robots.txt for SEO
-from seo import generate_sitemap, inject_meta_tags, LOCATION_SEO
+from routes.seo import generate_sitemap, inject_meta_tags, LOCATION_SEO
 
 @app.get("/sitemap.xml")
 async def sitemap():
