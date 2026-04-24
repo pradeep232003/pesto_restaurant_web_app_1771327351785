@@ -155,7 +155,7 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
                 alt="Jollys Kafe logo"
                 loading="eager"
                 decoding="sync"
-                fetchPriority="high"
+                fetchpriority="high"
                 width="40"
                 height="40"
                 className="h-10 w-auto object-contain group-hover:scale-105 transition-transform duration-200"

@@ -7,13 +7,15 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - **Frontend**: React 18 + Vite + TailwindCSS + Framer Motion
 - **Backend**: FastAPI + MongoDB + JWT Auth + httpx (Google API)
 - **Image Processing**: Pillow (400x400 auto-thumbnails)
-- **Auth**: Cookie-based JWT + localStorage Bearer token fallback + Emergent Google OAuth + Email OTP verification
-- **Email**: Resend (when API key provided)
+- **Auth**: Cookie-based JWT + localStorage Bearer token fallback + Custom Google OAuth (popup flow) + Email OTP verification
+- **Email**: Gmail SMTP (smtplib) for contact/newsletter
+- **SEO**: Dynamic SSR simulation via backend meta tag injection + auto-generated sitemap
 
 ### Backend Structure (Modularized Mar 2026)
 ```
 /app/backend/
-├── server.py          (~250 lines: app init, CORS, routers, startup seed, frontend serve)
+├── server.py          (App init, CORS, routers, startup seed, SEO catch-all frontend serve)
+├── seo.py             (Sitemap generator, meta tag injector, JSON-LD builder)
 ├── db.py              (MongoDB connection & collections)
 ├── models.py          (All Pydantic models)
 ├── auth.py            (JWT, password, brute force, auth dependencies)
@@ -26,7 +28,9 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 │   ├── customers.py   (/api/customer/* + Google OAuth)
 │   ├── orders.py      (/api/orders + /api/site-status + /api/admin/orders)
 │   ├── settings.py    (/api/admin/site-settings)
-│   └── contact.py     (/api/contact)
+│   └── contact.py     (/api/contact + /api/subscribe)
+├── tests/
+│   └── test_seo.py    (53 SEO unit tests)
 ```
 
 ## Implemented Features
@@ -58,7 +62,7 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - Homepage, Menu Catalog, Shopping Cart, Table Reservation, Order Status, Contact Us
 
 ### Customer Auth + Google OAuth + Email Verification (Mar 2026)
-- Apple-designed auth page with Google OAuth via Emergent Auth
+- Apple-designed auth page with custom popup-based Google OAuth
 - Registration requires email OTP verification
 
 ### Mobile Admin Auth Fix (Mar 2026)
@@ -75,18 +79,31 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 
 ### Timperley Menu Migration (Apr 2026)
 - Parsed Zettle POS export (157 raw items) into 106 categorized menu items
-- Categories: Breakfast (31), Sandwiches (22), Specials (26), Sides (2), Desserts (7), Beverages (18)
-- Includes binlids, bagels, paninis, roasts, curries, afternoon teas
 
 ### JK Locations Page (Apr 2026)
 - Jolly's Kafe logo added to /jklocations page
 - All 5 locations displayed with Apple-inspired card design
 
+### Gmail SMTP Integration (Apr 2026)
+- Contact Us form and Newsletter subscription via Gmail SMTP (replaced Resend)
+
+### Custom Google OAuth (Apr 2026)
+- Replaced @react-oauth/google with custom popup-based flow
+- Avoids production crashes from missing build-time env vars
+
+### SEO Optimization (Apr 2026) - VERIFIED
+- Dynamic SSR simulation: backend injects route-specific <title>, <meta description>, OG tags, Twitter cards, canonical URLs, and JSON-LD schema into index.html before serving
+- Auto-generated /sitemap.xml with 11 URLs (6 core + 5 locations)
+- Location-specific landing pages: /handforth, /middlewich, /timperley, /atherton, /chaddesden
+- Each location page has CafeOrCoffeeShop JSON-LD with address, opening hours
+- robots.txt references sitemap
+- 301 redirects: .html extensions, non-www to www domain
+- 53 backend tests + 3 frontend redirect tests — ALL PASSED
+
 ## Prioritized Backlog
 
 ### P1 (High)
 - Stripe integration for card top-ups
-- Resend API key for email notifications (blocked on user)
 
 ### P2 (Medium)
 - Kitchen display board (auto-updating orders on screen)
