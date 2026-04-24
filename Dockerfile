@@ -18,7 +18,7 @@ COPY requirements-docker.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend files flat into /app (same structure as backend/Dockerfile)
-COPY backend/server.py backend/db.py backend/models.py backend/auth.py backend/helpers.py ./
+COPY backend/server.py backend/db.py backend/models.py backend/auth.py backend/helpers.py backend/seo.py ./
 COPY backend/routes/ ./routes/
 
 # Copy frontend build
