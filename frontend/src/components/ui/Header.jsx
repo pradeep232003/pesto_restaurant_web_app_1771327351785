@@ -128,7 +128,9 @@ const Header = ({ cartCount = 0, user: userProp = null, onCartClick, onAccountCl
         localStorage.setItem('access_token', data.access_token);
         if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
         // Full page navigation ensures AuthContext initializes fresh with the new token
-        window.location.href = '/admin';
+        // Staff goes to daily sales, admin/super_admin goes to dashboard
+        const dest = data.role === 'staff' ? '/admin/daily-sales' : '/admin';
+        window.location.href = dest;
       }
     } catch {
       navigate('/admin-login');

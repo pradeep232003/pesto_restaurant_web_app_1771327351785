@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DollarSign, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, FileText, Share2, X } from 'lucide-react';
+import { DollarSign, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, FileText, Share2, X, LogOut } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCustomer } from '../../contexts/CustomerContext';
 import { useLocation2 } from '../../contexts/LocationContext';
 
 const AdminDailySales = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated, isStaff, isAdmin, loading: authLoading } = useAuth();
+  const { user, isAuthenticated, isStaff, isAdmin, signOut, loading: authLoading } = useAuth();
+  const { logout: customerLogout } = useCustomer();
   const { locations } = useLocation2();
   const [activeTab, setActiveTab] = useState('entry');
   const [loading, setLoading] = useState(false);
@@ -92,6 +94,13 @@ const AdminDailySales = () => {
 
   const getLocationName = (locId) => locations.find(l => l.id === locId)?.name || locId;
 
+  const handleSalesLogout = async () => {
+    await signOut();
+    customerLogout();
+    localStorage.removeItem('customer_token');
+    window.location.href = '/';
+  };
+
   const formatDate = (dateStr) => {
     const d = new Date(dateStr + 'T00:00:00');
     return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
@@ -152,17 +161,28 @@ const AdminDailySales = () => {
   }
 
   const font = { fontFamily: 'Outfit, sans-serif' };
-  const inputBase = "w-full px-3 py-3 rounded-xl text-sm border-0 outline-none";
+  const inputBase = "w-full px-3 py-3 rounded-xl text-sm border-0 outline-none min-w-0";
   const inputStyle = { background: '#F5F5F7', color: '#1D1D1F', ...font, boxShadow: '0 0 0 1px rgba(0,0,0,0.06)' };
   const labelCls = "block text-xs font-medium mb-1.5";
   const labelStyle = { color: '#86868B', ...font };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto" data-testid="admin-daily-sales-page">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto overflow-hidden" data-testid="admin-daily-sales-page">
       {/* Header */}
-      <div className="mb-5">
-        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: '#1D1D1F', ...font }}>Daily Sales</h1>
-        <p className="text-xs sm:text-sm mt-1" style={{ color: '#86868B' }}>Record sales and staff hours</p>
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: '#1D1D1F', ...font }}>Daily Sales</h1>
+          <p className="text-xs sm:text-sm mt-1" style={{ color: '#86868B' }}>Record sales and staff hours</p>
+        </div>
+        <button
+          data-testid="sales-logout-btn"
+          onClick={handleSalesLogout}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all active:scale-95 lg:hidden"
+          style={{ color: '#FF3B30', background: 'rgba(255,59,48,0.06)', ...font }}
+        >
+          <LogOut size={14} />
+          <span>Logout</span>
+        </button>
       </div>
 
       {/* Tabs — full width on mobile */}

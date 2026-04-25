@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, UtensilsCrossed, ClipboardList, Settings, Wallet, Receipt, LogOut, Menu, X, ChefHat, User, Users, DollarSign } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useCustomer } from '../contexts/CustomerContext';
 
 const getNavItems = (role) => {
   const items = [
@@ -22,11 +23,14 @@ const getNavItems = (role) => {
 const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { logout: customerLogout } = useCustomer();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const NAV_ITEMS = getNavItems(user?.role);
 
   const handleLogout = async () => {
     await signOut();
+    customerLogout();
+    localStorage.removeItem('customer_token');
     navigate('/admin-login');
   };
 
