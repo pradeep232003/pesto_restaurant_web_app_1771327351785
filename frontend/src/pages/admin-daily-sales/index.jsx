@@ -253,8 +253,8 @@ const AdminDailySales = () => {
             </select>
           </div>
 
-          {/* Date — full width on mobile */}
-          <div>
+          {/* Date — compact width */}
+          <div className="w-1/2">
             <label className={labelCls} style={labelStyle}>Date</label>
             <input
               data-testid="sales-date-input"
