@@ -15,7 +15,6 @@ const AdminDailySales = () => {
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Entry form state
   const [selectedLocation, setSelectedLocation] = useState('');
   const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]);
   const [sales, setSales] = useState('');
@@ -24,7 +23,6 @@ const AdminDailySales = () => {
   const [cashTakenBy, setCashTakenBy] = useState('');
   const [staffHours, setStaffHours] = useState([{ name: '', start_time: '', end_time: '' }]);
 
-  // History state
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [filterLocation, setFilterLocation] = useState('');
@@ -36,19 +34,18 @@ const AdminDailySales = () => {
     if (!authLoading && (!isAuthenticated || !isStaff)) navigate('/admin-login');
   }, [authLoading, isAuthenticated, isStaff, navigate]);
 
-  useEffect(() => {
-    fetchStaffNames();
-  }, []);
+  useEffect(() => { fetchStaffNames(); }, []);
 
   useEffect(() => {
     if (selectedLocation && entryDate) loadExistingEntry();
   }, [selectedLocation, entryDate]);
 
+  useEffect(() => {
+    if (activeTab === 'history' && isAdmin) fetchHistory();
+  }, [activeTab]);
+
   const fetchStaffNames = async () => {
-    try {
-      const names = await api.adminGetStaffNames();
-      setStaffNames(names);
-    } catch { /* ignore */ }
+    try { setStaffNames(await api.adminGetStaffNames()); } catch {}
   };
 
   const loadExistingEntry = async () => {
@@ -62,21 +59,13 @@ const AdminDailySales = () => {
         setCashTaken(entry.cash_taken?.toString() || '');
         setCashTakenBy(entry.cash_taken_by || '');
         setStaffHours(entry.staff_hours?.length > 0 ? entry.staff_hours : [{ name: '', start_time: '', end_time: '' }]);
-      } else {
-        resetForm(false);
-      }
-    } catch {
-      resetForm(false);
-    } finally {
-      setLoading(false);
-    }
+      } else { resetForm(false); }
+    } catch { resetForm(false); }
+    finally { setLoading(false); }
   };
 
   const resetForm = (clearLocation = true) => {
-    setSales('');
-    setFloatAmount('');
-    setCashTaken('');
-    setCashTakenBy('');
+    setSales(''); setFloatAmount(''); setCashTaken(''); setCashTakenBy('');
     setStaffHours([{ name: '', start_time: '', end_time: '' }]);
     if (clearLocation) setSelectedLocation('');
   };
@@ -84,25 +73,18 @@ const AdminDailySales = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedLocation || !entryDate) return;
-    setSaving(true);
-    setSuccessMsg('');
+    setSaving(true); setSuccessMsg('');
     try {
       await api.adminCreateDailySales({
-        location_id: selectedLocation,
-        date: entryDate,
-        sales: parseFloat(sales) || 0,
-        float_amount: parseFloat(floatAmount) || 0,
-        cash_taken: parseFloat(cashTaken) || 0,
-        cash_taken_by: cashTakenBy,
+        location_id: selectedLocation, date: entryDate,
+        sales: parseFloat(sales) || 0, float_amount: parseFloat(floatAmount) || 0,
+        cash_taken: parseFloat(cashTaken) || 0, cash_taken_by: cashTakenBy,
         staff_hours: staffHours.filter(sh => sh.name),
       });
       setSuccessMsg('Sales data saved successfully!');
       setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (err) {
-      alert('Failed to save: ' + err.message);
-    } finally {
-      setSaving(false);
-    }
+    } catch (err) { alert('Failed to save: ' + err.message); }
+    finally { setSaving(false); }
   };
 
   const addStaffRow = () => setStaffHours([...staffHours, { name: '', start_time: '', end_time: '' }]);
@@ -116,17 +98,13 @@ const AdminDailySales = () => {
   const fetchHistory = async () => {
     setHistoryLoading(true);
     try {
-      const data = await api.adminGetDailySales({
+      setHistory(await api.adminGetDailySales({
         location_id: filterLocation || undefined,
         start_date: filterStartDate || undefined,
         end_date: filterEndDate || undefined,
-      });
-      setHistory(data);
-    } catch (err) {
-      alert('Failed to load history: ' + err.message);
-    } finally {
-      setHistoryLoading(false);
-    }
+      }));
+    } catch (err) { alert('Failed to load history: ' + err.message); }
+    finally { setHistoryLoading(false); }
   };
 
   const handleDeleteEntry = async (entryId) => {
@@ -134,234 +112,170 @@ const AdminDailySales = () => {
     try {
       await api.adminDeleteDailySales(entryId);
       setHistory(prev => prev.filter(e => e.id !== entryId));
-    } catch (err) {
-      alert('Failed to delete: ' + err.message);
-    }
+    } catch (err) { alert('Failed to delete: ' + err.message); }
   };
-
-  useEffect(() => {
-    if (activeTab === 'history' && isAdmin) fetchHistory();
-  }, [activeTab]);
 
   const getLocationName = (locId) => locations.find(l => l.id === locId)?.name || locId;
 
   if (authLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" />
-      </div>
-    );
+    return <div className="flex items-center justify-center h-64"><div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" /></div>;
   }
 
-  const inputStyle = { background: '#FFFFFF', color: '#1D1D1F', fontFamily: 'Outfit, sans-serif', boxShadow: '0 0 0 1px rgba(0,0,0,0.08)' };
+  const font = { fontFamily: 'Outfit, sans-serif' };
+  const inputBase = "w-full px-3 py-3 rounded-xl text-sm border-0 outline-none";
+  const inputStyle = { background: '#F5F5F7', color: '#1D1D1F', ...font, boxShadow: '0 0 0 1px rgba(0,0,0,0.06)' };
+  const labelCls = "block text-xs font-medium mb-1.5";
+  const labelStyle = { color: '#86868B', ...font };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl" data-testid="admin-daily-sales-page">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Daily Sales</h1>
-        <p className="text-sm mt-1" style={{ color: '#86868B' }}>Record daily sales and staff hours by location</p>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto" data-testid="admin-daily-sales-page">
+      {/* Header */}
+      <div className="mb-5">
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: '#1D1D1F', ...font }}>Daily Sales</h1>
+        <p className="text-xs sm:text-sm mt-1" style={{ color: '#86868B' }}>Record sales and staff hours</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-6 p-1 rounded-xl w-fit" style={{ background: '#E8E8ED' }}>
+      {/* Tabs — full width on mobile */}
+      <div className="flex gap-1 mb-5 p-1 rounded-xl" style={{ background: '#E8E8ED' }}>
         <button
           data-testid="tab-entry"
           onClick={() => setActiveTab('entry')}
-          className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+          className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-center"
           style={{
             background: activeTab === 'entry' ? '#FFFFFF' : 'transparent',
-            color: activeTab === 'entry' ? '#1D1D1F' : '#86868B',
-            fontFamily: 'Outfit, sans-serif',
+            color: activeTab === 'entry' ? '#1D1D1F' : '#86868B', ...font,
             boxShadow: activeTab === 'entry' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
           }}
         >
-          <DollarSign size={14} className="inline mr-1.5 -mt-0.5" />
+          <DollarSign size={14} className="inline mr-1 -mt-0.5" />
           Enter Sales
         </button>
         {isAdmin && (
           <button
             data-testid="tab-history"
             onClick={() => setActiveTab('history')}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+            className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-center"
             style={{
               background: activeTab === 'history' ? '#FFFFFF' : 'transparent',
-              color: activeTab === 'history' ? '#1D1D1F' : '#86868B',
-              fontFamily: 'Outfit, sans-serif',
+              color: activeTab === 'history' ? '#1D1D1F' : '#86868B', ...font,
               boxShadow: activeTab === 'history' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
             }}
           >
-            <Calendar size={14} className="inline mr-1.5 -mt-0.5" />
+            <Calendar size={14} className="inline mr-1 -mt-0.5" />
             History
           </button>
         )}
       </div>
 
-      {/* ENTRY TAB */}
+      {/* ========== ENTRY TAB ========== */}
       {activeTab === 'entry' && (
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {successMsg && (
-            <div data-testid="success-message" className="p-3 rounded-xl text-sm font-medium" style={{ background: 'rgba(52,199,89,0.1)', color: '#34C759', fontFamily: 'Outfit, sans-serif' }}>
+            <div data-testid="success-message" className="p-3 rounded-xl text-sm font-medium" style={{ background: 'rgba(52,199,89,0.1)', color: '#34C759', ...font }}>
               {successMsg}
             </div>
           )}
 
-          {/* Location + Date row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>Location</label>
-              <select
-                data-testid="sales-location-select"
-                value={selectedLocation}
-                onChange={e => setSelectedLocation(e.target.value)}
-                required
-                className="w-full px-3 py-2.5 rounded-xl text-sm border-0 outline-none"
-                style={inputStyle}
-              >
-                <option value="">Select location...</option>
-                {locations.filter(l => l.is_active).map(l => (
-                  <option key={l.id} value={l.id}>{l.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>Date</label>
-              <input
-                data-testid="sales-date-input"
-                type="date"
-                value={entryDate}
-                onChange={e => setEntryDate(e.target.value)}
-                required
-                className="w-full px-3 py-2.5 rounded-xl text-sm border-0 outline-none"
-                style={inputStyle}
-              />
-            </div>
+          {/* Location — full width on mobile for easy tap */}
+          <div>
+            <label className={labelCls} style={labelStyle}>Location</label>
+            <select
+              data-testid="sales-location-select"
+              value={selectedLocation}
+              onChange={e => setSelectedLocation(e.target.value)}
+              required
+              className={inputBase}
+              style={{ ...inputStyle, background: '#FFFFFF' }}
+            >
+              <option value="">Select location...</option>
+              {locations.filter(l => l.is_active).map(l => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date — full width on mobile */}
+          <div>
+            <label className={labelCls} style={labelStyle}>Date</label>
+            <input
+              data-testid="sales-date-input"
+              type="date"
+              value={entryDate}
+              onChange={e => setEntryDate(e.target.value)}
+              required
+              className={inputBase}
+              style={{ ...inputStyle, background: '#FFFFFF' }}
+            />
           </div>
 
           {/* Sales section */}
-          <div className="p-5 rounded-2xl" style={{ background: '#FFFFFF' }}>
-            <h3 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>
-              <DollarSign size={16} />
-              Sales Information
+          <div className="p-4 sm:p-5 rounded-2xl" style={{ background: '#FFFFFF' }}>
+            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: '#1D1D1F', ...font }}>
+              <DollarSign size={16} /> Sales Information
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium mb-1.5" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>Total Sales</label>
-                <input
-                  data-testid="sales-amount-input"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={sales}
-                  onChange={e => setSales(e.target.value)}
-                  required
-                  className="w-full px-3 py-2.5 rounded-xl text-sm border-0 outline-none"
-                  style={{ ...inputStyle, background: '#F5F5F7' }}
-                />
+                <label className={labelCls} style={labelStyle}>Total Sales</label>
+                <input data-testid="sales-amount-input" type="number" step="0.01" inputMode="decimal" placeholder="0.00" value={sales} onChange={e => setSales(e.target.value)} required className={inputBase} style={inputStyle} />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1.5" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>Float</label>
-                <input
-                  data-testid="sales-float-input"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={floatAmount}
-                  onChange={e => setFloatAmount(e.target.value)}
-                  required
-                  className="w-full px-3 py-2.5 rounded-xl text-sm border-0 outline-none"
-                  style={{ ...inputStyle, background: '#F5F5F7' }}
-                />
+                <label className={labelCls} style={labelStyle}>Float</label>
+                <input data-testid="sales-float-input" type="number" step="0.01" inputMode="decimal" placeholder="0.00" value={floatAmount} onChange={e => setFloatAmount(e.target.value)} required className={inputBase} style={inputStyle} />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1.5" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>Cash Taken</label>
-                <input
-                  data-testid="sales-cash-input"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={cashTaken}
-                  onChange={e => setCashTaken(e.target.value)}
-                  required
-                  className="w-full px-3 py-2.5 rounded-xl text-sm border-0 outline-none"
-                  style={{ ...inputStyle, background: '#F5F5F7' }}
-                />
+                <label className={labelCls} style={labelStyle}>Cash Taken</label>
+                <input data-testid="sales-cash-input" type="number" step="0.01" inputMode="decimal" placeholder="0.00" value={cashTaken} onChange={e => setCashTaken(e.target.value)} required className={inputBase} style={inputStyle} />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1.5" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>Cash Taken By</label>
-                <input
-                  data-testid="sales-cash-by-input"
-                  type="text"
-                  placeholder="Name"
-                  value={cashTakenBy}
-                  onChange={e => setCashTakenBy(e.target.value)}
-                  required
-                  className="w-full px-3 py-2.5 rounded-xl text-sm border-0 outline-none"
-                  style={{ ...inputStyle, background: '#F5F5F7' }}
-                />
+                <label className={labelCls} style={labelStyle}>Cash Taken By</label>
+                <input data-testid="sales-cash-by-input" type="text" placeholder="Name" value={cashTakenBy} onChange={e => setCashTakenBy(e.target.value)} required className={inputBase} style={inputStyle} />
               </div>
             </div>
           </div>
 
-          {/* Staff Hours section */}
-          <div className="p-5 rounded-2xl" style={{ background: '#FFFFFF' }}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold flex items-center gap-2" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>
-                <Clock size={16} />
-                Staff Hours
+          {/* Staff Hours — card-based on mobile */}
+          <div className="p-4 sm:p-5 rounded-2xl" style={{ background: '#FFFFFF' }}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2" style={{ color: '#1D1D1F', ...font }}>
+                <Clock size={16} /> Staff Hours
               </h3>
-              <button
-                type="button"
-                data-testid="add-staff-row-btn"
-                onClick={addStaffRow}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                style={{ background: '#F5F5F7', color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
-              >
-                <Plus size={13} /> Add Staff
+              <button type="button" data-testid="add-staff-row-btn" onClick={addStaffRow}
+                className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium active:scale-95 transition-all"
+                style={{ background: '#F5F5F7', color: '#1D1D1F', ...font }}>
+                <Plus size={13} /> Add
               </button>
             </div>
+
             <div className="space-y-3">
               {staffHours.map((sh, i) => (
-                <div key={i} className="grid grid-cols-[1fr_auto_auto_auto] sm:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
-                  <div>
-                    {i === 0 && <label className="block text-xs font-medium mb-1.5" style={{ color: '#86868B' }}>Name</label>}
+                <div key={i} className="p-3 rounded-xl" style={{ background: '#F9F9FB', border: '1px solid rgba(0,0,0,0.04)' }}>
+                  {/* Name — full width */}
+                  <div className="mb-2">
+                    <label className="block text-[11px] font-medium mb-1" style={{ color: '#86868B' }}>Staff Name</label>
                     <input
                       data-testid={`staff-name-${i}`}
                       list="staff-names-list"
                       type="text"
-                      placeholder="Staff name"
+                      placeholder="Select or type name"
                       value={sh.name}
                       onChange={e => updateStaffRow(i, 'name', e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl text-sm border-0 outline-none"
-                      style={{ ...inputStyle, background: '#F5F5F7' }}
+                      className={inputBase}
+                      style={{ ...inputStyle, background: '#FFFFFF' }}
                     />
                   </div>
-                  <div>
-                    {i === 0 && <label className="block text-xs font-medium mb-1.5" style={{ color: '#86868B' }}>Start</label>}
-                    <input
-                      data-testid={`staff-start-${i}`}
-                      type="time"
-                      value={sh.start_time}
-                      onChange={e => updateStaffRow(i, 'start_time', e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl text-sm border-0 outline-none"
-                      style={{ ...inputStyle, background: '#F5F5F7' }}
-                    />
-                  </div>
-                  <div>
-                    {i === 0 && <label className="block text-xs font-medium mb-1.5" style={{ color: '#86868B' }}>End</label>}
-                    <input
-                      data-testid={`staff-end-${i}`}
-                      type="time"
-                      value={sh.end_time}
-                      onChange={e => updateStaffRow(i, 'end_time', e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl text-sm border-0 outline-none"
-                      style={{ ...inputStyle, background: '#F5F5F7' }}
-                    />
-                  </div>
-                  <div>
-                    {i === 0 && <label className="block text-xs font-medium mb-1.5 opacity-0">X</label>}
+                  {/* Time row — side by side even on mobile */}
+                  <div className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-medium mb-1" style={{ color: '#86868B' }}>Start</label>
+                      <input data-testid={`staff-start-${i}`} type="time" value={sh.start_time} onChange={e => updateStaffRow(i, 'start_time', e.target.value)} className={inputBase} style={{ ...inputStyle, background: '#FFFFFF' }} />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-medium mb-1" style={{ color: '#86868B' }}>End</label>
+                      <input data-testid={`staff-end-${i}`} type="time" value={sh.end_time} onChange={e => updateStaffRow(i, 'end_time', e.target.value)} className={inputBase} style={{ ...inputStyle, background: '#FFFFFF' }} />
+                    </div>
                     {staffHours.length > 1 && (
-                      <button type="button" onClick={() => removeStaffRow(i)} className="p-2.5 rounded-xl transition-all" style={{ color: '#FF3B30', background: 'rgba(255,59,48,0.06)' }}>
-                        <Trash2 size={14} />
+                      <button type="button" onClick={() => removeStaffRow(i)} className="p-3 rounded-xl shrink-0 active:scale-95 transition-all" style={{ color: '#FF3B30', background: 'rgba(255,59,48,0.06)' }}>
+                        <Trash2 size={16} />
                       </button>
                     )}
                   </div>
@@ -373,134 +287,108 @@ const AdminDailySales = () => {
             </datalist>
           </div>
 
-          {/* Submit */}
+          {/* Submit — always full width on mobile for easy tap */}
           <button
             data-testid="save-sales-btn"
             type="submit"
             disabled={saving || !selectedLocation}
-            className="w-full sm:w-auto px-8 py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
-            style={{ background: '#1D1D1F', color: '#FFFFFF', fontFamily: 'Outfit, sans-serif' }}
+            className="w-full py-3.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 active:scale-[0.98]"
+            style={{ background: '#1D1D1F', color: '#FFFFFF', ...font }}
           >
             {saving ? 'Saving...' : 'Save Sales Data'}
           </button>
         </form>
       )}
 
-      {/* HISTORY TAB */}
+      {/* ========== HISTORY TAB ========== */}
       {activeTab === 'history' && isAdmin && (
         <div>
-          {/* Filters */}
-          <div className="flex flex-wrap gap-3 mb-5 items-end">
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>Location</label>
-              <select
-                data-testid="history-location-filter"
-                value={filterLocation}
-                onChange={e => setFilterLocation(e.target.value)}
-                className="px-3 py-2.5 rounded-xl text-sm border-0 outline-none"
-                style={inputStyle}
-              >
+          {/* Filters — stacked on mobile */}
+          <div className="space-y-3 sm:space-y-0 sm:flex sm:flex-wrap sm:gap-3 sm:items-end mb-5">
+            <div className="sm:w-auto">
+              <label className={labelCls} style={labelStyle}>Location</label>
+              <select data-testid="history-location-filter" value={filterLocation} onChange={e => setFilterLocation(e.target.value)}
+                className={inputBase} style={{ ...inputStyle, background: '#FFFFFF' }}>
                 <option value="">All Locations</option>
                 {locations.filter(l => l.is_active).map(l => (
                   <option key={l.id} value={l.id}>{l.name}</option>
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>From</label>
-              <input
-                data-testid="history-start-date"
-                type="date"
-                value={filterStartDate}
-                onChange={e => setFilterStartDate(e.target.value)}
-                className="px-3 py-2.5 rounded-xl text-sm border-0 outline-none"
-                style={inputStyle}
-              />
+            <div className="grid grid-cols-2 gap-3 sm:contents">
+              <div>
+                <label className={labelCls} style={labelStyle}>From</label>
+                <input data-testid="history-start-date" type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)}
+                  className={inputBase} style={{ ...inputStyle, background: '#FFFFFF' }} />
+              </div>
+              <div>
+                <label className={labelCls} style={labelStyle}>To</label>
+                <input data-testid="history-end-date" type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)}
+                  className={inputBase} style={{ ...inputStyle, background: '#FFFFFF' }} />
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>To</label>
-              <input
-                data-testid="history-end-date"
-                type="date"
-                value={filterEndDate}
-                onChange={e => setFilterEndDate(e.target.value)}
-                className="px-3 py-2.5 rounded-xl text-sm border-0 outline-none"
-                style={inputStyle}
-              />
-            </div>
-            <button
-              data-testid="apply-filters-btn"
-              onClick={fetchHistory}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-1.5"
-              style={{ background: '#1D1D1F', color: '#FFFFFF', fontFamily: 'Outfit, sans-serif' }}
-            >
-              <Filter size={14} /> Apply
+            <button data-testid="apply-filters-btn" onClick={fetchHistory}
+              className="w-full sm:w-auto px-4 py-3 sm:py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+              style={{ background: '#1D1D1F', color: '#FFFFFF', ...font }}>
+              <Filter size={14} /> Apply Filters
             </button>
           </div>
 
           {/* History list */}
           {historyLoading ? (
-            <div className="flex items-center justify-center h-32">
-              <div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" />
-            </div>
+            <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" /></div>
           ) : history.length === 0 ? (
             <div className="text-center py-16 rounded-2xl" style={{ background: '#FFFFFF' }}>
               <Calendar size={32} className="mx-auto mb-3" style={{ color: '#C7C7CC' }} />
-              <p className="text-sm" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>No sales data found. Adjust your filters and try again.</p>
+              <p className="text-sm" style={{ color: '#86868B', ...font }}>No sales data found. Adjust filters and try again.</p>
             </div>
           ) : (
             <div className="space-y-3">
               {history.map(entry => (
                 <div key={entry.id} data-testid={`history-entry-${entry.id}`} className="rounded-2xl overflow-hidden" style={{ background: '#FFFFFF' }}>
-                  <button
-                    onClick={() => setExpandedEntry(expandedEntry === entry.id ? null : entry.id)}
-                    className="w-full flex items-center justify-between px-5 py-4 text-left"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <p className="text-sm font-semibold" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>{getLocationName(entry.location_id)}</p>
-                        <p className="text-xs" style={{ color: '#86868B' }}>{entry.date}</p>
-                      </div>
+                  <button onClick={() => setExpandedEntry(expandedEntry === entry.id ? null : entry.id)}
+                    className="w-full flex items-center justify-between px-4 sm:px-5 py-4 text-left active:bg-gray-50 transition-colors">
+                    <div className="min-w-0 mr-3">
+                      <p className="text-sm font-semibold truncate" style={{ color: '#1D1D1F', ...font }}>{getLocationName(entry.location_id)}</p>
+                      <p className="text-xs" style={{ color: '#86868B' }}>{entry.date}</p>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3 shrink-0">
                       <div className="text-right">
-                        <p className="text-sm font-semibold" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>
-                          {'\u00A3'}{entry.sales?.toFixed(2)}
-                        </p>
-                        <p className="text-xs" style={{ color: '#86868B' }}>Total Sales</p>
+                        <p className="text-sm font-semibold" style={{ color: '#1D1D1F', ...font }}>{'\u00A3'}{entry.sales?.toFixed(2)}</p>
+                        <p className="text-[11px]" style={{ color: '#86868B' }}>Sales</p>
                       </div>
                       <ChevronDown size={16} style={{ color: '#86868B', transform: expandedEntry === entry.id ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                     </div>
                   </button>
 
                   {expandedEntry === entry.id && (
-                    <div className="px-5 pb-5" style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-4">
+                    <div className="px-4 sm:px-5 pb-4" style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+                      <div className="grid grid-cols-2 gap-3 py-4">
                         <div>
-                          <p className="text-xs" style={{ color: '#86868B' }}>Sales</p>
-                          <p className="text-sm font-medium" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>{'\u00A3'}{entry.sales?.toFixed(2)}</p>
+                          <p className="text-[11px]" style={{ color: '#86868B' }}>Sales</p>
+                          <p className="text-sm font-medium" style={{ color: '#1D1D1F', ...font }}>{'\u00A3'}{entry.sales?.toFixed(2)}</p>
                         </div>
                         <div>
-                          <p className="text-xs" style={{ color: '#86868B' }}>Float</p>
-                          <p className="text-sm font-medium" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>{'\u00A3'}{entry.float_amount?.toFixed(2)}</p>
+                          <p className="text-[11px]" style={{ color: '#86868B' }}>Float</p>
+                          <p className="text-sm font-medium" style={{ color: '#1D1D1F', ...font }}>{'\u00A3'}{entry.float_amount?.toFixed(2)}</p>
                         </div>
                         <div>
-                          <p className="text-xs" style={{ color: '#86868B' }}>Cash Taken</p>
-                          <p className="text-sm font-medium" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>{'\u00A3'}{entry.cash_taken?.toFixed(2)}</p>
+                          <p className="text-[11px]" style={{ color: '#86868B' }}>Cash Taken</p>
+                          <p className="text-sm font-medium" style={{ color: '#1D1D1F', ...font }}>{'\u00A3'}{entry.cash_taken?.toFixed(2)}</p>
                         </div>
                         <div>
-                          <p className="text-xs" style={{ color: '#86868B' }}>Cash Taken By</p>
-                          <p className="text-sm font-medium" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>{entry.cash_taken_by || '—'}</p>
+                          <p className="text-[11px]" style={{ color: '#86868B' }}>Cash Taken By</p>
+                          <p className="text-sm font-medium" style={{ color: '#1D1D1F', ...font }}>{entry.cash_taken_by || '\u2014'}</p>
                         </div>
                       </div>
 
                       {entry.staff_hours?.length > 0 && (
-                        <div className="mt-2">
-                          <p className="text-xs font-medium mb-2" style={{ color: '#86868B' }}>Staff Hours</p>
+                        <div className="mt-1">
+                          <p className="text-[11px] font-medium mb-2" style={{ color: '#86868B' }}>Staff Hours</p>
                           <div className="space-y-1.5">
                             {entry.staff_hours.map((sh, i) => (
-                              <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: '#F5F5F7' }}>
-                                <span className="text-sm font-medium" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>{sh.name}</span>
+                              <div key={i} className="flex items-center justify-between px-3 py-2.5 rounded-lg" style={{ background: '#F5F5F7' }}>
+                                <span className="text-sm font-medium" style={{ color: '#1D1D1F', ...font }}>{sh.name}</span>
                                 <span className="text-xs" style={{ color: '#86868B' }}>{sh.start_time} — {sh.end_time}</span>
                               </div>
                             ))}
@@ -509,15 +397,12 @@ const AdminDailySales = () => {
                       )}
 
                       <div className="flex items-center justify-between mt-4 pt-3" style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
-                        <p className="text-xs" style={{ color: '#C7C7CC' }}>
-                          Updated by {entry.updated_by || entry.created_by}
+                        <p className="text-[11px] truncate mr-2" style={{ color: '#C7C7CC' }}>
+                          By {entry.updated_by || entry.created_by}
                         </p>
-                        <button
-                          data-testid={`delete-entry-${entry.id}`}
-                          onClick={() => handleDeleteEntry(entry.id)}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                          style={{ color: '#FF3B30', background: 'rgba(255,59,48,0.06)' }}
-                        >
+                        <button data-testid={`delete-entry-${entry.id}`} onClick={() => handleDeleteEntry(entry.id)}
+                          className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium shrink-0 active:scale-95 transition-all"
+                          style={{ color: '#FF3B30', background: 'rgba(255,59,48,0.06)' }}>
                           <Trash2 size={12} /> Delete
                         </button>
                       </div>
