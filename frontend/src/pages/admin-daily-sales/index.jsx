@@ -185,22 +185,22 @@ const AdminDailySales = () => {
         </button>
       </div>
 
-      {/* Tabs — full width on mobile */}
-      <div className="flex gap-1 mb-5 p-1 rounded-xl" style={{ background: '#E8E8ED' }}>
-        <button
-          data-testid="tab-entry"
-          onClick={() => setActiveTab('entry')}
-          className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-center"
-          style={{
-            background: activeTab === 'entry' ? '#FFFFFF' : 'transparent',
-            color: activeTab === 'entry' ? '#1D1D1F' : '#86868B', ...font,
-            boxShadow: activeTab === 'entry' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-          }}
-        >
-          <DollarSign size={14} className="inline mr-1 -mt-0.5" />
-          Enter Sales
-        </button>
-        {isAdmin && (
+      {/* Tabs — only show if admin has history tab */}
+      {isAdmin && (
+        <div className="flex gap-1 mb-5 p-1 rounded-xl" style={{ background: '#E8E8ED' }}>
+          <button
+            data-testid="tab-entry"
+            onClick={() => setActiveTab('entry')}
+            className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-center"
+            style={{
+              background: activeTab === 'entry' ? '#FFFFFF' : 'transparent',
+              color: activeTab === 'entry' ? '#1D1D1F' : '#86868B', ...font,
+              boxShadow: activeTab === 'entry' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+            }}
+          >
+            <DollarSign size={14} className="inline mr-1 -mt-0.5" />
+            Sales Entry
+          </button>
           <button
             data-testid="tab-history"
             onClick={() => setActiveTab('history')}
@@ -214,8 +214,8 @@ const AdminDailySales = () => {
             <Calendar size={14} className="inline mr-1 -mt-0.5" />
             History
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ========== ENTRY TAB ========== */}
       {activeTab === 'entry' && (
