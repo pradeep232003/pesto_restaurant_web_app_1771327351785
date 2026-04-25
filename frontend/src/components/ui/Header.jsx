@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../AppIcon';
 import Button from './Button';
 import { useLocation2 } from '../../contexts/LocationContext';
+import { useCustomer } from '../../contexts/CustomerContext';
 
 const CAFE_DETAILS = {
   'timperley-altrincham': {
@@ -45,6 +46,8 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
   const location = useLocation();
   const navigate = useNavigate();
   const { selectedLocation, setSelectedLocation, locations, selectedCafeLocation, setSelectedCafeLocation } = useLocation2();
+  const { customer } = useCustomer();
+  const customerIsStaff = customer?.role === 'staff' || customer?.role === 'admin' || customer?.role === 'super_admin';
 
   const RESERVATION_LOCATIONS = ['oakmere-handforth', 'willowmere-middlewich'];
   const isHomePage = location?.pathname === '/home-landing' || location?.pathname === '/';
@@ -325,6 +328,16 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
                         <Icon name="Calendar" size={16} />
                         <span>My Reservations</span>
                       </button>
+                      {customerIsStaff && (
+                        <button
+                          data-testid="admin-panel-link"
+                          onClick={() => { navigate('/admin'); setIsUserDropdownOpen(false); }}
+                          className="w-full flex items-center space-x-3 px-4 py-2 text-sm font-body text-foreground hover:bg-muted transition-colors duration-200"
+                        >
+                          <Icon name="Settings" size={16} />
+                          <span>Admin Panel</span>
+                        </button>
+                      )}
                       <hr className="my-2 border-border" />
                       <button
                         onClick={handleLogoutClick}
@@ -502,6 +515,16 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
                     <Icon name="Calendar" size={20} />
                     <span>My Reservations</span>
                   </button>
+                  {customerIsStaff && (
+                    <button
+                      data-testid="mobile-admin-panel-link"
+                      onClick={() => { navigate('/admin'); setIsMobileMenuOpen(false); }}
+                      className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-body font-medium text-foreground hover:text-primary hover:bg-muted transition-all duration-200"
+                    >
+                      <Icon name="Settings" size={20} />
+                      <span>Admin Panel</span>
+                    </button>
+                  )}
                   <button
                     onClick={handleLogoutClick}
                     className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-body font-medium text-error hover:bg-error/10 transition-all duration-200"
