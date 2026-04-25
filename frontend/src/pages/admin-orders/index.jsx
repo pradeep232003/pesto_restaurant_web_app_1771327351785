@@ -19,7 +19,7 @@ const STATUS_FLOW = ['pending', 'confirmed', 'preparing', 'ready', 'collected'];
 
 const AdminOrders = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated, isAdmin, loading: authLoading, signOut } = useAuth();
+  const { user, isAuthenticated, isStaff, loading: authLoading, signOut } = useAuth();
   const { locations } = useLocation2();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,8 +29,8 @@ const AdminOrders = () => {
   const [filterStatus, setFilterStatus] = useState('');
 
   useEffect(() => {
-    if (!authLoading && (!isAuthenticated || !isAdmin)) navigate('/admin-login');
-  }, [authLoading, isAuthenticated, isAdmin, navigate]);
+    if (!authLoading && (!isAuthenticated || !isStaff)) navigate('/admin-login');
+  }, [authLoading, isAuthenticated, isStaff, navigate]);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -72,7 +72,7 @@ const AdminOrders = () => {
   };
 
   if (authLoading) return <div className="bg-background flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div></div>;
-  if (!isAuthenticated || !isAdmin) return null;
+  if (!isAuthenticated || !isStaff) return null;
 
   const locationName = (id) => locations.find(l => l.id === id)?.name || id;
 

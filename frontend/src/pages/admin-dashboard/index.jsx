@@ -29,15 +29,15 @@ const StatCard = ({ icon: IconComp, label, value, color, to }) => (
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, isAdmin, loading: authLoading } = useAuth();
+  const { isAuthenticated, isStaff, loading: authLoading } = useAuth();
   const { locations } = useLocation2();
   const [stats, setStats] = useState({ menuItems: 0, orders: 0, residents: 0, openSites: 0 });
   const [recentOrders, setRecentOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!authLoading && (!isAuthenticated || !isAdmin)) navigate('/admin-login');
-  }, [authLoading, isAuthenticated, isAdmin, navigate]);
+    if (!authLoading && (!isAuthenticated || !isStaff)) navigate('/admin-login');
+  }, [authLoading, isAuthenticated, isStaff, navigate]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -52,8 +52,8 @@ const AdminDashboard = () => {
         setRecentOrders(orders.slice(0, 5));
       } catch {} finally { setLoading(false); }
     };
-    if (isAuthenticated && isAdmin) fetchStats();
-  }, [isAuthenticated, isAdmin]);
+    if (isAuthenticated && isStaff) fetchStats();
+  }, [isAuthenticated, isStaff]);
 
   if (authLoading || loading) return (
     <div className="p-6 lg:p-8 space-y-6">
@@ -63,7 +63,7 @@ const AdminDashboard = () => {
       </div>
     </div>
   );
-  if (!isAuthenticated || !isAdmin) return null;
+  if (!isAuthenticated || !isStaff) return null;
 
   return (
     <div className="p-6 lg:p-8 space-y-6">

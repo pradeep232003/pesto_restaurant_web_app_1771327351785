@@ -8,15 +8,15 @@ const ease = [0.16, 1, 0.3, 1];
 
 const AdminLogin = () => {
   const navigate = useNavigate();
-  const { signIn, isAuthenticated, isAdmin, loading: authLoading } = useAuth();
+  const { signIn, isAuthenticated, isStaff, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!authLoading && isAuthenticated && isAdmin) navigate('/admin');
-  }, [authLoading, isAuthenticated, isAdmin, navigate]);
+    if (!authLoading && isAuthenticated && isStaff) navigate('/admin');
+  }, [authLoading, isAuthenticated, isStaff, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

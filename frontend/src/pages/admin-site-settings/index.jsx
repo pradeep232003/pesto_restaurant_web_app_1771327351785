@@ -10,7 +10,7 @@ const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'
 
 const AdminSiteSettings = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, isAdmin, loading: authLoading } = useAuth();
+  const { isAuthenticated, isStaff, loading: authLoading } = useAuth();
   const { locations, refreshLocations } = useLocation2();
   const [settings, setSettings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,8 +27,8 @@ const AdminSiteSettings = () => {
   const [addingLocation, setAddingLocation] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && (!isAuthenticated || !isAdmin)) navigate('/admin-login');
-  }, [authLoading, isAuthenticated, isAdmin, navigate]);
+    if (!authLoading && (!isAuthenticated || !isStaff)) navigate('/admin-login');
+  }, [authLoading, isAuthenticated, isStaff, navigate]);
 
   const fetchSettings = useCallback(async () => {
     setLoading(true);
@@ -157,7 +157,7 @@ const AdminSiteSettings = () => {
   };
 
   if (authLoading) return <div className="bg-background flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div></div>;
-  if (!isAuthenticated || !isAdmin) return null;
+  if (!isAuthenticated || !isStaff) return null;
 
   const locationName = (id) => locations.find(l => l.id === id)?.name || id;
   const locationData = (id) => locations.find(l => l.id === id);

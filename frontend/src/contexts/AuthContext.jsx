@@ -21,9 +21,11 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const checkAuth = async () => {
+    setLoading(true);
     try {
       const userData = await api.getMe();
       setUser(userData);
+      return true;
     } catch (error) {
       // Access token might be expired - try refreshing with stored refresh token
       const refreshToken = localStorage.getItem('refresh_token');
@@ -34,7 +36,7 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('access_token', userData.access_token);
           }
           setUser(userData);
-          return;
+          return true;
         } catch {
           // Refresh also failed, clear tokens
           localStorage.removeItem('access_token');
@@ -42,6 +44,7 @@ export const AuthProvider = ({ children }) => {
         }
       }
       setUser(false);
+      return false;
     } finally {
       setLoading(false);
     }

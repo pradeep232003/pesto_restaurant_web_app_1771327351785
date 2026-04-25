@@ -11,7 +11,7 @@ import ResidentCard from './components/ResidentCard';
 
 const ResidentBalance = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated, isAdmin, loading: authLoading, signOut } = useAuth();
+  const { user, isAuthenticated, isStaff, loading: authLoading, signOut } = useAuth();
   const { locations: allLocations } = useLocation2();
   const walletLocations = allLocations.filter(l => l.wallet_enabled);
   
@@ -33,10 +33,10 @@ const ResidentBalance = () => {
 
   // Redirect to login if not authenticated as admin
   useEffect(() => {
-    if (!authLoading && (!isAuthenticated || !isAdmin)) {
+    if (!authLoading && (!isAuthenticated || !isStaff)) {
       navigate('/admin-login');
     }
-  }, [authLoading, isAuthenticated, isAdmin, navigate]);
+  }, [authLoading, isAuthenticated, isStaff, navigate]);
 
   const fetchResidents = useCallback(async () => {
     setLoading(true);
@@ -66,11 +66,11 @@ const ResidentBalance = () => {
   }, [selectedLocation]);
 
   useEffect(() => {
-    if (isAuthenticated && isAdmin) {
+    if (isAuthenticated && isStaff) {
       fetchResidents();
       fetchSummary();
     }
-  }, [isAuthenticated, isAdmin, fetchResidents, fetchSummary]);
+  }, [isAuthenticated, isStaff, fetchResidents, fetchSummary]);
 
   const handleLogout = async () => {
     await signOut();
@@ -167,7 +167,7 @@ const ResidentBalance = () => {
     );
   }
 
-  if (!isAuthenticated || !isAdmin) {
+  if (!isAuthenticated || !isStaff) {
     return null;
   }
 

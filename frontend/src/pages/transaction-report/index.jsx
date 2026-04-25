@@ -8,7 +8,7 @@ import { useLocation2 } from '../../contexts/LocationContext';
 
 const TransactionReport = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, isAdmin, loading: authLoading, signOut } = useAuth();
+  const { isAuthenticated, isStaff, loading: authLoading, signOut } = useAuth();
   const { locations: allLocations } = useLocation2();
   const walletLocations = allLocations.filter(l => l.wallet_enabled);
   
@@ -26,10 +26,10 @@ const TransactionReport = () => {
   const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
-    if (!authLoading && (!isAuthenticated || !isAdmin)) {
+    if (!authLoading && (!isAuthenticated || !isStaff)) {
       navigate('/admin-login');
     }
-  }, [authLoading, isAuthenticated, isAdmin, navigate]);
+  }, [authLoading, isAuthenticated, isStaff, navigate]);
 
   const fetchResidents = useCallback(async () => {
     try {
@@ -77,16 +77,16 @@ const TransactionReport = () => {
   }, [selectedLocation, selectedResident, transactionType, startDate, endDate, navigate]);
 
   useEffect(() => {
-    if (isAuthenticated && isAdmin) {
+    if (isAuthenticated && isStaff) {
       fetchResidents();
     }
-  }, [isAuthenticated, isAdmin, fetchResidents]);
+  }, [isAuthenticated, isStaff, fetchResidents]);
 
   useEffect(() => {
-    if (isAuthenticated && isAdmin) {
+    if (isAuthenticated && isStaff) {
       fetchTransactions();
     }
-  }, [isAuthenticated, isAdmin, fetchTransactions]);
+  }, [isAuthenticated, isStaff, fetchTransactions]);
 
   const handlePrint = () => {
     window.print();
@@ -128,7 +128,7 @@ const TransactionReport = () => {
     );
   }
 
-  if (!isAuthenticated || !isAdmin) {
+  if (!isAuthenticated || !isStaff) {
     return null;
   }
 

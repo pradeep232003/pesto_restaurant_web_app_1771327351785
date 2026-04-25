@@ -21,7 +21,7 @@ const MENU_CATEGORIES = [
 
 const AdminMenuManagement = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated, isAdmin, loading: authLoading, signOut } = useAuth();
+  const { user, isAuthenticated, isStaff, loading: authLoading, signOut } = useAuth();
   const { locations } = useLocation2();
   const [selectedLocationId, setSelectedLocationId] = useState('');
   const [menuItems, setMenuItems] = useState([]);
@@ -36,10 +36,10 @@ const AdminMenuManagement = () => {
 
   // Redirect to login if not authenticated as admin
   useEffect(() => {
-    if (!authLoading && (!isAuthenticated || !isAdmin)) {
+    if (!authLoading && (!isAuthenticated || !isStaff)) {
       navigate('/admin-login');
     }
-  }, [authLoading, isAuthenticated, isAdmin, navigate]);
+  }, [authLoading, isAuthenticated, isStaff, navigate]);
 
   // Set initial location once loaded
   useEffect(() => {
@@ -200,7 +200,7 @@ const AdminMenuManagement = () => {
   }
 
   // Don't render if not authenticated (will redirect)
-  if (!isAuthenticated || !isAdmin) {
+  if (!isAuthenticated || !isStaff) {
     return null;
   }
 

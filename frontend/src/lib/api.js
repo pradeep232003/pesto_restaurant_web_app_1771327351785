@@ -75,6 +75,13 @@ class ApiService {
     });
   }
 
+  async customerElevateToAdmin(customerToken) {
+    return this.fetch('/api/auth/customer-elevate', {
+      method: 'POST',
+      body: JSON.stringify({ customer_token: customerToken }),
+    });
+  }
+
   // ============== PUBLIC ENDPOINTS ==============
 
   // Locations

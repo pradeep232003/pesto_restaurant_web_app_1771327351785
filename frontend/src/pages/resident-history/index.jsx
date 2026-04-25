@@ -13,7 +13,7 @@ const LOCATION_NAMES = {
 const ResidentHistory = () => {
   const navigate = useNavigate();
   const { residentId } = useParams();
-  const { isAuthenticated, isAdmin, loading: authLoading, signOut } = useAuth();
+  const { isAuthenticated, isStaff, loading: authLoading, signOut } = useAuth();
   
   const [resident, setResident] = useState(null);
   const [transactions, setTransactions] = useState([]);
@@ -23,10 +23,10 @@ const ResidentHistory = () => {
   const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
-    if (!authLoading && (!isAuthenticated || !isAdmin)) {
+    if (!authLoading && (!isAuthenticated || !isStaff)) {
       navigate('/admin-login');
     }
-  }, [authLoading, isAuthenticated, isAdmin, navigate]);
+  }, [authLoading, isAuthenticated, isStaff, navigate]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -51,10 +51,10 @@ const ResidentHistory = () => {
   }, [residentId, startDate, endDate, navigate]);
 
   useEffect(() => {
-    if (isAuthenticated && isAdmin && residentId) {
+    if (isAuthenticated && isStaff && residentId) {
       fetchData();
     }
-  }, [isAuthenticated, isAdmin, residentId, fetchData]);
+  }, [isAuthenticated, isStaff, residentId, fetchData]);
 
   const handlePrint = () => {
     window.print();
@@ -84,7 +84,7 @@ const ResidentHistory = () => {
     );
   }
 
-  if (!isAuthenticated || !isAdmin) {
+  if (!isAuthenticated || !isStaff) {
     return null;
   }
 

@@ -4,6 +4,8 @@ import Icon from '../AppIcon';
 import Button from './Button';
 import { useLocation2 } from '../../contexts/LocationContext';
 import { useCustomer } from '../../contexts/CustomerContext';
+import { useAuth } from '../../contexts/AuthContext';
+import api from '../../lib/api';
 
 const CAFE_DETAILS = {
   'timperley-altrincham': {
@@ -46,7 +48,8 @@ const Header = ({ cartCount = 0, user: userProp = null, onCartClick, onAccountCl
   const location = useLocation();
   const navigate = useNavigate();
   const { selectedLocation, setSelectedLocation, locations, selectedCafeLocation, setSelectedCafeLocation } = useLocation2();
-  const { customer, logout: customerLogout } = useCustomer();
+  const { customer, logout: customerLogout, token: customerToken } = useCustomer();
+  const { signIn: adminSignIn, checkAuth: adminCheckAuth } = useAuth();
   const customerIsStaff = customer?.role === 'staff' || customer?.role === 'admin' || customer?.role === 'super_admin';
 
   // Use customer context as the source of truth for logged-in state
@@ -112,6 +115,24 @@ const Header = ({ cartCount = 0, user: userProp = null, onCartClick, onAccountCl
     if (onLogout) onLogout();
     setIsUserDropdownOpen(false);
     setIsMobileMenuOpen(false);
+  };
+
+  const handleAdminPanelClick = async () => {
+    setIsUserDropdownOpen(false);
+    setIsMobileMenuOpen(false);
+    try {
+      const token = customerToken || localStorage.getItem('customer_token');
+      if (!token) { navigate('/admin-login'); return; }
+      const data = await api.customerElevateToAdmin(token);
+      if (data.access_token) {
+        localStorage.setItem('access_token', data.access_token);
+        if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
+        // Full page navigation ensures AuthContext initializes fresh with the new token
+        window.location.href = '/admin';
+      }
+    } catch {
+      navigate('/admin-login');
+    }
   };
 
   // Select a cafe location: update global location, store selection, close dropdown immediately
@@ -333,7 +354,7 @@ const Header = ({ cartCount = 0, user: userProp = null, onCartClick, onAccountCl
                       {customerIsStaff && (
                         <button
                           data-testid="admin-panel-link"
-                          onClick={() => { navigate('/admin'); setIsUserDropdownOpen(false); }}
+                          onClick={handleAdminPanelClick}
                           className="w-full flex items-center space-x-3 px-4 py-2 text-sm font-body text-foreground hover:bg-muted transition-colors duration-200"
                         >
                           <Icon name="Settings" size={16} />
@@ -520,7 +541,7 @@ const Header = ({ cartCount = 0, user: userProp = null, onCartClick, onAccountCl
                   {customerIsStaff && (
                     <button
                       data-testid="mobile-admin-panel-link"
-                      onClick={() => { navigate('/admin'); setIsMobileMenuOpen(false); }}
+                      onClick={handleAdminPanelClick}
                       className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-body font-medium text-foreground hover:text-primary hover:bg-muted transition-all duration-200"
                     >
                       <Icon name="Settings" size={20} />

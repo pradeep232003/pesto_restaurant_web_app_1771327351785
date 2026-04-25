@@ -96,3 +96,82 @@ async def refresh_token(request: Request, response: Response):
     user_data = serialize_user(user)
     user_data["access_token"] = access_token
     return user_data
+
+
+@router.post("/customer-elevate")
+async def customer_elevate(request: Request, response: Response):
+    """Elevate a customer token to admin access if they have staff/admin role"""
+    import jwt as pyjwt
+    from auth import JWT_SECRET, JWT_ALGORITHM
+    from db import customers_collection
+
+    # Get customer token
+    token = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+    if not token:
+        try:
+            body = await request.json()
+            token = body.get("customer_token")
+        except Exception:
+            pass
+    if not token:
+        raise HTTPException(status_code=401, detail="No customer token")
+
+    try:
+        payload = pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except pyjwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except pyjwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    if payload.get("type") != "customer_access":
+        raise HTTPException(status_code=401, detail="Not a customer token")
+
+    customer = customers_collection.find_one({"id": payload["sub"]})
+    if not customer:
+        raise HTTPException(status_code=401, detail="Customer not found")
+
+    role = customer.get("role", "customer")
+    if role not in ("staff", "admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    # Ensure user exists in users_collection for admin panel
+    existing_user = users_collection.find_one({"email": customer["email"]})
+    if not existing_user:
+        from datetime import datetime, timezone
+        users_collection.insert_one({
+            "email": customer["email"],
+            "password_hash": hash_password(str(__import__('uuid').uuid4())[:8]),
+            "name": customer.get("name", ""),
+            "role": role,
+            "created_at": datetime.now(timezone.utc),
+            "promoted_from_customer": True,
+        })
+        existing_user = users_collection.find_one({"email": customer["email"]})
+    else:
+        # Sync role
+        if existing_user.get("role") != role:
+            users_collection.update_one({"email": customer["email"]}, {"$set": {"role": role}})
+            existing_user["role"] = role
+
+    user_id = str(existing_user["_id"])
+    access_token = create_access_token(user_id, customer["email"], role)
+    refresh_token = create_refresh_token(user_id)
+
+    response.set_cookie(
+        key="access_token", value=access_token,
+        httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60, path="/",
+    )
+    response.set_cookie(
+        key="refresh_token", value=refresh_token,
+        httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE,
+        max_age=60 * 60 * 24 * 7, path="/",
+    )
+
+    user_data = serialize_user(existing_user)
+    user_data["access_token"] = access_token
+    user_data["refresh_token"] = refresh_token
+    return user_data
