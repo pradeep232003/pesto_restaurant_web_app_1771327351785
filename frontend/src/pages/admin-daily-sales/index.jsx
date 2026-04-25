@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DollarSign, Calendar, Clock, Plus, Trash2, ChevronDown, Filter } from 'lucide-react';
+import { DollarSign, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, FileText, Share2, X } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -14,6 +14,8 @@ const AdminDailySales = () => {
   const [staffNames, setStaffNames] = useState([]);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [showSummary, setShowSummary] = useState(false);
+  const summaryRef = useRef(null);
 
   const [selectedLocation, setSelectedLocation] = useState('');
   const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]);
@@ -82,9 +84,39 @@ const AdminDailySales = () => {
         staff_hours: staffHours.filter(sh => sh.name),
       });
       setSuccessMsg('Sales data saved successfully!');
+      setShowSummary(true);
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) { alert('Failed to save: ' + err.message); }
     finally { setSaving(false); }
+  };
+
+  const getLocationName = (locId) => locations.find(l => l.id === locId)?.name || locId;
+
+  const formatDate = (dateStr) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const buildWhatsAppText = () => {
+    const loc = getLocationName(selectedLocation);
+    const date = formatDate(entryDate);
+    const validStaff = staffHours.filter(sh => sh.name);
+    let msg = `*Jolly's Kafe — Daily Sales*\n`;
+    msg += `${loc}\n${date}\n\n`;
+    msg += `*Sales:* \u00A3${(parseFloat(sales) || 0).toFixed(2)}\n`;
+    msg += `*Float:* \u00A3${(parseFloat(floatAmount) || 0).toFixed(2)}\n`;
+    msg += `*Cash Taken:* \u00A3${(parseFloat(cashTaken) || 0).toFixed(2)}\n`;
+    msg += `*Cash Taken By:* ${cashTakenBy}\n`;
+    if (validStaff.length > 0) {
+      msg += `\n*Staff Hours:*\n`;
+      validStaff.forEach(sh => { msg += `  ${sh.name}: ${sh.start_time} — ${sh.end_time}\n`; });
+    }
+    return msg;
+  };
+
+  const shareWhatsApp = () => {
+    const text = encodeURIComponent(buildWhatsAppText());
+    window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
   const addStaffRow = () => setStaffHours([...staffHours, { name: '', start_time: '', end_time: '' }]);
@@ -114,8 +146,6 @@ const AdminDailySales = () => {
       setHistory(prev => prev.filter(e => e.id !== entryId));
     } catch (err) { alert('Failed to delete: ' + err.message); }
   };
-
-  const getLocationName = (locId) => locations.find(l => l.id === locId)?.name || locId;
 
   if (authLoading) {
     return <div className="flex items-center justify-center h-64"><div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" /></div>;
@@ -171,8 +201,17 @@ const AdminDailySales = () => {
       {activeTab === 'entry' && (
         <form onSubmit={handleSubmit} className="space-y-4">
           {successMsg && (
-            <div data-testid="success-message" className="p-3 rounded-xl text-sm font-medium" style={{ background: 'rgba(52,199,89,0.1)', color: '#34C759', ...font }}>
-              {successMsg}
+            <div data-testid="success-message" className="p-3 rounded-xl text-sm font-medium flex items-center justify-between gap-3" style={{ background: 'rgba(52,199,89,0.1)', color: '#34C759', ...font }}>
+              <span>{successMsg}</span>
+              <button
+                data-testid="view-summary-btn"
+                type="button"
+                onClick={() => setShowSummary(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-all active:scale-95"
+                style={{ background: '#1D1D1F', color: '#FFFFFF' }}
+              >
+                <FileText size={13} /> Summary
+              </button>
             </div>
           )}
 
@@ -287,16 +326,29 @@ const AdminDailySales = () => {
             </datalist>
           </div>
 
-          {/* Submit — always full width on mobile for easy tap */}
-          <button
-            data-testid="save-sales-btn"
-            type="submit"
-            disabled={saving || !selectedLocation}
-            className="w-full py-3.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 active:scale-[0.98]"
-            style={{ background: '#1D1D1F', color: '#FFFFFF', ...font }}
-          >
-            {saving ? 'Saving...' : 'Save Sales Data'}
-          </button>
+          {/* Submit + Summary buttons */}
+          <div className="flex gap-3">
+            <button
+              data-testid="save-sales-btn"
+              type="submit"
+              disabled={saving || !selectedLocation}
+              className="flex-1 py-3.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 active:scale-[0.98]"
+              style={{ background: '#1D1D1F', color: '#FFFFFF', ...font }}
+            >
+              {saving ? 'Saving...' : 'Save Sales Data'}
+            </button>
+            {successMsg && (
+              <button
+                data-testid="print-summary-btn"
+                type="button"
+                onClick={() => setShowSummary(true)}
+                className="px-5 py-3.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] flex items-center gap-2"
+                style={{ background: '#F5F5F7', color: '#1D1D1F', ...font }}
+              >
+                <FileText size={16} /> Print
+              </button>
+            )}
+          </div>
         </form>
       )}
 
@@ -412,6 +464,83 @@ const AdminDailySales = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ========== SUMMARY OVERLAY ========== */}
+      {showSummary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
+          <div ref={summaryRef} className="w-full max-w-sm rounded-2xl overflow-hidden" style={{ background: '#FFFFFF', maxHeight: '90vh', overflowY: 'auto' }}>
+            {/* Summary Header */}
+            <div className="px-5 pt-6 pb-4 text-center" style={{ background: '#1D1D1F' }}>
+              <p className="text-[11px] font-medium uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)', ...font }}>Daily Sales Report</p>
+              <h2 className="text-lg font-semibold text-white" style={font}>{getLocationName(selectedLocation)}</h2>
+              <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.6)', ...font }}>{formatDate(entryDate)}</p>
+            </div>
+
+            {/* Sales Figures */}
+            <div className="px-5 py-5">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: '#86868B' }}>Total Sales</p>
+                  <p className="text-xl font-bold mt-0.5" style={{ color: '#1D1D1F', ...font }}>{'\u00A3'}{(parseFloat(sales) || 0).toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: '#86868B' }}>Float</p>
+                  <p className="text-xl font-bold mt-0.5" style={{ color: '#1D1D1F', ...font }}>{'\u00A3'}{(parseFloat(floatAmount) || 0).toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: '#86868B' }}>Cash Taken</p>
+                  <p className="text-xl font-bold mt-0.5" style={{ color: '#1D1D1F', ...font }}>{'\u00A3'}{(parseFloat(cashTaken) || 0).toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: '#86868B' }}>Cash Taken By</p>
+                  <p className="text-xl font-bold mt-0.5" style={{ color: '#1D1D1F', ...font }}>{cashTakenBy || '\u2014'}</p>
+                </div>
+              </div>
+
+              {/* Staff Hours */}
+              {staffHours.filter(sh => sh.name).length > 0 && (
+                <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+                  <p className="text-[11px] uppercase tracking-wider font-medium mb-3" style={{ color: '#86868B' }}>Staff Hours</p>
+                  <div className="space-y-2">
+                    {staffHours.filter(sh => sh.name).map((sh, i) => (
+                      <div key={i} className="flex items-center justify-between px-3 py-2.5 rounded-xl" style={{ background: '#F5F5F7' }}>
+                        <span className="text-sm font-semibold" style={{ color: '#1D1D1F', ...font }}>{sh.name}</span>
+                        <span className="text-xs font-medium" style={{ color: '#86868B', ...font }}>{sh.start_time} — {sh.end_time}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Submitted by */}
+              <div className="mt-4 pt-3 text-center" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+                <p className="text-[11px]" style={{ color: '#C7C7CC' }}>Submitted by {user?.email}</p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="px-5 pb-5 space-y-2.5">
+              <button
+                data-testid="share-whatsapp-btn"
+                onClick={shareWhatsApp}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98]"
+                style={{ background: '#25D366', color: '#FFFFFF', ...font }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                Share via WhatsApp
+              </button>
+              <button
+                data-testid="close-summary-btn"
+                onClick={() => setShowSummary(false)}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all active:scale-[0.98]"
+                style={{ background: '#F5F5F7', color: '#1D1D1F', ...font }}
+              >
+                <X size={16} /> Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
