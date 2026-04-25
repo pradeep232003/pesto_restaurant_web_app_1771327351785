@@ -106,7 +106,9 @@ export const AuthProvider = ({ children }) => {
     refreshSession,
     checkAuth,
     isAuthenticated: !!user && user !== false,
-    isAdmin: user?.role === 'admin',
+    isAdmin: user?.role === 'admin' || user?.role === 'super_admin',
+    isSuperAdmin: user?.role === 'super_admin',
+    isStaff: user?.role === 'staff' || user?.role === 'admin' || user?.role === 'super_admin',
   };
 
   return (

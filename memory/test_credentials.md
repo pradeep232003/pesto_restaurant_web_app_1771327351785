@@ -1,9 +1,9 @@
 # Test Credentials
 
-## Admin Account
+## Super Admin Account
 - Email: admin@jollys.com
 - Password: Admin123!
-- Role: admin
+- Role: super_admin
 
 ## Auth Endpoints
 - POST /api/auth/login

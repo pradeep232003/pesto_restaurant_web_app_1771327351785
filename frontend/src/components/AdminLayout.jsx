@@ -1,21 +1,29 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, UtensilsCrossed, ClipboardList, Settings, Wallet, Receipt, LogOut, Menu, X, ChefHat, User } from 'lucide-react';
+import { LayoutDashboard, UtensilsCrossed, ClipboardList, Settings, Wallet, Receipt, LogOut, Menu, X, ChefHat, User, Users, DollarSign } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
-const NAV_ITEMS = [
-  { path: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { path: '/admin/menu', label: 'Menu', icon: UtensilsCrossed },
-  { path: '/admin/orders', label: 'Orders', icon: ClipboardList },
-  { path: '/admin/site-settings', label: 'Locations', icon: Settings },
-  { path: '/admin/residents', label: 'Wallets', icon: Wallet },
-  { path: '/admin/transactions', label: 'Reports', icon: Receipt },
-];
+const getNavItems = (role) => {
+  const items = [
+    { path: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+    { path: '/admin/menu', label: 'Menu', icon: UtensilsCrossed },
+    { path: '/admin/orders', label: 'Orders', icon: ClipboardList },
+    { path: '/admin/site-settings', label: 'Locations', icon: Settings },
+    { path: '/admin/residents', label: 'Wallets', icon: Wallet },
+    { path: '/admin/transactions', label: 'Reports', icon: Receipt },
+    { path: '/admin/daily-sales', label: 'Daily Sales', icon: DollarSign },
+  ];
+  if (role === 'super_admin') {
+    items.push({ path: '/admin/users', label: 'Users', icon: Users });
+  }
+  return items;
+};
 
 const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const NAV_ITEMS = getNavItems(user?.role);
 
   const handleLogout = async () => {
     await signOut();

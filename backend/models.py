@@ -175,3 +175,26 @@ class ContactMessage(BaseModel):
 
     class Config:
         extra = "allow"
+
+
+# ============== USER ROLE MODEL ==============
+
+class UserRoleUpdate(BaseModel):
+    role: str  # customer, staff, admin
+
+
+# ============== DAILY SALES MODELS ==============
+
+class StaffHoursEntry(BaseModel):
+    name: str
+    start_time: str
+    end_time: str
+
+class DailySalesCreate(BaseModel):
+    location_id: str
+    date: str  # YYYY-MM-DD
+    sales: float
+    float_amount: float
+    cash_taken: float
+    cash_taken_by: str
+    staff_hours: List[StaffHoursEntry] = []

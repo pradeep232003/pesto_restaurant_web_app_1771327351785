@@ -405,6 +405,55 @@ class ApiService {
       method: 'DELETE',
     });
   }
+
+  // ============== USER MANAGEMENT (SUPER ADMIN) ==============
+
+  async adminGetCustomers() {
+    return this.fetch('/api/admin/users');
+  }
+
+  async adminUpdateCustomerRole(customerId, role) {
+    return this.fetch(`/api/admin/users/${customerId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    });
+  }
+
+  async adminGetStaffList() {
+    return this.fetch('/api/admin/users/staff-list');
+  }
+
+  // ============== DAILY SALES ==============
+
+  async adminCreateDailySales(data) {
+    return this.fetch('/api/admin/daily-sales', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async adminGetDailySales(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.location_id) params.append('location_id', filters.location_id);
+    if (filters.start_date) params.append('start_date', filters.start_date);
+    if (filters.end_date) params.append('end_date', filters.end_date);
+    const qs = params.toString();
+    return this.fetch(`/api/admin/daily-sales${qs ? `?${qs}` : ''}`);
+  }
+
+  async adminGetTodaySales(locationId) {
+    return this.fetch(`/api/admin/daily-sales/today/${locationId}`);
+  }
+
+  async adminGetStaffNames() {
+    return this.fetch('/api/admin/daily-sales/staff-names');
+  }
+
+  async adminDeleteDailySales(entryId) {
+    return this.fetch(`/api/admin/daily-sales/${entryId}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export const api = new ApiService();

@@ -89,10 +89,26 @@ async def get_current_user(request: Request) -> dict:
     return user
 
 async def get_admin_user(request: Request) -> dict:
-    """Get current user and verify they are admin"""
+    """Get current user and verify they are admin or super_admin"""
     user = await get_current_user(request)
-    if user.get("role") != "admin":
+    if user.get("role") not in ("admin", "super_admin"):
         raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
+async def get_staff_or_above(request: Request) -> dict:
+    """Get current user and verify they are staff, admin, or super_admin"""
+    user = await get_current_user(request)
+    if user.get("role") not in ("staff", "admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Staff access required")
+    return user
+
+
+async def get_super_admin(request: Request) -> dict:
+    """Get current user and verify they are super_admin"""
+    user = await get_current_user(request)
+    if user.get("role") != "super_admin":
+        raise HTTPException(status_code=403, detail="Super admin access required")
     return user
 
 

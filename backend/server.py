@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from db import (
     db, locations_collection, menu_items_collection, users_collection,
     customers_collection, orders_collection, site_settings_collection,
-    login_attempts_collection,
+    login_attempts_collection, daily_sales_collection,
 )
 from auth import hash_password, verify_password
 
@@ -76,6 +76,8 @@ from routes.customers import router as customers_router
 from routes.orders import router as orders_router
 from routes.settings import router as settings_router
 from routes.contact import router as contact_router
+from routes.users import router as users_router
+from routes.sales import router as sales_router
 
 app.include_router(auth_router)
 app.include_router(locations_router)
@@ -85,6 +87,8 @@ app.include_router(customers_router)
 app.include_router(orders_router)
 app.include_router(settings_router)
 app.include_router(contact_router)
+app.include_router(users_router)
+app.include_router(sales_router)
 
 # ============== PUBLIC ENDPOINTS ==============
 
@@ -109,6 +113,7 @@ async def startup_event():
     orders_collection.create_index("customer_id")
     orders_collection.create_index("location_id")
     site_settings_collection.create_index("location_id", unique=True)
+    daily_sales_collection.create_index([("location_id", 1), ("date", 1)], unique=True)
 
     if locations_collection.count_documents({}) == 0:
         seed_data()
@@ -246,24 +251,27 @@ def seed_admin():
             "email": admin_email,
             "password_hash": hashed,
             "name": "Admin",
-            "role": "admin",
+            "role": "super_admin",
             "created_at": datetime.now(timezone.utc),
         })
-        print(f"Admin user created: {admin_email}")
-    elif not verify_password(admin_password, existing["password_hash"]):
-        users_collection.update_one(
-            {"email": admin_email},
-            {"$set": {"password_hash": hash_password(admin_password)}},
-        )
-        print(f"Admin password updated: {admin_email}")
+        print(f"Super admin user created: {admin_email}")
+    else:
+        updates = {}
+        if not verify_password(admin_password, existing["password_hash"]):
+            updates["password_hash"] = hash_password(admin_password)
+        if existing.get("role") != "super_admin":
+            updates["role"] = "super_admin"
+        if updates:
+            users_collection.update_one({"email": admin_email}, {"$set": updates})
+            print(f"Admin updated to super_admin: {admin_email}")
 
     os.makedirs("/app/memory", exist_ok=True)
     with open("/app/memory/test_credentials.md", "w") as f:
         f.write("# Test Credentials\n\n")
-        f.write("## Admin Account\n")
+        f.write("## Super Admin Account\n")
         f.write(f"- Email: {admin_email}\n")
         f.write(f"- Password: {admin_password}\n")
-        f.write("- Role: admin\n\n")
+        f.write("- Role: super_admin\n\n")
         f.write("## Auth Endpoints\n")
         f.write("- POST /api/auth/login\n")
         f.write("- POST /api/auth/logout\n")
