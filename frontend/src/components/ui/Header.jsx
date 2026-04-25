@@ -38,7 +38,7 @@ const CAFE_DETAILS = {
   },
 };
 
-const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLogout, onSearch, onMenuClick }) => {
+const Header = ({ cartCount = 0, user: userProp = null, onCartClick, onAccountClick, onLogout, onSearch, onMenuClick }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
@@ -46,8 +46,11 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
   const location = useLocation();
   const navigate = useNavigate();
   const { selectedLocation, setSelectedLocation, locations, selectedCafeLocation, setSelectedCafeLocation } = useLocation2();
-  const { customer } = useCustomer();
+  const { customer, logout: customerLogout } = useCustomer();
   const customerIsStaff = customer?.role === 'staff' || customer?.role === 'admin' || customer?.role === 'super_admin';
+
+  // Use customer context as the source of truth for logged-in state
+  const user = customer ? { name: customer.name, email: customer.email, avatar: customer.avatar } : userProp;
 
   const RESERVATION_LOCATIONS = ['oakmere-handforth', 'willowmere-middlewich'];
   const isHomePage = location?.pathname === '/home-landing' || location?.pathname === '/';
@@ -105,9 +108,8 @@ const Header = ({ cartCount = 0, user = null, onCartClick, onAccountClick, onLog
   };
 
   const handleLogoutClick = () => {
-    if (onLogout) {
-      onLogout();
-    }
+    if (customer) customerLogout();
+    if (onLogout) onLogout();
     setIsUserDropdownOpen(false);
     setIsMobileMenuOpen(false);
   };
