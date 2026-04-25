@@ -63,11 +63,12 @@ async def list_daily_sales(
 
 
 @router.get("/today/{location_id}")
-async def get_today_sales(location_id: str, user: dict = Depends(get_staff_or_above)):
-    """Get today's sales entry for a location (staff can view today's to edit)"""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+async def get_sales_by_date(location_id: str, date: str = None, user: dict = Depends(get_staff_or_above)):
+    """Get sales entry for a location on a specific date (defaults to today)"""
+    if not date:
+        date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     entry = daily_sales_collection.find_one(
-        {"location_id": location_id, "date": today},
+        {"location_id": location_id, "date": date},
         {"_id": 0},
     )
     return entry
@@ -81,10 +82,10 @@ async def get_staff_names(user: dict = Depends(get_staff_or_above)):
         {"role": {"$in": ["staff", "admin"]}},
         {"_id": 0, "name": 1},
     ))
-    # Get from users collection
+    # Get from users collection (staff, admin, super_admin only)
     from db import users_collection
     admin_users = list(users_collection.find(
-        {},
+        {"role": {"$in": ["staff", "admin", "super_admin"]}},
         {"_id": 0, "name": 1},
     ))
     names = set()

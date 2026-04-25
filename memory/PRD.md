@@ -10,27 +10,32 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - **Auth**: Cookie-based JWT + localStorage Bearer token fallback + Custom Google OAuth (popup flow) + Email OTP verification
 - **Email**: Gmail SMTP (smtplib) for contact/newsletter
 - **SEO**: Dynamic SSR simulation via backend meta tag injection + auto-generated sitemap
+- **Roles**: super_admin > admin > staff > customer
 
-### Backend Structure (Modularized Mar 2026)
+### Backend Structure (Modularized)
 ```
 /app/backend/
-├── server.py          (App init, CORS, routers, startup seed, SEO catch-all frontend serve)
-├── seo.py             (Sitemap generator, meta tag injector, JSON-LD builder)
+├── server.py          (App init, CORS, routers, startup seed, SEO catch-all)
+├── seo.py             (Sitemap generator, meta tag injector, JSON-LD)
 ├── db.py              (MongoDB connection & collections)
 ├── models.py          (All Pydantic models)
-├── auth.py            (JWT, password, brute force, auth dependencies)
+├── auth.py            (JWT, password, brute force, role-based auth deps)
 ├── helpers.py         (serialize_doc, serialize_user)
 ├── routes/
-│   ├── auth.py        (/api/auth/login, logout, me, refresh)
+│   ├── auth.py        (/api/auth/*)
 │   ├── locations.py   (/api/locations + /api/reviews + /api/admin/locations)
 │   ├── menu.py        (/api/menu-items + /api/admin/menu-items + /api/images)
 │   ├── residents.py   (/api/admin/residents + transactions + balance-summary)
 │   ├── customers.py   (/api/customer/* + Google OAuth)
 │   ├── orders.py      (/api/orders + /api/site-status + /api/admin/orders)
 │   ├── settings.py    (/api/admin/site-settings)
-│   └── contact.py     (/api/contact + /api/subscribe)
+│   ├── contact.py     (/api/contact + /api/subscribe)
+│   ├── users.py       (/api/admin/users - user management)
+│   ├── sales.py       (/api/admin/daily-sales - daily sales data)
+│   └── seo.py         (Sitemap & meta tag utilities)
 ├── tests/
-│   └── test_seo.py    (53 SEO unit tests)
+│   ├── test_seo.py
+│   └── test_users_and_sales.py
 ```
 
 ## Implemented Features
@@ -54,51 +59,37 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 ### Dynamic Locations & Wallet Toggle (Mar 2026)
 - Location CRUD from admin panel, wallet_enabled toggle per location
 
-### Mobile Responsiveness (Mar 2026)
-- All admin pages optimized for 375px+
-
 ### Apple-Inspired Redesign (Mar 2026)
 - Outfit font, monochrome palette, cinematic hero, bento grid, glass-morphism
-- Homepage, Menu Catalog, Shopping Cart, Table Reservation, Order Status, Contact Us
 
-### Customer Auth + Google OAuth + Email Verification (Mar 2026)
-- Apple-designed auth page with custom popup-based Google OAuth
-- Registration requires email OTP verification
-
-### Mobile Admin Auth Fix (Mar 2026)
-- Dual-auth: cookies + localStorage Bearer tokens for cross-origin mobile
+### Customer Auth + Google OAuth (Mar 2026)
+- Custom popup-based Google OAuth flow
+- Registration with email OTP verification
 
 ### Google Reviews Integration (Mar 2026)
 - Admin: Google Place ID + API Key per location
-- /api/reviews fetches from Google Places API with 6h cache, 4+ stars only
-- Home page dynamic carousel, hidden when no reviews configured
+- Dynamic carousel on homepage
 
 ### Backend Modularization (Mar 2026)
-- Refactored ~2000-line server.py into modular /routes/ structure
-- Zero functional changes, all 27 backend + all frontend tests passed
+- Refactored server.py into modular /routes/ structure
 
-### Timperley Menu Migration (Apr 2026)
-- Parsed Zettle POS export (157 raw items) into 106 categorized menu items
-
-### JK Locations Page (Apr 2026)
-- Jolly's Kafe logo added to /jklocations page
-- All 5 locations displayed with Apple-inspired card design
+### Timperley & Cheshire Menu Migration (Apr 2026)
+- 106 categorized Timperley items, 48 Cheshire items per location
 
 ### Gmail SMTP Integration (Apr 2026)
-- Contact Us form and Newsletter subscription via Gmail SMTP (replaced Resend)
-
-### Custom Google OAuth (Apr 2026)
-- Replaced @react-oauth/google with custom popup-based flow
-- Avoids production crashes from missing build-time env vars
+- Contact Us form and Newsletter via Gmail SMTP
 
 ### SEO Optimization (Apr 2026) - VERIFIED
-- Dynamic SSR simulation: backend injects route-specific <title>, <meta description>, OG tags, Twitter cards, canonical URLs, and JSON-LD schema into index.html before serving
-- Auto-generated /sitemap.xml with 11 URLs (6 core + 5 locations)
-- Location-specific landing pages: /handforth, /middlewich, /timperley, /atherton, /chaddesden
-- Each location page has CafeOrCoffeeShop JSON-LD with address, opening hours
-- robots.txt references sitemap
-- 301 redirects: .html extensions, non-www to www domain
-- 53 backend tests + 3 frontend redirect tests — ALL PASSED
+- Dynamic SSR meta tag injection per route
+- Auto-generated /sitemap.xml (11 URLs)
+- Location landing pages with JSON-LD schema
+- 53 backend + 3 frontend tests passed
+
+### User Management & Daily Sales (Apr 2026) - VERIFIED
+- **User Management** (`/admin/users`): Super admin can view all 28+ registered customers, search by name/email/phone, change roles (customer/staff/admin). Stats cards show totals. Role promotion creates admin panel access.
+- **Daily Sales** (`/admin/daily-sales`): Entry tab with location picker, date, sales fields (Sales, Float, Cash Taken, Cash Taken By), and dynamic Staff Hours rows (name with autocomplete, start/end times). History tab (admin/super_admin only) with location + date range filters, expandable entries showing all details, delete capability.
+- **Role hierarchy**: super_admin sees Users nav item; admin sees History tab; staff sees Entry tab only.
+- Backend: 15/15 tests passed. Frontend: save flow, history, role changes all verified.
 
 ## Prioritized Backlog
 
@@ -110,5 +101,5 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - Bulk resident import/export
 
 ### P3 (Low)
-- Multiple admin users with roles
+- Multiple admin users with roles (DONE - role system implemented)
 - Loyalty rewards program

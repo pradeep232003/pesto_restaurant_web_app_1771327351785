@@ -441,8 +441,11 @@ class ApiService {
     return this.fetch(`/api/admin/daily-sales${qs ? `?${qs}` : ''}`);
   }
 
-  async adminGetTodaySales(locationId) {
-    return this.fetch(`/api/admin/daily-sales/today/${locationId}`);
+  async adminGetTodaySales(locationId, date) {
+    const params = new URLSearchParams();
+    if (date) params.append('date', date);
+    const qs = params.toString();
+    return this.fetch(`/api/admin/daily-sales/today/${locationId}${qs ? `?${qs}` : ''}`);
   }
 
   async adminGetStaffNames() {

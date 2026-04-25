@@ -8,6 +8,7 @@ const ROLE_CONFIG = {
   customer: { label: 'Customer', color: '#86868B', bg: 'rgba(142,142,147,0.1)' },
   staff: { label: 'Staff', color: '#007AFF', bg: 'rgba(0,122,255,0.1)' },
   admin: { label: 'Admin', color: '#AF52DE', bg: 'rgba(175,82,222,0.1)' },
+  super_admin: { label: 'Super Admin', color: '#FF9500', bg: 'rgba(255,149,0,0.1)' },
 };
 
 const AdminUsers = () => {

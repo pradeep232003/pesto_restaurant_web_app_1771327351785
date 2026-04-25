@@ -41,7 +41,7 @@ const AdminDailySales = () => {
   }, []);
 
   useEffect(() => {
-    if (selectedLocation && entryDate) loadTodayEntry();
+    if (selectedLocation && entryDate) loadExistingEntry();
   }, [selectedLocation, entryDate]);
 
   const fetchStaffNames = async () => {
@@ -51,10 +51,11 @@ const AdminDailySales = () => {
     } catch { /* ignore */ }
   };
 
-  const loadTodayEntry = async () => {
-    if (!selectedLocation) return;
+  const loadExistingEntry = async () => {
+    if (!selectedLocation || !entryDate) return;
+    setLoading(true);
     try {
-      const entry = await api.adminGetTodaySales(selectedLocation);
+      const entry = await api.adminGetTodaySales(selectedLocation, entryDate);
       if (entry) {
         setSales(entry.sales?.toString() || '');
         setFloatAmount(entry.float_amount?.toString() || '');
@@ -66,6 +67,8 @@ const AdminDailySales = () => {
       }
     } catch {
       resetForm(false);
+    } finally {
+      setLoading(false);
     }
   };
 
