@@ -24,6 +24,7 @@ import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
 import CustomerAuth from './pages/customer-auth';
 import GoogleAuthCallback from './pages/customer-auth/GoogleAuthCallback';
+import GoogleAccessTokenCallback from './pages/customer-auth/GoogleAccessTokenCallback';
 import OrderStatus from './pages/order-status';
 import ContactUs from './pages/contact-us';
 import JKLocations from './pages/jk-locations';
@@ -40,9 +41,14 @@ const AdminRoute = ({ children }) => (
 const AppRouter = () => {
   const location = useLocation();
 
-  // Check URL fragment synchronously for session_id (Google OAuth callback)
+  // Check URL fragment synchronously for session_id (Google OAuth callback - legacy)
   if (location.hash?.includes('session_id=')) {
     return <GoogleAuthCallback />;
+  }
+
+  // Handle Google OAuth access_token redirect (mobile - popup becomes redirect)
+  if (location.hash?.includes('access_token=')) {
+    return <GoogleAccessTokenCallback />;
   }
 
   return (
