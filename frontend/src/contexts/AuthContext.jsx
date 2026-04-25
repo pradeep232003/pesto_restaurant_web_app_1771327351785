@@ -15,8 +15,13 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null); // null = checking, false = not authenticated, object = authenticated
   const [loading, setLoading] = useState(true);
 
-  // Check session on mount
+  // Check session on mount — skip during Google OAuth callback to prevent flash
   useEffect(() => {
+    const hash = window.location.hash || '';
+    if (hash.includes('access_token=') || hash.includes('session_id=')) {
+      setLoading(false);
+      return;
+    }
     checkAuth();
   }, []);
 

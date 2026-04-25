@@ -21,6 +21,10 @@ const GoogleAccessTokenCallback = () => {
       return;
     }
 
+    // Clear any stale admin tokens to prevent admin-login flash
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+
     (async () => {
       try {
         const data = await api.customerGoogleLogin(accessToken);

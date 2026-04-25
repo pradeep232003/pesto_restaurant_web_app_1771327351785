@@ -21,6 +21,10 @@ const GoogleAuthCallback = () => {
 
     const sessionId = match[1];
 
+    // Clear stale admin tokens to prevent flash
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+
     (async () => {
       try {
         const data = await api.customerGoogleSession(sessionId);

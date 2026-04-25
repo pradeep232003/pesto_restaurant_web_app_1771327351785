@@ -261,6 +261,9 @@ const CustomerAuth = () => {
                   onSuccess={async (tokenResponse) => {
                     setLoading(true);
                     setError('');
+                    // Clear stale admin tokens
+                    localStorage.removeItem('access_token');
+                    localStorage.removeItem('refresh_token');
                     try {
                       const data = await api.customerGoogleLogin(tokenResponse.access_token);
                       if (data.token) {
