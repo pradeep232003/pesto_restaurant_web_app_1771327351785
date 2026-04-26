@@ -475,7 +475,20 @@ const AdminDailySales = () => {
               <p className="text-sm" style={{ color: '#86868B', ...font }}>No sales data found. Adjust filters and try again.</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <>
+              {/* Totals */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="p-3.5 rounded-2xl" style={{ background: '#FFFFFF' }}>
+                  <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: '#86868B' }}>Total Sales</p>
+                  <p className="text-lg font-bold mt-0.5" style={{ color: '#1D1D1F', ...font }}>{'\u00A3'}{history.reduce((sum, e) => sum + (e.sales || 0), 0).toFixed(2)}</p>
+                </div>
+                <div className="p-3.5 rounded-2xl" style={{ background: '#FFFFFF' }}>
+                  <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: '#86868B' }}>Total Cash</p>
+                  <p className="text-lg font-bold mt-0.5" style={{ color: '#1D1D1F', ...font }}>{'\u00A3'}{history.reduce((sum, e) => sum + (e.cash_taken || 0), 0).toFixed(2)}</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
               {history.map(entry => (
                 <div key={entry.id} data-testid={`history-entry-${entry.id}`} className="rounded-2xl overflow-hidden" style={{ background: '#FFFFFF' }}>
                   <button onClick={() => setExpandedEntry(expandedEntry === entry.id ? null : entry.id)}
@@ -617,6 +630,7 @@ const AdminDailySales = () => {
                 </div>
               ))}
             </div>
+            </>
           )}
         </div>
       )}
