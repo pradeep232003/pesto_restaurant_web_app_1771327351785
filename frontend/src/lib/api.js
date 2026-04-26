@@ -492,6 +492,10 @@ class ApiService {
     return this.fetch(`/api/admin/finance/income/${id}`, { method: 'DELETE' });
   }
 
+  async adminUpdateIncome(id, data) {
+    return this.fetch(`/api/admin/finance/income/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
   async adminCreateExpense(data) {
     return this.fetch('/api/admin/finance/expenses', { method: 'POST', body: JSON.stringify(data) });
   }
@@ -507,6 +511,19 @@ class ApiService {
 
   async adminDeleteExpense(id) {
     return this.fetch(`/api/admin/finance/expenses/${id}`, { method: 'DELETE' });
+  }
+
+  async adminUpdateExpense(id, data) {
+    return this.fetch(`/api/admin/finance/expenses/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async adminGetEditLog(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.record_type) params.append('record_type', filters.record_type);
+    if (filters.start_date) params.append('start_date', filters.start_date);
+    if (filters.end_date) params.append('end_date', filters.end_date);
+    const qs = params.toString();
+    return this.fetch(`/api/admin/finance/edit-log${qs ? `?${qs}` : ''}`);
   }
 }
 

@@ -22,6 +22,7 @@ import AdminDailySales from './pages/admin-daily-sales';
 import AdminSalesSummary from './pages/admin-sales-summary';
 import AdminIncome from './pages/admin-income';
 import AdminExpenses from './pages/admin-expenses';
+import AdminEditLog from './pages/admin-edit-log';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -94,6 +95,7 @@ const AppRouter = () => {
       <Route path="/admin/sales-summary" element={<AdminRoute><AdminSalesSummary /></AdminRoute>} />
       <Route path="/admin/income" element={<AdminRoute><AdminIncome /></AdminRoute>} />
       <Route path="/admin/expenses" element={<AdminRoute><AdminExpenses /></AdminRoute>} />
+      <Route path="/admin/edit-log" element={<AdminRoute><AdminEditLog /></AdminRoute>} />
 
       {/* Legacy admin routes - redirect to new paths */}
       <Route path="/admin-menu" element={<AdminRoute><AdminMenuManagement /></AdminRoute>} />

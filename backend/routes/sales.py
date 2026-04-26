@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from datetime import datetime, timezone
-from db import daily_sales_collection, customers_collection
+from db import daily_sales_collection, customers_collection, edit_log_collection
 from auth import get_staff_or_above, get_admin_user
 from models import DailySalesCreate
 import uuid
@@ -8,9 +8,31 @@ import uuid
 router = APIRouter(prefix="/api/admin/daily-sales", tags=["daily-sales"])
 
 
+def _log_edit(action, record_id, user, before, after=None):
+    edit_log_collection.insert_one({
+        "id": str(uuid.uuid4())[:12],
+        "action": action,
+        "record_type": "daily_sales",
+        "record_id": record_id,
+        "edited_by": user.get("email", ""),
+        "edited_by_name": user.get("name", ""),
+        "role": user.get("role", ""),
+        "before": before,
+        "after": after,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+
+
 @router.post("")
 async def create_or_update_daily_sales(body: DailySalesCreate, user: dict = Depends(get_staff_or_above)):
     """Create or update daily sales entry (staff, admin, super_admin)"""
+    role = user.get("role", "")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # Staff can only enter/edit today's data
+    if role == "staff" and body.date != today:
+        raise HTTPException(status_code=403, detail="Staff can only enter data for today")
+
     existing = daily_sales_collection.find_one({
         "location_id": body.location_id,
         "date": body.date,
@@ -28,17 +50,25 @@ async def create_or_update_daily_sales(body: DailySalesCreate, user: dict = Depe
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
+    after_log = {"sales": body.sales, "float_amount": body.float_amount,
+                 "cash_taken": body.cash_taken, "date": body.date, "location_id": body.location_id}
+
     if existing:
+        before_log = {"sales": existing.get("sales"), "float_amount": existing.get("float_amount"),
+                      "cash_taken": existing.get("cash_taken"), "date": existing.get("date"),
+                      "location_id": existing.get("location_id")}
         daily_sales_collection.update_one(
             {"id": existing["id"]},
             {"$set": doc},
         )
+        _log_edit("update", existing["id"], user, before_log, after_log)
         return {"message": "Daily sales updated", "id": existing["id"]}
     else:
         doc["id"] = str(uuid.uuid4())[:12]
         doc["created_by"] = user.get("email", "")
         doc["created_at"] = datetime.now(timezone.utc).isoformat()
         daily_sales_collection.insert_one(doc)
+        _log_edit("create", doc["id"], user, None, after_log)
         return {"message": "Daily sales created", "id": doc["id"]}
 
 
