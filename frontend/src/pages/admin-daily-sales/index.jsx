@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DollarSign, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, FileText, Share2, X, LogOut } from 'lucide-react';
+import { DollarSign, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, FileText, Share2, X, LogOut, Pencil, Check } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCustomer } from '../../contexts/CustomerContext';
@@ -34,6 +34,9 @@ const AdminDailySales = () => {
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
   const [expandedEntry, setExpandedEntry] = useState(null);
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [editStaffHours, setEditStaffHours] = useState([]);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !isStaff)) navigate('/admin-login');
@@ -155,6 +158,40 @@ const AdminDailySales = () => {
       await api.adminDeleteDailySales(entryId);
       setHistory(prev => prev.filter(e => e.id !== entryId));
     } catch (err) { alert('Failed to delete: ' + err.message); }
+  };
+
+  const startEditStaffHours = (entry) => {
+    setEditingEntry(entry.id);
+    setEditStaffHours(entry.staff_hours?.length > 0 ? entry.staff_hours.map(sh => ({ ...sh })) : [{ name: '', start_time: '', end_time: '' }]);
+  };
+
+  const cancelEdit = () => { setEditingEntry(null); setEditStaffHours([]); };
+
+  const updateEditRow = (i, field, val) => {
+    const updated = [...editStaffHours];
+    updated[i] = { ...updated[i], [field]: val };
+    setEditStaffHours(updated);
+  };
+
+  const addEditRow = () => setEditStaffHours([...editStaffHours, { name: '', start_time: '', end_time: '' }]);
+  const removeEditRow = (i) => setEditStaffHours(editStaffHours.filter((_, idx) => idx !== i));
+
+  const saveEditStaffHours = async (entry) => {
+    setSavingEdit(true);
+    try {
+      await api.adminCreateDailySales({
+        location_id: entry.location_id,
+        date: entry.date,
+        sales: entry.sales,
+        float_amount: entry.float_amount,
+        cash_taken: entry.cash_taken,
+        cash_taken_by: entry.cash_taken_by,
+        staff_hours: editStaffHours.filter(sh => sh.name),
+      });
+      setHistory(prev => prev.map(e => e.id === entry.id ? { ...e, staff_hours: editStaffHours.filter(sh => sh.name) } : e));
+      setEditingEntry(null);
+    } catch (err) { alert('Failed to save: ' + err.message); }
+    finally { setSavingEdit(false); }
   };
 
   if (authLoading) {
@@ -477,17 +514,91 @@ const AdminDailySales = () => {
                         </div>
                       </div>
 
-                      {entry.staff_hours?.length > 0 && (
+                      {(entry.staff_hours?.length > 0 || editingEntry === entry.id) && (
                         <div className="mt-1">
-                          <p className="text-[11px] font-medium mb-2" style={{ color: '#86868B' }}>Staff Hours</p>
-                          <div className="space-y-1.5">
-                            {entry.staff_hours.map((sh, i) => (
-                              <div key={i} className="flex items-center justify-between px-3 py-2.5 rounded-lg" style={{ background: '#F5F5F7' }}>
-                                <span className="text-sm font-medium" style={{ color: '#1D1D1F', ...font }}>{sh.name}</span>
-                                <span className="text-xs" style={{ color: '#86868B' }}>{sh.start_time} — {sh.end_time}</span>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-[11px] font-medium" style={{ color: '#86868B' }}>Staff Hours</p>
+                            {editingEntry !== entry.id ? (
+                              <button
+                                data-testid={`edit-staff-${entry.id}`}
+                                onClick={() => startEditStaffHours(entry)}
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium active:scale-95 transition-all"
+                                style={{ color: '#007AFF', background: 'rgba(0,122,255,0.06)' }}
+                              >
+                                <Pencil size={11} /> Edit
+                              </button>
+                            ) : (
+                              <div className="flex gap-1.5">
+                                <button
+                                  data-testid={`add-edit-row-${entry.id}`}
+                                  type="button"
+                                  onClick={addEditRow}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium active:scale-95 transition-all"
+                                  style={{ color: '#1D1D1F', background: '#F5F5F7' }}
+                                >
+                                  <Plus size={11} /> Add
+                                </button>
+                                <button
+                                  data-testid={`cancel-edit-${entry.id}`}
+                                  onClick={cancelEdit}
+                                  className="px-2 py-1 rounded-lg text-[11px] font-medium active:scale-95 transition-all"
+                                  style={{ color: '#86868B', background: '#F5F5F7' }}
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  data-testid={`save-edit-${entry.id}`}
+                                  onClick={() => saveEditStaffHours(entry)}
+                                  disabled={savingEdit}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium active:scale-95 transition-all disabled:opacity-50"
+                                  style={{ color: '#FFFFFF', background: '#34C759' }}
+                                >
+                                  <Check size={11} /> {savingEdit ? '...' : 'Save'}
+                                </button>
                               </div>
-                            ))}
+                            )}
                           </div>
+
+                          {editingEntry !== entry.id ? (
+                            <div className="space-y-1.5">
+                              {entry.staff_hours.map((sh, i) => (
+                                <div key={i} className="flex items-center justify-between px-3 py-2.5 rounded-lg" style={{ background: '#F5F5F7' }}>
+                                  <span className="text-sm font-medium" style={{ color: '#1D1D1F', ...font }}>{sh.name}</span>
+                                  <span className="text-xs" style={{ color: '#86868B' }}>{sh.start_time} — {sh.end_time}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {editStaffHours.map((sh, i) => (
+                                <div key={i} className="p-2.5 rounded-xl" style={{ background: '#F9F9FB', border: '1px solid rgba(0,0,0,0.04)' }}>
+                                  <input
+                                    type="text"
+                                    placeholder="Staff name"
+                                    value={sh.name}
+                                    onChange={e => updateEditRow(i, 'name', e.target.value)}
+                                    className="w-full px-2.5 py-2 rounded-lg text-sm border-0 outline-none mb-1.5"
+                                    style={{ background: '#FFFFFF', color: '#1D1D1F', ...font, boxShadow: '0 0 0 1px rgba(0,0,0,0.06)' }}
+                                  />
+                                  <div className="flex gap-1.5 items-center">
+                                    <input type="time" value={sh.start_time} onChange={e => updateEditRow(i, 'start_time', e.target.value)}
+                                      className="flex-1 px-2.5 py-2 rounded-lg text-sm border-0 outline-none min-w-0"
+                                      style={{ background: '#FFFFFF', color: '#1D1D1F', ...font, boxShadow: '0 0 0 1px rgba(0,0,0,0.06)' }} />
+                                    <span className="text-xs" style={{ color: '#86868B' }}>to</span>
+                                    <input type="time" value={sh.end_time} onChange={e => updateEditRow(i, 'end_time', e.target.value)}
+                                      className="flex-1 px-2.5 py-2 rounded-lg text-sm border-0 outline-none min-w-0"
+                                      style={{ background: '#FFFFFF', color: '#1D1D1F', ...font, boxShadow: '0 0 0 1px rgba(0,0,0,0.06)' }} />
+                                    {editStaffHours.length > 1 && (
+                                      <button type="button" onClick={() => removeEditRow(i)} className="p-2 rounded-lg shrink-0 active:scale-95"
+                                        style={{ color: '#FF3B30', background: 'rgba(255,59,48,0.06)' }}>
+                                        <Trash2 size={13} />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
 
