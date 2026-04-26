@@ -198,3 +198,20 @@ class DailySalesCreate(BaseModel):
     cash_taken: float
     cash_taken_by: str
     staff_hours: List[StaffHoursEntry] = []
+
+
+
+# ============== INCOME & EXPENSE MODELS ==============
+
+class IncomeCreate(BaseModel):
+    amount: float
+    description: str
+    date: str  # YYYY-MM-DD
+    location_id: str
+
+class ExpenseCreate(BaseModel):
+    amount: float
+    description: str
+    category: str
+    date: str  # YYYY-MM-DD
+    location_id: str

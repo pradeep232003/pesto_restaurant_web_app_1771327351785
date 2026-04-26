@@ -472,6 +472,42 @@ class ApiService {
     const qs = params.toString();
     return this.fetch(`/api/admin/daily-sales/summary${qs ? `?${qs}` : ''}`);
   }
+
+  // ============== INCOME & EXPENSES ==============
+
+  async adminCreateIncome(data) {
+    return this.fetch('/api/admin/finance/income', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async adminGetIncome(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.location_id) params.append('location_id', filters.location_id);
+    if (filters.start_date) params.append('start_date', filters.start_date);
+    if (filters.end_date) params.append('end_date', filters.end_date);
+    const qs = params.toString();
+    return this.fetch(`/api/admin/finance/income${qs ? `?${qs}` : ''}`);
+  }
+
+  async adminDeleteIncome(id) {
+    return this.fetch(`/api/admin/finance/income/${id}`, { method: 'DELETE' });
+  }
+
+  async adminCreateExpense(data) {
+    return this.fetch('/api/admin/finance/expenses', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async adminGetExpenses(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.location_id) params.append('location_id', filters.location_id);
+    if (filters.start_date) params.append('start_date', filters.start_date);
+    if (filters.end_date) params.append('end_date', filters.end_date);
+    const qs = params.toString();
+    return this.fetch(`/api/admin/finance/expenses${qs ? `?${qs}` : ''}`);
+  }
+
+  async adminDeleteExpense(id) {
+    return this.fetch(`/api/admin/finance/expenses/${id}`, { method: 'DELETE' });
+  }
 }
 
 export const api = new ApiService();
