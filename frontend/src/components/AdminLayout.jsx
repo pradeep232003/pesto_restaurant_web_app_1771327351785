@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, UtensilsCrossed, ClipboardList, Settings, Wallet, Receipt, LogOut, Menu, X, ChefHat, User, Users, DollarSign, BarChart3, TrendingUp, TrendingDown, FileText } from 'lucide-react';
+import { LayoutDashboard, UtensilsCrossed, ClipboardList, Settings, Wallet, Receipt, LogOut, Menu, X, ChefHat, User, Users, DollarSign, BarChart3, TrendingUp, TrendingDown, FileText, ScanLine, Gift } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCustomer } from '../contexts/CustomerContext';
 
@@ -17,6 +17,8 @@ const getNavItems = (role) => {
     { path: '/admin/income', label: 'Income', icon: TrendingUp },
     { path: '/admin/expenses', label: 'Expenses', icon: TrendingDown },
     { path: '/admin/edit-log', label: 'Edit Log', icon: FileText },
+    { path: '/admin/loyalty-scanner', label: 'Scan QR', icon: ScanLine },
+    { path: '/admin/loyalty', label: 'Loyalty', icon: Gift },
   ];
   if (role === 'super_admin') {
     items.push({ path: '/admin/users', label: 'Users', icon: Users });

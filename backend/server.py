@@ -79,6 +79,7 @@ from routes.contact import router as contact_router
 from routes.users import router as users_router
 from routes.sales import router as sales_router
 from routes.finance import router as finance_router
+from routes.loyalty import router as loyalty_router
 
 app.include_router(auth_router)
 app.include_router(locations_router)
@@ -91,6 +92,7 @@ app.include_router(contact_router)
 app.include_router(users_router)
 app.include_router(sales_router)
 app.include_router(finance_router)
+app.include_router(loyalty_router)
 
 # ============== PUBLIC ENDPOINTS ==============
 

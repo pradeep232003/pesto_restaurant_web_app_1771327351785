@@ -353,6 +353,13 @@ const Header = ({ cartCount = 0, user: userProp = null, onCartClick, onAccountCl
                         <Icon name="Calendar" size={16} />
                         <span>My Reservations</span>
                       </button>
+                      <button
+                        onClick={() => { navigate('/loyalty-card'); setIsUserDropdownOpen(false); }}
+                        className="w-full flex items-center space-x-3 px-4 py-2 text-sm font-body text-foreground hover:bg-muted transition-colors duration-200"
+                      >
+                        <Icon name="CreditCard" size={16} />
+                        <span>Loyalty Card</span>
+                      </button>
                       {customerIsStaff && (
                         <button
                           data-testid="admin-panel-link"
@@ -539,6 +546,13 @@ const Header = ({ cartCount = 0, user: userProp = null, onCartClick, onAccountCl
                   >
                     <Icon name="Calendar" size={20} />
                     <span>My Reservations</span>
+                  </button>
+                  <button
+                    onClick={() => { navigate('/loyalty-card'); setIsMobileMenuOpen(false); }}
+                    className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left font-body font-medium text-foreground hover:text-primary hover:bg-muted transition-all duration-200"
+                  >
+                    <Icon name="CreditCard" size={20} />
+                    <span>Loyalty Card</span>
                   </button>
                   {customerIsStaff && (
                     <button

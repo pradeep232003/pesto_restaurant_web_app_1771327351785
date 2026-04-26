@@ -525,6 +525,24 @@ class ApiService {
     const qs = params.toString();
     return this.fetch(`/api/admin/finance/edit-log${qs ? `?${qs}` : ''}`);
   }
+
+  // ============== LOYALTY ==============
+
+  async getMyLoyaltyCard() {
+    return this.fetch('/api/customer/loyalty-card');
+  }
+
+  async adminLoyaltyScan(data) {
+    return this.fetch('/api/admin/loyalty/scan', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async adminGetLoyaltyCustomers() {
+    return this.fetch('/api/admin/loyalty/customers');
+  }
+
+  async adminGetLoyaltyDetail(customerId) {
+    return this.fetch(`/api/admin/loyalty/customer/${customerId}`);
+  }
 }
 
 export const api = new ApiService();

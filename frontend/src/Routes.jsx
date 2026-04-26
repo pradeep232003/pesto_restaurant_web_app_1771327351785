@@ -23,6 +23,9 @@ import AdminSalesSummary from './pages/admin-sales-summary';
 import AdminIncome from './pages/admin-income';
 import AdminExpenses from './pages/admin-expenses';
 import AdminEditLog from './pages/admin-edit-log';
+import AdminLoyaltyScanner from './pages/admin-loyalty-scanner';
+import AdminLoyalty from './pages/admin-loyalty';
+import LoyaltyCard from './pages/loyalty-card';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -96,6 +99,11 @@ const AppRouter = () => {
       <Route path="/admin/income" element={<AdminRoute><AdminIncome /></AdminRoute>} />
       <Route path="/admin/expenses" element={<AdminRoute><AdminExpenses /></AdminRoute>} />
       <Route path="/admin/edit-log" element={<AdminRoute><AdminEditLog /></AdminRoute>} />
+      <Route path="/admin/loyalty-scanner" element={<AdminRoute><AdminLoyaltyScanner /></AdminRoute>} />
+      <Route path="/admin/loyalty" element={<AdminRoute><AdminLoyalty /></AdminRoute>} />
+
+      {/* Customer loyalty card */}
+      <Route path="/loyalty-card" element={<LoyaltyCard />} />
 
       {/* Legacy admin routes - redirect to new paths */}
       <Route path="/admin-menu" element={<AdminRoute><AdminMenuManagement /></AdminRoute>} />
