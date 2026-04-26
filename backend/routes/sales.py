@@ -105,3 +105,71 @@ async def delete_daily_sales(entry_id: str, user: dict = Depends(get_admin_user)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Entry not found")
     return {"message": "Entry deleted"}
+
+
+@router.get("/summary")
+async def sales_summary(
+    start_date: str = Query(None),
+    end_date: str = Query(None),
+    user: dict = Depends(get_admin_user),
+):
+    """Get sales summary with totals by location and staff hours (admin/super_admin)"""
+    query = {}
+    if start_date:
+        query.setdefault("date", {})["$gte"] = start_date
+    if end_date:
+        query.setdefault("date", {})["$lte"] = end_date
+
+    entries = list(daily_sales_collection.find(query, {"_id": 0}))
+
+    total_sales = 0
+    total_cash = 0
+    by_location = {}
+    staff_hours_map = {}
+
+    for e in entries:
+        s = e.get("sales", 0) or 0
+        c = e.get("cash_taken", 0) or 0
+        total_sales += s
+        total_cash += c
+
+        loc = e.get("location_id", "unknown")
+        if loc not in by_location:
+            by_location[loc] = {"sales": 0, "cash": 0, "days": 0}
+        by_location[loc]["sales"] += s
+        by_location[loc]["cash"] += c
+        by_location[loc]["days"] += 1
+
+        for sh in e.get("staff_hours", []):
+            name = sh.get("name", "").strip()
+            if not name:
+                continue
+            start = sh.get("start_time", "")
+            end = sh.get("end_time", "")
+            hrs = 0
+            if start and end:
+                try:
+                    st = datetime.strptime(start, "%H:%M")
+                    et = datetime.strptime(end, "%H:%M")
+                    diff = (et - st).total_seconds() / 3600
+                    if diff > 0:
+                        hrs = round(diff, 2)
+                except ValueError:
+                    pass
+            if name not in staff_hours_map:
+                staff_hours_map[name] = {"total_hours": 0, "shifts": 0}
+            staff_hours_map[name]["total_hours"] = round(staff_hours_map[name]["total_hours"] + hrs, 2)
+            staff_hours_map[name]["shifts"] += 1
+
+    staff_hours_list = sorted(
+        [{"name": k, "total_hours": v["total_hours"], "shifts": v["shifts"]} for k, v in staff_hours_map.items()],
+        key=lambda x: x["total_hours"], reverse=True,
+    )
+
+    return {
+        "total_sales": round(total_sales, 2),
+        "total_cash": round(total_cash, 2),
+        "total_entries": len(entries),
+        "by_location": by_location,
+        "staff_hours": staff_hours_list,
+    }

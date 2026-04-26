@@ -19,6 +19,7 @@ import AdminOrders from './pages/admin-orders';
 import AdminSiteSettings from './pages/admin-site-settings';
 import AdminUsers from './pages/admin-users';
 import AdminDailySales from './pages/admin-daily-sales';
+import AdminSalesSummary from './pages/admin-sales-summary';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -88,6 +89,7 @@ const AppRouter = () => {
       <Route path="/admin/transactions" element={<AdminRoute><TransactionReport /></AdminRoute>} />
       <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
       <Route path="/admin/daily-sales" element={<AdminRoute><AdminDailySales /></AdminRoute>} />
+      <Route path="/admin/sales-summary" element={<AdminRoute><AdminSalesSummary /></AdminRoute>} />
 
       {/* Legacy admin routes - redirect to new paths */}
       <Route path="/admin-menu" element={<AdminRoute><AdminMenuManagement /></AdminRoute>} />
