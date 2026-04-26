@@ -26,6 +26,7 @@ const AdminDailySales = () => {
   const [cashTaken, setCashTaken] = useState('');
   const [cashTakenBy, setCashTakenBy] = useState('');
   const [staffHours, setStaffHours] = useState([{ name: '', start_time: '', end_time: '' }]);
+  const [openNameDropdown, setOpenNameDropdown] = useState(null);
 
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -308,19 +309,44 @@ const AdminDailySales = () => {
             <div className="space-y-3">
               {staffHours.map((sh, i) => (
                 <div key={i} className="p-3 rounded-xl" style={{ background: '#F9F9FB', border: '1px solid rgba(0,0,0,0.04)' }}>
-                  {/* Name — full width */}
-                  <div className="mb-2">
+                  {/* Name — combo input with suggestions */}
+                  <div className="mb-2 relative">
                     <label className="block text-[11px] font-medium mb-1" style={{ color: '#86868B' }}>Staff Name</label>
                     <input
                       data-testid={`staff-name-${i}`}
-                      list="staff-names-list"
                       type="text"
+                      autoComplete="off"
                       placeholder="Select or type name"
                       value={sh.name}
                       onChange={e => updateStaffRow(i, 'name', e.target.value)}
+                      onFocus={() => setOpenNameDropdown(i)}
+                      onBlur={() => setTimeout(() => setOpenNameDropdown(null), 150)}
                       className={inputBase}
                       style={{ ...inputStyle, background: '#FFFFFF' }}
                     />
+                    {openNameDropdown === i && staffNames.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-1 rounded-xl overflow-hidden z-10" style={{ background: '#FFFFFF', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', maxHeight: '160px', overflowY: 'auto' }}>
+                        {staffNames
+                          .filter(n => !sh.name || n.toLowerCase().includes(sh.name.toLowerCase()))
+                          .map(n => (
+                          <button
+                            key={n}
+                            type="button"
+                            onMouseDown={e => { e.preventDefault(); updateStaffRow(i, 'name', n); setOpenNameDropdown(null); }}
+                            className="w-full text-left px-3 py-2.5 text-sm transition-colors"
+                            style={{ color: '#1D1D1F', ...font, borderBottom: '1px solid rgba(0,0,0,0.04)' }}
+                            onTouchStart={e => { e.preventDefault(); updateStaffRow(i, 'name', n); setOpenNameDropdown(null); }}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                        {sh.name && !staffNames.some(n => n.toLowerCase() === sh.name.toLowerCase()) && (
+                          <div className="px-3 py-2 text-xs" style={{ color: '#86868B', ...font }}>
+                            New: "{sh.name}"
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {/* Time row — side by side even on mobile */}
                   <div className="flex gap-2 items-end">
@@ -341,9 +367,6 @@ const AdminDailySales = () => {
                 </div>
               ))}
             </div>
-            <datalist id="staff-names-list">
-              {staffNames.map(n => <option key={n} value={n} />)}
-            </datalist>
           </div>
 
           {/* Submit + Summary buttons */}
