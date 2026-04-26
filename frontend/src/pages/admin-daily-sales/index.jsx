@@ -37,6 +37,7 @@ const AdminDailySales = () => {
   const [editingEntry, setEditingEntry] = useState(null);
   const [editStaffHours, setEditStaffHours] = useState([]);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [totalExpenses, setTotalExpenses] = useState(0);
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !isStaff)) navigate('/admin-login');
@@ -143,11 +144,20 @@ const AdminDailySales = () => {
   const fetchHistory = async () => {
     setHistoryLoading(true);
     try {
-      setHistory(await api.adminGetDailySales({
-        location_id: filterLocation || undefined,
-        start_date: filterStartDate || undefined,
-        end_date: filterEndDate || undefined,
-      }));
+      const [salesData, expData] = await Promise.all([
+        api.adminGetDailySales({
+          location_id: filterLocation || undefined,
+          start_date: filterStartDate || undefined,
+          end_date: filterEndDate || undefined,
+        }),
+        api.adminGetExpenses({
+          location_id: filterLocation || undefined,
+          start_date: filterStartDate || undefined,
+          end_date: filterEndDate || undefined,
+        }),
+      ]);
+      setHistory(salesData);
+      setTotalExpenses(expData.total || 0);
     } catch (err) { alert('Failed to load history: ' + err.message); }
     finally { setHistoryLoading(false); }
   };
@@ -477,16 +487,28 @@ const AdminDailySales = () => {
           ) : (
             <>
               {/* Totals */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="p-3.5 rounded-2xl" style={{ background: '#FFFFFF' }}>
-                  <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: '#86868B' }}>Total Sales</p>
-                  <p className="text-lg font-bold mt-0.5" style={{ color: '#1D1D1F', ...font }}>{'\u00A3'}{history.reduce((sum, e) => sum + (e.sales || 0), 0).toFixed(2)}</p>
-                </div>
-                <div className="p-3.5 rounded-2xl" style={{ background: '#FFFFFF' }}>
-                  <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: '#86868B' }}>Total Cash</p>
-                  <p className="text-lg font-bold mt-0.5" style={{ color: '#1D1D1F', ...font }}>{'\u00A3'}{history.reduce((sum, e) => sum + (e.cash_taken || 0), 0).toFixed(2)}</p>
-                </div>
-              </div>
+              {(() => {
+                const totalSales = history.reduce((sum, e) => sum + (e.sales || 0), 0);
+                const totalCash = history.reduce((sum, e) => sum + (e.cash_taken || 0), 0);
+                const actualCash = totalCash - totalExpenses;
+                return (
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div className="p-3.5 rounded-2xl" style={{ background: '#FFFFFF' }}>
+                      <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: '#86868B' }}>Total Sales</p>
+                      <p className="text-lg font-bold mt-0.5" style={{ color: '#1D1D1F', ...font }}>{'\u00A3'}{totalSales.toFixed(2)}</p>
+                    </div>
+                    <div className="p-3.5 rounded-2xl" style={{ background: '#FFFFFF' }}>
+                      <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: '#86868B' }}>Total Cash</p>
+                      <p className="text-lg font-bold mt-0.5" style={{ color: '#1D1D1F', ...font }}>{'\u00A3'}{totalCash.toFixed(2)}</p>
+                    </div>
+                    <div className="p-3.5 rounded-2xl" style={{ background: '#FFFFFF' }}>
+                      <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: '#86868B' }}>Actual Cash</p>
+                      <p className="text-lg font-bold mt-0.5" style={{ color: actualCash >= 0 ? '#34C759' : '#FF3B30', ...font }}>{'\u00A3'}{actualCash.toFixed(2)}</p>
+                      <p className="text-[9px] mt-0.5" style={{ color: '#C7C7CC' }}>Cash - Expenses</p>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="space-y-3">
               {history.map(entry => (
