@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, MapPin, Clock, Filter, PoundSterling } from 'lucide-react';
+import { BarChart3, MapPin, Clock, Filter, PoundSterling, ChevronDown } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -11,6 +11,7 @@ const AdminSalesSummary = () => {
   const { locations } = useLocation2();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
+  const [expandedStaff, setExpandedStaff] = useState(null);
 
   // Default to current month
   const now = new Date();
@@ -149,20 +150,48 @@ const AdminSalesSummary = () => {
             {data.staff_hours.length === 0 ? (
               <p className="text-sm py-4 text-center" style={{ color: '#86868B' }}>No staff hours recorded</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {data.staff_hours.map((s, i) => {
                   const maxHrs = data.staff_hours[0]?.total_hours || 1;
                   const pct = (s.total_hours / maxHrs) * 100;
+                  const isOpen = expandedStaff === s.name;
                   return (
-                    <div key={s.name} data-testid={`staff-row-${i}`} className="flex items-center gap-3">
-                      <p className="text-sm font-medium w-24 sm:w-32 truncate shrink-0" style={{ color: '#1D1D1F', ...font }}>{s.name}</p>
-                      <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: '#F5F5F7' }}>
-                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: '#007AFF' }} />
-                      </div>
-                      <div className="text-right shrink-0 w-20">
-                        <p className="text-sm font-semibold" style={{ color: '#1D1D1F', ...font }}>{s.total_hours}h</p>
-                        <p className="text-[10px]" style={{ color: '#86868B' }}>{s.shifts} shift{s.shifts !== 1 ? 's' : ''}</p>
-                      </div>
+                    <div key={s.name} data-testid={`staff-row-${i}`}>
+                      <button
+                        onClick={() => setExpandedStaff(isOpen ? null : s.name)}
+                        className="w-full flex items-center gap-3 py-2.5 px-1 rounded-lg transition-colors active:bg-gray-50"
+                      >
+                        <p className="text-sm font-medium w-24 sm:w-32 truncate shrink-0 text-left" style={{ color: '#1D1D1F', ...font }}>{s.name}</p>
+                        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: '#F5F5F7' }}>
+                          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: '#007AFF' }} />
+                        </div>
+                        <div className="text-right shrink-0 w-16">
+                          <p className="text-sm font-semibold" style={{ color: '#1D1D1F', ...font }}>{s.total_hours}h</p>
+                          <p className="text-[10px]" style={{ color: '#86868B' }}>{s.shifts} shift{s.shifts !== 1 ? 's' : ''}</p>
+                        </div>
+                        <ChevronDown size={14} className="shrink-0" style={{ color: '#86868B', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                      </button>
+
+                      {isOpen && s.daily?.length > 0 && (
+                        <div className="ml-1 mr-1 mb-2 mt-1 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,0,0,0.04)' }}>
+                          {/* Header */}
+                          <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-3 py-2" style={{ background: '#F5F5F7' }}>
+                            <span className="text-[11px] font-medium" style={{ color: '#86868B' }}>Date / Location</span>
+                            <span className="text-[11px] font-medium text-right w-20" style={{ color: '#86868B' }}>Time</span>
+                            <span className="text-[11px] font-medium text-right w-12" style={{ color: '#86868B' }}>Hrs</span>
+                          </div>
+                          {s.daily.map((d, di) => (
+                            <div key={di} className="grid grid-cols-[1fr_auto_auto] gap-2 px-3 py-2.5 items-center" style={{ borderTop: di > 0 ? '1px solid rgba(0,0,0,0.04)' : 'none', background: '#FFFFFF' }}>
+                              <div className="min-w-0">
+                                <p className="text-xs font-medium" style={{ color: '#1D1D1F', ...font }}>{d.date}</p>
+                                <p className="text-[11px] truncate" style={{ color: '#86868B' }}>{getLocationName(d.location_id)}</p>
+                              </div>
+                              <p className="text-xs text-right w-20" style={{ color: '#3A3A3C', ...font }}>{d.start_time} – {d.end_time}</p>
+                              <p className="text-xs font-semibold text-right w-12" style={{ color: '#1D1D1F', ...font }}>{d.hours}h</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

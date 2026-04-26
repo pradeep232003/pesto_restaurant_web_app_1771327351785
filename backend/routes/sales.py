@@ -157,12 +157,21 @@ async def sales_summary(
                 except ValueError:
                     pass
             if name not in staff_hours_map:
-                staff_hours_map[name] = {"total_hours": 0, "shifts": 0}
+                staff_hours_map[name] = {"total_hours": 0, "shifts": 0, "daily": []}
             staff_hours_map[name]["total_hours"] = round(staff_hours_map[name]["total_hours"] + hrs, 2)
             staff_hours_map[name]["shifts"] += 1
+            staff_hours_map[name]["daily"].append({
+                "date": e.get("date", ""),
+                "location_id": loc,
+                "start_time": start,
+                "end_time": end,
+                "hours": hrs,
+            })
 
     staff_hours_list = sorted(
-        [{"name": k, "total_hours": v["total_hours"], "shifts": v["shifts"]} for k, v in staff_hours_map.items()],
+        [{"name": k, "total_hours": v["total_hours"], "shifts": v["shifts"],
+          "daily": sorted(v["daily"], key=lambda x: x["date"], reverse=True)}
+         for k, v in staff_hours_map.items()],
         key=lambda x: x["total_hours"], reverse=True,
     )
 
