@@ -28,6 +28,9 @@ const AdminExpenses = () => {
   const [filterLocation, setFilterLocation] = useState('');
   const [filterStart, setFilterStart] = useState(firstOfMonth);
   const [filterEnd, setFilterEnd] = useState(today);
+  const [filterCreatedBy, setFilterCreatedBy] = useState('');
+  const [creators, setCreators] = useState([]);
+  const [totalIncome, setTotalIncome] = useState(0);
 
   const [editingId, setEditingId] = useState(null);
   const [editAmount, setEditAmount] = useState('');
@@ -47,8 +50,14 @@ const AdminExpenses = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const d = await api.adminGetExpenses({ location_id: filterLocation || undefined, start_date: filterStart || undefined, end_date: filterEnd || undefined });
+      const dateFilters = { start_date: filterStart || undefined, end_date: filterEnd || undefined };
+      const [d, incD] = await Promise.all([
+        api.adminGetExpenses({ location_id: filterLocation || undefined, created_by: filterCreatedBy || undefined, ...dateFilters }),
+        api.adminGetIncome(dateFilters),
+      ]);
       setEntries(d.entries); setTotal(d.total);
+      if (d.creators) setCreators(d.creators);
+      setTotalIncome(incD.total || 0);
     } catch {} finally { setLoading(false); }
   };
 
@@ -132,6 +141,11 @@ const AdminExpenses = () => {
             <option value="">All Locations</option>
             {locations.filter(l => l.is_active).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select></div>
+        <div className="sm:w-auto"><label className="block text-xs font-medium mb-1" style={{ color: '#86868B', ...font }}>Added By</label>
+          <select value={filterCreatedBy} onChange={e => setFilterCreatedBy(e.target.value)} className={inputBase} style={{ ...inputStyle, background: '#FFFFFF' }}>
+            <option value="">All</option>
+            {creators.map(c => <option key={c.email} value={c.email}>{c.name || c.email}</option>)}
+          </select></div>
         <div className="grid grid-cols-2 gap-3 sm:contents">
           <div><label className="block text-xs font-medium mb-1" style={{ color: '#86868B', ...font }}>From</label>
             <input type="date" value={filterStart} onChange={e => setFilterStart(e.target.value)} className={inputBase} style={{ ...inputStyle, background: '#FFFFFF' }} /></div>
@@ -141,11 +155,16 @@ const AdminExpenses = () => {
         <button onClick={fetchData} className="w-full sm:w-auto px-4 py-3 sm:py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all" style={{ background: '#1D1D1F', color: '#FFFFFF', ...font }}><Filter size={14} /> Apply</button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="p-3.5 rounded-2xl" style={{ background: '#FFFFFF' }}>
           <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: '#86868B' }}>Total Expenses</p>
           <p className="text-xl font-bold mt-0.5" style={{ color: '#FF3B30', ...font }}>{'\u00A3'}{total.toFixed(2)}</p>
           <p className="text-[11px]" style={{ color: '#86868B' }}>{entries.length} entr{entries.length !== 1 ? 'ies' : 'y'}</p>
+        </div>
+        <div className="p-3.5 rounded-2xl" style={{ background: '#FFFFFF' }}>
+          <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: '#86868B' }}>Actual Balance</p>
+          <p className="text-xl font-bold mt-0.5" style={{ color: (totalIncome - total) >= 0 ? '#34C759' : '#FF3B30', ...font }}>{'\u00A3'}{(totalIncome - total).toFixed(2)}</p>
+          <p className="text-[9px] mt-0.5" style={{ color: '#C7C7CC' }}>Income - Expenses</p>
         </div>
         <div className="p-3.5 rounded-2xl" style={{ background: '#FFFFFF' }}>
           <p className="text-[11px] uppercase tracking-wider font-medium mb-1.5" style={{ color: '#86868B' }}>By Category</p>

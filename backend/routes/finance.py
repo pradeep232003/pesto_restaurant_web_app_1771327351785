@@ -149,6 +149,7 @@ async def list_expenses(
     location_id: str = Query(None),
     start_date: str = Query(None),
     end_date: str = Query(None),
+    created_by: str = Query(None),
     user: dict = Depends(get_admin_user),
 ):
     query = {}
@@ -158,13 +159,20 @@ async def list_expenses(
         query.setdefault("date", {})["$gte"] = start_date
     if end_date:
         query.setdefault("date", {})["$lte"] = end_date
+    if created_by:
+        query["created_by"] = created_by
     entries = list(expenses_collection.find(query, {"_id": 0}).sort("date", -1))
     total = sum(e.get("amount", 0) for e in entries)
     user_email = user.get("email", "")
     user_role = user.get("role", "")
+    creators = list(expenses_collection.distinct("created_by"))
+    creator_names = {}
+    for c in creators:
+        doc = expenses_collection.find_one({"created_by": c}, {"created_by_name": 1, "_id": 0})
+        creator_names[c] = doc.get("created_by_name", c) if doc else c
     for e in entries:
         e["can_modify"] = user_role == "super_admin" or user_email == e.get("created_by", "")
-    return {"entries": entries, "total": round(total, 2)}
+    return {"entries": entries, "total": round(total, 2), "creators": [{"email": k, "name": v} for k, v in creator_names.items()]}
 
 
 @router.put("/expenses/{entry_id}")

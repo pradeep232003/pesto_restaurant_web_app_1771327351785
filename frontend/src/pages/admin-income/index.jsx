@@ -29,6 +29,7 @@ const AdminIncome = () => {
   const [filterEnd, setFilterEnd] = useState(today);
   const [filterCreatedBy, setFilterCreatedBy] = useState('');
   const [creators, setCreators] = useState([]);
+  const [totalExpenses, setTotalExpenses] = useState(0);
 
   const [editingId, setEditingId] = useState(null);
   const [editAmount, setEditAmount] = useState('');
@@ -47,9 +48,14 @@ const AdminIncome = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const d = await api.adminGetIncome({ location_id: filterLocation || undefined, start_date: filterStart || undefined, end_date: filterEnd || undefined, created_by: filterCreatedBy || undefined });
+      const dateFilters = { start_date: filterStart || undefined, end_date: filterEnd || undefined };
+      const [d, expD] = await Promise.all([
+        api.adminGetIncome({ location_id: filterLocation || undefined, created_by: filterCreatedBy || undefined, ...dateFilters }),
+        api.adminGetExpenses(dateFilters),
+      ]);
       setEntries(d.entries); setTotal(d.total);
       if (d.creators) setCreators(d.creators);
+      setTotalExpenses(expD.total || 0);
     } catch {} finally { setLoading(false); }
   };
 
@@ -156,10 +162,17 @@ const AdminIncome = () => {
         <button onClick={fetchData} className="w-full sm:w-auto px-4 py-3 sm:py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all" style={{ background: '#1D1D1F', color: '#FFFFFF', ...font }}><Filter size={14} /> Apply</button>
       </div>
 
-      <div className="p-3.5 rounded-2xl mb-4" style={{ background: '#FFFFFF' }}>
-        <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: '#86868B' }}>Total Income</p>
-        <p className="text-xl font-bold mt-0.5" style={{ color: '#34C759', ...font }}>{'\u00A3'}{total.toFixed(2)}</p>
-        <p className="text-[11px]" style={{ color: '#86868B' }}>{entries.length} entr{entries.length !== 1 ? 'ies' : 'y'}</p>
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="p-3.5 rounded-2xl" style={{ background: '#FFFFFF' }}>
+          <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: '#86868B' }}>Total Income</p>
+          <p className="text-xl font-bold mt-0.5" style={{ color: '#34C759', ...font }}>{'\u00A3'}{total.toFixed(2)}</p>
+          <p className="text-[11px]" style={{ color: '#86868B' }}>{entries.length} entr{entries.length !== 1 ? 'ies' : 'y'}</p>
+        </div>
+        <div className="p-3.5 rounded-2xl" style={{ background: '#FFFFFF' }}>
+          <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: '#86868B' }}>Actual Income</p>
+          <p className="text-xl font-bold mt-0.5" style={{ color: (total - totalExpenses) >= 0 ? '#34C759' : '#FF3B30', ...font }}>{'\u00A3'}{(total - totalExpenses).toFixed(2)}</p>
+          <p className="text-[9px] mt-0.5" style={{ color: '#C7C7CC' }}>Income - Expenses</p>
+        </div>
       </div>
 
       {loading ? (
