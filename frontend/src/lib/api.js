@@ -484,6 +484,7 @@ class ApiService {
     if (filters.location_id) params.append('location_id', filters.location_id);
     if (filters.start_date) params.append('start_date', filters.start_date);
     if (filters.end_date) params.append('end_date', filters.end_date);
+    if (filters.created_by) params.append('created_by', filters.created_by);
     const qs = params.toString();
     return this.fetch(`/api/admin/finance/income${qs ? `?${qs}` : ''}`);
   }

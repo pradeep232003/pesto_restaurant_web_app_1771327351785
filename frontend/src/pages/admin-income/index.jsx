@@ -27,6 +27,8 @@ const AdminIncome = () => {
   const [filterLocation, setFilterLocation] = useState('');
   const [filterStart, setFilterStart] = useState(firstOfMonth);
   const [filterEnd, setFilterEnd] = useState(today);
+  const [filterCreatedBy, setFilterCreatedBy] = useState('');
+  const [creators, setCreators] = useState([]);
 
   const [editingId, setEditingId] = useState(null);
   const [editAmount, setEditAmount] = useState('');
@@ -45,8 +47,9 @@ const AdminIncome = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const d = await api.adminGetIncome({ location_id: filterLocation || undefined, start_date: filterStart || undefined, end_date: filterEnd || undefined });
+      const d = await api.adminGetIncome({ location_id: filterLocation || undefined, start_date: filterStart || undefined, end_date: filterEnd || undefined, created_by: filterCreatedBy || undefined });
       setEntries(d.entries); setTotal(d.total);
+      if (d.creators) setCreators(d.creators);
     } catch {} finally { setLoading(false); }
   };
 
@@ -135,6 +138,13 @@ const AdminIncome = () => {
           <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} className={inputBase} style={{ ...inputStyle, background: '#FFFFFF' }}>
             <option value="">All Locations</option>
             {locations.filter(l => l.is_active).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </div>
+        <div className="sm:w-auto">
+          <label className="block text-xs font-medium mb-1" style={{ color: '#86868B', ...font }}>Added By</label>
+          <select value={filterCreatedBy} onChange={e => setFilterCreatedBy(e.target.value)} className={inputBase} style={{ ...inputStyle, background: '#FFFFFF' }}>
+            <option value="">All</option>
+            {creators.map(c => <option key={c.email} value={c.email}>{c.name || c.email}</option>)}
           </select>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:contents">
