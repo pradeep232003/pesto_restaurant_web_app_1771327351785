@@ -48,15 +48,15 @@ const AdminIncome = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const dateFilters = { start_date: filterStart || undefined, end_date: filterEnd || undefined };
-      const [d, expD] = await Promise.all([
-        api.adminGetIncome({ location_id: filterLocation || undefined, created_by: filterCreatedBy || undefined, ...dateFilters }),
-        api.adminGetExpenses(dateFilters),
-      ]);
+      const d = await api.adminGetIncome({ location_id: filterLocation || undefined, created_by: filterCreatedBy || undefined, start_date: filterStart || undefined, end_date: filterEnd || undefined });
       setEntries(d.entries); setTotal(d.total);
       if (d.creators) setCreators(d.creators);
+    } catch {}
+    try {
+      const expD = await api.adminGetExpenses({ start_date: filterStart || undefined, end_date: filterEnd || undefined });
       setTotalExpenses(expD.total || 0);
-    } catch {} finally { setLoading(false); }
+    } catch {}
+    setLoading(false);
   };
 
   const handleSave = async (e) => {
