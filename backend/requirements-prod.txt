@@ -9,3 +9,4 @@ python-multipart==0.0.22
 pillow==12.1.1
 resend==2.26.0
 httpx==0.28.1
+qrcode==8.2
