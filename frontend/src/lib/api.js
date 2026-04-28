@@ -465,6 +465,10 @@ class ApiService {
     });
   }
 
+  async adminGetSalesCompletion(month) {
+    return this.fetch(`/api/admin/daily-sales/completion?month=${month}`);
+  }
+
   async adminGetSalesSummary(filters = {}) {
     const params = new URLSearchParams();
     if (filters.start_date) params.append('start_date', filters.start_date);

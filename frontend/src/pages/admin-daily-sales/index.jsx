@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DollarSign, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, FileText, Share2, X, LogOut, Pencil, Check } from 'lucide-react';
+import { DollarSign, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, FileText, Share2, X, LogOut, Pencil, Check, Grid3X3 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCustomer } from '../../contexts/CustomerContext';
@@ -39,6 +39,13 @@ const AdminDailySales = () => {
   const [savingEdit, setSavingEdit] = useState(false);
   const [totalExpenses, setTotalExpenses] = useState(0);
 
+  // Completion grid state
+  const now = new Date();
+  const [gridMonth, setGridMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+  const [gridData, setGridData] = useState(null);
+  const [gridLoading, setGridLoading] = useState(false);
+  const [hoveredCell, setHoveredCell] = useState(null);
+
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !isStaff)) navigate('/admin-login');
   }, [authLoading, isAuthenticated, isStaff, navigate]);
@@ -52,6 +59,18 @@ const AdminDailySales = () => {
   useEffect(() => {
     if (activeTab === 'history' && isAdmin) fetchHistory();
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'grid' && isAdmin) fetchGrid();
+  }, [activeTab, gridMonth]);
+
+  const fetchGrid = async () => {
+    setGridLoading(true);
+    try {
+      const d = await api.adminGetSalesCompletion(gridMonth);
+      setGridData(d);
+    } catch {} finally { setGridLoading(false); }
+  };
 
   const fetchStaffNames = async () => {
     try { setStaffNames(await api.adminGetStaffNames()); } catch {}
@@ -261,6 +280,19 @@ const AdminDailySales = () => {
           >
             <Calendar size={14} className="inline mr-1 -mt-0.5" />
             History
+          </button>
+          <button
+            data-testid="tab-grid"
+            onClick={() => setActiveTab('grid')}
+            className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-center"
+            style={{
+              background: activeTab === 'grid' ? '#FFFFFF' : 'transparent',
+              color: activeTab === 'grid' ? '#1D1D1F' : '#86868B', ...font,
+              boxShadow: activeTab === 'grid' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+            }}
+          >
+            <Grid3X3 size={14} className="inline mr-1 -mt-0.5" />
+            Overview
           </button>
         </div>
       )}
@@ -654,6 +686,112 @@ const AdminDailySales = () => {
             </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* ========== COMPLETION GRID TAB ========== */}
+      {activeTab === 'grid' && isAdmin && (
+        <div>
+          {/* Month selector */}
+          <div className="flex items-center gap-3 mb-5">
+            <button onClick={() => {
+              const [y, m] = gridMonth.split('-').map(Number);
+              const d = new Date(y, m - 2, 1);
+              setGridMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+            }} className="px-3 py-2 rounded-xl text-sm font-medium active:scale-95 transition-all" style={{ background: '#F5F5F7', color: '#1D1D1F', ...font }}>
+              &larr;
+            </button>
+            <p className="text-sm font-semibold flex-1 text-center" style={{ color: '#1D1D1F', ...font }}>
+              {new Date(gridMonth + '-01').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
+            </p>
+            <button onClick={() => {
+              const [y, m] = gridMonth.split('-').map(Number);
+              const d = new Date(y, m, 1);
+              setGridMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+            }} className="px-3 py-2 rounded-xl text-sm font-medium active:scale-95 transition-all" style={{ background: '#F5F5F7', color: '#1D1D1F', ...font }}>
+              &rarr;
+            </button>
+          </div>
+
+          {gridLoading ? (
+            <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" /></div>
+          ) : !gridData ? (
+            <div className="text-center py-16 rounded-2xl" style={{ background: '#FFFFFF' }}>
+              <p className="text-sm" style={{ color: '#86868B', ...font }}>No data</p>
+            </div>
+          ) : (() => {
+            const activeLocations = locations.filter(l => l.is_active);
+            const days = Array.from({ length: gridData.days_in_month }, (_, i) => i + 1);
+            const todayStr = new Date().toISOString().split('T')[0];
+            return (
+              <div className="rounded-2xl overflow-hidden" style={{ background: '#FFFFFF' }}>
+                <div className="overflow-x-auto">
+                  <table className="w-full" style={{ minWidth: `${days.length * 32 + 140}px` }}>
+                    <thead>
+                      <tr>
+                        <th className="sticky left-0 z-10 px-3 py-2.5 text-left text-[11px] font-semibold" style={{ background: '#F5F5F7', color: '#86868B', ...font, minWidth: 140 }}>Location</th>
+                        {days.map(d => {
+                          const dateStr = `${gridMonth}-${String(d).padStart(2, '0')}`;
+                          const isToday = dateStr === todayStr;
+                          const dayName = new Date(dateStr).toLocaleDateString('en-GB', { weekday: 'narrow' });
+                          return (
+                            <th key={d} className="px-0.5 py-2 text-center" style={{ background: isToday ? '#E8E8ED' : '#F5F5F7', minWidth: 30 }}>
+                              <span className="text-[9px] block" style={{ color: '#C7C7CC' }}>{dayName}</span>
+                              <span className="text-[11px] font-medium" style={{ color: isToday ? '#1D1D1F' : '#86868B', ...font }}>{d}</span>
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeLocations.map(loc => (
+                        <tr key={loc.id} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+                          <td className="sticky left-0 z-10 px-3 py-2 text-xs font-medium truncate" style={{ background: '#FFFFFF', color: '#1D1D1F', ...font, maxWidth: 140 }}>{loc.name}</td>
+                          {days.map(d => {
+                            const dateStr = `${gridMonth}-${String(d).padStart(2, '0')}`;
+                            const key = `${loc.id}|${dateStr}`;
+                            const cellData = gridData.grid[key];
+                            const isFuture = dateStr > todayStr;
+                            const cellId = `${loc.id}-${d}`;
+                            return (
+                              <td key={d} className="px-0.5 py-2 text-center relative"
+                                onMouseEnter={() => cellData && setHoveredCell(cellId)}
+                                onMouseLeave={() => setHoveredCell(null)}>
+                                {isFuture ? (
+                                  <span className="inline-block w-5 h-5 rounded-md" style={{ background: '#F5F5F7' }} />
+                                ) : cellData ? (
+                                  <span className="inline-block w-5 h-5 rounded-md" style={{ background: '#34C759' }} />
+                                ) : (
+                                  <span className="inline-block w-5 h-5 rounded-md" style={{ background: '#FF3B30', opacity: 0.25 }} />
+                                )}
+                                {hoveredCell === cellId && cellData && (
+                                  <div className="absolute z-20 bottom-full left-1/2 -translate-x-1/2 mb-1 p-2.5 rounded-xl text-left whitespace-nowrap" style={{ background: '#1D1D1F', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: 130 }}>
+                                    <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>{dateStr}</p>
+                                    <p className="text-xs font-bold text-white" style={font}>{'\u00A3'}{cellData.sales?.toFixed(2)}</p>
+                                    <div className="flex gap-3 mt-1">
+                                      <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.6)' }}>Cash: {'\u00A3'}{cellData.cash_taken?.toFixed(2)}</span>
+                                    </div>
+                                    <p className="text-[9px] mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{cellData.updated_by}</p>
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0" style={{ borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #1D1D1F' }} />
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Legend */}
+                <div className="flex items-center gap-4 px-4 py-3" style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+                  <div className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded" style={{ background: '#34C759' }} /><span className="text-[11px]" style={{ color: '#86868B' }}>Submitted</span></div>
+                  <div className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded" style={{ background: '#FF3B30', opacity: 0.25 }} /><span className="text-[11px]" style={{ color: '#86868B' }}>Missing</span></div>
+                  <div className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded" style={{ background: '#F5F5F7' }} /><span className="text-[11px]" style={{ color: '#86868B' }}>Future</span></div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

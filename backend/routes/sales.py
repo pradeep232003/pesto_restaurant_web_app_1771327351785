@@ -212,3 +212,38 @@ async def sales_summary(
         "by_location": by_location,
         "staff_hours": staff_hours_list,
     }
+
+
+@router.get("/completion")
+async def sales_completion(
+    month: str = Query(..., description="YYYY-MM"),
+    user: dict = Depends(get_admin_user),
+):
+    """Get completion grid for a month — which locations have data for each day"""
+    import calendar
+    year, mo = int(month[:4]), int(month[5:7])
+    days_in_month = calendar.monthrange(year, mo)[1]
+    start = f"{month}-01"
+    end = f"{month}-{days_in_month:02d}"
+
+    entries = list(daily_sales_collection.find(
+        {"date": {"$gte": start, "$lte": end}},
+        {"_id": 0, "location_id": 1, "date": 1, "sales": 1, "cash_taken": 1, "float_amount": 1, "updated_by": 1},
+    ))
+
+    # Build lookup: { "location_id|date": entry_data }
+    grid = {}
+    for e in entries:
+        key = f"{e['location_id']}|{e['date']}"
+        grid[key] = {
+            "sales": e.get("sales", 0),
+            "cash_taken": e.get("cash_taken", 0),
+            "float_amount": e.get("float_amount", 0),
+            "updated_by": e.get("updated_by", ""),
+        }
+
+    return {
+        "month": month,
+        "days_in_month": days_in_month,
+        "grid": grid,
+    }
