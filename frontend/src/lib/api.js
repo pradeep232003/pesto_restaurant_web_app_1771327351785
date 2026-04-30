@@ -22,7 +22,7 @@ function formatApiErrorDetail(detail) {
 }
 
 class ApiService {
-  async fetch(endpoint, options = {}) {
+  async fetch(endpoint, options = {}, _isRetry = false) {
     const url = `${API_BASE_URL}${endpoint}`;
     const headers = {
       'Content-Type': 'application/json',
@@ -41,12 +41,61 @@ class ApiService {
       headers,
     });
     
+    // Auto-refresh admin token on 401 (once)
+    if (response.status === 401 && !_isRetry) {
+      const refreshed = await this._tryRefreshToken();
+      if (refreshed) return this.fetch(endpoint, options, true);
+    }
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(formatApiErrorDetail(errorData.detail) || `API Error: ${response.status} ${response.statusText}`);
     }
     
     return response.json();
+  }
+
+  async _tryRefreshToken() {
+    // Try refresh via stored refresh_token
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (refreshToken) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+          method: 'POST',
+          credentials: API_BASE_URL ? 'include' : 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.access_token) {
+            localStorage.setItem('access_token', data.access_token);
+            return true;
+          }
+        }
+      } catch {}
+    }
+    // Try re-elevate from customer token
+    const customerToken = localStorage.getItem('customer_token');
+    if (customerToken) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/customer-elevate`, {
+          method: 'POST',
+          credentials: API_BASE_URL ? 'include' : 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customer_token: customerToken }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.access_token) {
+            localStorage.setItem('access_token', data.access_token);
+            if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
+            return true;
+          }
+        }
+      } catch {}
+    }
+    return false;
   }
 
   // ============== AUTH ENDPOINTS ==============
