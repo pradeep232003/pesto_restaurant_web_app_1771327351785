@@ -23,8 +23,12 @@ const AdminLogin = () => {
     setError('');
     setLoading(true);
     try {
-      await signIn(email, password);
-      navigate('/admin');
+      const result = await signIn(email, password);
+      if (result.error) {
+        setError(result.error.message || 'Invalid credentials');
+      } else {
+        navigate('/admin');
+      }
     } catch (err) {
       setError(err.message || 'Invalid credentials');
     } finally {
