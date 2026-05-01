@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingDown, Plus, Trash2, Filter, Calendar, Pencil, Check, X } from 'lucide-react';
+import { TrendingDown, Plus, Trash2, Filter, Calendar, Pencil, Check, X, Download } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
+import * as XLSX from 'xlsx';
 
 const AdminExpenses = () => {
   const navigate = useNavigate();
@@ -91,6 +92,28 @@ const AdminExpenses = () => {
   };
 
   const getLocationName = (locId) => locations.find(l => l.id === locId)?.name || locId;
+
+  const exportToExcel = () => {
+    if (!entries.length) return;
+    const period = `${filterStart || 'All'} to ${filterEnd || 'All'}`;
+    const rows = entries.map(e => ({
+      'Date': e.date,
+      'Category': e.category,
+      'Description': e.description,
+      'Amount (£)': e.amount?.toFixed(2),
+      'Location': getLocationName(e.location_id),
+      'Added By': e.created_by_name || e.created_by,
+    }));
+    rows.push({});
+    rows.push({ 'Date': 'Total', 'Amount (£)': total.toFixed(2) });
+    rows.push({ 'Date': `Period: ${period}` });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
+    XLSX.writeFile(wb, `Jollys-Expenses-${filterStart || 'all'}-to-${filterEnd || 'all'}.xlsx`);
+  };
+
   const categoryTotals = entries.reduce((acc, e) => { const c = e.category || 'Other'; acc[c] = (acc[c] || 0) + (e.amount || 0); return acc; }, {});
   if (authLoading) return <div className="flex items-center justify-center h-64"><div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" /></div>;
 
@@ -105,9 +128,14 @@ const AdminExpenses = () => {
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: '#1D1D1F', ...font }}>Expenses</h1>
           <p className="text-xs sm:text-sm mt-1" style={{ color: '#86868B' }}>Record and track expenses by location</p>
         </div>
-        <button data-testid="add-expense-btn" onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium active:scale-95 transition-all"
-          style={{ background: '#FF3B30', color: '#FFFFFF', ...font }}><Plus size={16} /> Add</button>
+        <div className="flex gap-2">
+          <button data-testid="export-expense-btn" onClick={exportToExcel} disabled={!entries.length}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium active:scale-95 transition-all disabled:opacity-40"
+            style={{ background: '#F5F5F7', color: '#1D1D1F', ...font }}><Download size={16} /></button>
+          <button data-testid="add-expense-btn" onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium active:scale-95 transition-all"
+            style={{ background: '#FF3B30', color: '#FFFFFF', ...font }}><Plus size={16} /> Add</button>
+        </div>
       </div>
 
       {showForm && (
