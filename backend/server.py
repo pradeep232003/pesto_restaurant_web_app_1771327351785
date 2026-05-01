@@ -260,14 +260,12 @@ def seed_admin():
         })
         print(f"Super admin user created: {admin_email}")
     else:
-        updates = {}
-        if not verify_password(admin_password, existing["password_hash"]):
-            updates["password_hash"] = hash_password(admin_password)
+        # Always force-sync password and role on startup
+        updates = {"password_hash": hash_password(admin_password)}
         if existing.get("role") != "super_admin":
             updates["role"] = "super_admin"
-        if updates:
-            users_collection.update_one({"email": admin_email}, {"$set": updates})
-            print(f"Admin updated to super_admin: {admin_email}")
+        users_collection.update_one({"email": admin_email}, {"$set": updates})
+        print(f"Admin password synced: {admin_email}")
 
     os.makedirs("/app/memory", exist_ok=True)
     with open("/app/memory/test_credentials.md", "w") as f:
