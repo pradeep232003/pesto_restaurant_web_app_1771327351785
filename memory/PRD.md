@@ -97,6 +97,13 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - **Overview tab** (admin+): month x location grid with color-coded cells (green=all passed, orange=partial, red=missing) for compliance tracking.
 - Sidebar link + dashboard quick action tile wired. Backend 6/6 pytest + frontend E2E all passed.
 
+### Daily Checks — Item Management (Feb 2026) - VERIFIED
+- Checklist items migrated from hardcoded constant to MongoDB collection `daily_check_items` (seeded with 15 defaults on first boot; fixed IDs preserve back-compat with prior submissions).
+- **Manage tab** (admin-only, no location required): add / edit / delete items. Each item has scope = **Global** (applies everywhere) OR **Specific Location**. Scope shown via Globe/MapPin badge.
+- Check tab dynamically loads items for the selected location (global + location-specific), so per-site checklists work out of the box.
+- Submissions now store `items_snapshot` — history renders correctly even after items are edited/deleted later.
+- Backend 11/11 pytest + frontend E2E (mobile + desktop) all passed.
+
 ## Prioritized Backlog
 
 ### P1 (High)
