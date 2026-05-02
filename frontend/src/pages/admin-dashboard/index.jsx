@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { UtensilsCrossed, ClipboardList, ClipboardCheck, Users, Store, Plus, UserPlus, Settings, ArrowUpRight, Thermometer, DollarSign, Power } from 'lucide-react';
+import { UtensilsCrossed, ClipboardList, ClipboardCheck, Users, Store, Plus, UserPlus, Settings, ArrowUpRight, Thermometer, DollarSign, Power, Flame, Truck, Gauge, Droplet } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -117,6 +117,42 @@ const AdminDashboard = () => {
           <div>
             <p className="text-sm font-semibold" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Closedown</p>
             <p className="text-xs" style={{ color: '#86868B' }}>End-of-day checks</p>
+          </div>
+        </Link>
+        <Link to="/admin/cooked-temp" data-testid="quick-cooked-temp" className="group flex items-center gap-4 p-5 rounded-2xl transition-all duration-200 hover:-translate-y-0.5" style={{ background: '#FFFFFF' }}>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#FF3B30' }}>
+            <Flame size={22} color="white" strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Cook Temp</p>
+            <p className="text-xs" style={{ color: '#86868B' }}>Food ≥ 75°C</p>
+          </div>
+        </Link>
+        <Link to="/admin/delivery-records" data-testid="quick-deliveries" className="group flex items-center gap-4 p-5 rounded-2xl transition-all duration-200 hover:-translate-y-0.5" style={{ background: '#FFFFFF' }}>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#30B0C7' }}>
+            <Truck size={22} color="white" strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Deliveries</p>
+            <p className="text-xs" style={{ color: '#86868B' }}>Log incoming stock</p>
+          </div>
+        </Link>
+        <Link to="/admin/probe-calibration" data-testid="quick-probe-cal" className="group flex items-center gap-4 p-5 rounded-2xl transition-all duration-200 hover:-translate-y-0.5" style={{ background: '#FFFFFF' }}>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#AF52DE' }}>
+            <Gauge size={22} color="white" strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Probe Cal.</p>
+            <p className="text-xs" style={{ color: '#86868B' }}>Thermometer test</p>
+          </div>
+        </Link>
+        <Link to="/admin/legionella" data-testid="quick-legionella" className="group flex items-center gap-4 p-5 rounded-2xl transition-all duration-200 hover:-translate-y-0.5" style={{ background: '#FFFFFF' }}>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#00C7BE' }}>
+            <Droplet size={22} color="white" strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Legionella</p>
+            <p className="text-xs" style={{ color: '#86868B' }}>Weekly water test</p>
           </div>
         </Link>
       </div>

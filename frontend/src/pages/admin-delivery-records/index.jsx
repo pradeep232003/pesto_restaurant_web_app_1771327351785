@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Truck, Plus, Trash2, Check, X } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Truck, Plus, Trash2, Check, X, ArrowLeft, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -11,28 +12,40 @@ const AdminDeliveryRecords = () => {
   const { locations } = useLocation2();
 
   const today = new Date().toISOString().split('T')[0];
-  const weekAgo = new Date(Date.now() - 6 * 864e5).toISOString().split('T')[0];
+  const monthAgo = new Date(Date.now() - 29 * 864e5).toISOString().split('T')[0];
 
+  const [activeTab, setActiveTab] = useState('today');
   const [selectedLocation, setSelectedLocation] = useState('');
-  const [startDate, setStartDate] = useState(weekAgo);
-  const [endDate, setEndDate] = useState(today);
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ date: today, supplier: '', invoice_number: '', food_frozen_temp: '', food_chilled_temp: '', quality_comments: '' });
 
+  const [historyStart, setHistoryStart] = useState(monthAgo);
+  const [historyEnd, setHistoryEnd] = useState(today);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !isStaff)) navigate('/admin-login');
   }, [authLoading, isAuthenticated, isStaff, navigate]);
 
-  useEffect(() => { if (selectedLocation) fetchEntries(); }, [selectedLocation, startDate, endDate]);
+  useEffect(() => { if (selectedLocation && activeTab === 'today') fetchEntries(); }, [selectedLocation, activeTab]);
+  useEffect(() => { if (selectedLocation && activeTab === 'history' && isAdmin) fetchHistory(); }, [selectedLocation, activeTab, historyStart, historyEnd]);
 
   const fetchEntries = async () => {
     setLoading(true);
-    try { setEntries(await api.adminListDeliveryRecords({ location_id: selectedLocation, start_date: startDate, end_date: endDate })); }
+    try { setEntries(await api.adminListDeliveryRecords({ location_id: selectedLocation, start_date: today, end_date: today })); }
     catch (err) { alert('Failed: ' + err.message); }
     finally { setLoading(false); }
+  };
+
+  const fetchHistory = async () => {
+    setHistoryLoading(true);
+    try { setHistory(await api.adminListDeliveryRecords({ location_id: selectedLocation, start_date: historyStart, end_date: historyEnd })); }
+    catch (err) { alert('Failed: ' + err.message); }
+    finally { setHistoryLoading(false); }
   };
 
   const handleSave = async () => {
@@ -57,34 +70,47 @@ const AdminDeliveryRecords = () => {
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this entry?')) return;
-    try { await api.adminDeleteDeliveryRecord(id); await fetchEntries(); }
+    try { await api.adminDeleteDeliveryRecord(id); if (activeTab === 'today') fetchEntries(); else fetchHistory(); }
     catch (err) { alert('Failed: ' + err.message); }
+  };
+
+  const handleDownload = () => {
+    const locName = locations.find(l => l.id === selectedLocation)?.name || 'all';
+    const rows = history.map(e => ({
+      Date: e.date, Supplier: e.supplier, Invoice: e.invoice_number || '',
+      'Frozen °C': e.food_frozen_temp, 'Chilled °C': e.food_chilled_temp,
+      Pass: e.passed ? 'Yes' : 'No', 'Quality Comments': e.quality_comments || '',
+      'Logged by': e.created_by_name || e.created_by,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Deliveries');
+    XLSX.writeFile(wb, `deliveries_${locName}_${historyStart}_to_${historyEnd}.xlsx`);
   };
 
   if (authLoading) return <div className="flex items-center justify-center h-64"><div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" /></div>;
 
   const font = { fontFamily: 'Outfit, sans-serif' };
   const inputStyle = { background: '#F5F5F7', color: '#1D1D1F', ...font, boxShadow: '0 0 0 1px rgba(0,0,0,0.06)' };
+  const list = activeTab === 'today' ? entries : history;
+  const listLoading = activeTab === 'today' ? loading : historyLoading;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto" data-testid="admin-delivery-records-page">
+      <Link to="/admin" data-testid="back-to-dashboard" className="inline-flex items-center gap-1.5 text-xs font-medium mb-3 active:scale-95" style={{ color: '#007AFF', ...font }}>
+        <ArrowLeft size={13} /> Dashboard
+      </Link>
       <div className="mb-5">
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: '#1D1D1F', ...font }}>Delivery Records</h1>
         <p className="text-xs sm:text-sm mt-1" style={{ color: '#86868B' }}>Frozen &lt; -15°C · Chilled &lt; +8°C · Record every delivery</p>
       </div>
 
-      <div className="space-y-3 mb-5">
+      <div className="mb-4">
         <select data-testid="delivery-location" value={selectedLocation} onChange={e => setSelectedLocation(e.target.value)}
           className="w-full px-3 py-3 rounded-xl text-sm border-0 outline-none" style={{ ...inputStyle, background: '#FFFFFF' }}>
           <option value="">Select location...</option>
           {locations.filter(l => l.is_active).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
-        {selectedLocation && (
-          <div className="grid grid-cols-2 gap-3">
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={{ ...inputStyle, background: '#FFFFFF' }} />
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={{ ...inputStyle, background: '#FFFFFF' }} />
-          </div>
-        )}
       </div>
 
       {!selectedLocation ? (
@@ -94,13 +120,27 @@ const AdminDeliveryRecords = () => {
         </div>
       ) : (
         <>
-          <button data-testid="add-delivery-btn" onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold mb-4 active:scale-95"
-            style={{ background: '#1D1D1F', color: '#FFFFFF', ...font }}>
-            <Plus size={13} /> {showForm ? 'Cancel' : 'New Delivery'}
-          </button>
+          {isAdmin && (
+            <div className="flex gap-1 mb-5 p-1 rounded-xl" style={{ background: '#E8E8ED' }}>
+              {[{k:'today',l:'Today'},{k:'history',l:'History'}].map(t => (
+                <button key={t.k} data-testid={`delivery-tab-${t.k}`} onClick={() => setActiveTab(t.k)}
+                  className="flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
+                  style={{ background: activeTab === t.k ? '#FFFFFF' : 'transparent', color: activeTab === t.k ? '#1D1D1F' : '#86868B', ...font, boxShadow: activeTab === t.k ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}>
+                  {t.l}
+                </button>
+              ))}
+            </div>
+          )}
 
-          {showForm && (
+          {activeTab === 'today' && (
+            <button data-testid="add-delivery-btn" onClick={() => setShowForm(!showForm)}
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold mb-4 active:scale-95"
+              style={{ background: '#1D1D1F', color: '#FFFFFF', ...font }}>
+              <Plus size={13} /> {showForm ? 'Cancel' : 'New Delivery'}
+            </button>
+          )}
+
+          {activeTab === 'today' && showForm && (
             <div className="p-4 rounded-2xl mb-4 space-y-3" style={{ background: '#FFFFFF' }}>
               <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={inputStyle} />
               <input data-testid="supplier-input" placeholder="Supplier" value={form.supplier} onChange={e => setForm({ ...form, supplier: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={inputStyle} />
@@ -116,16 +156,30 @@ const AdminDeliveryRecords = () => {
             </div>
           )}
 
-          {loading ? (
+          {activeTab === 'history' && isAdmin && (
+            <div className="p-4 rounded-2xl mb-4 space-y-3" style={{ background: '#FFFFFF' }}>
+              <div className="grid grid-cols-2 gap-3">
+                <input type="date" value={historyStart} onChange={e => setHistoryStart(e.target.value)} className="px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={inputStyle} />
+                <input type="date" value={historyEnd} onChange={e => setHistoryEnd(e.target.value)} className="px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={inputStyle} />
+              </div>
+              <button data-testid="download-delivery-btn" disabled={!history.length} onClick={handleDownload}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-40 active:scale-95"
+                style={{ background: '#007AFF', color: '#FFFFFF', ...font }}>
+                <Download size={13} /> Download Excel ({history.length})
+              </button>
+            </div>
+          )}
+
+          {listLoading ? (
             <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" /></div>
-          ) : entries.length === 0 ? (
+          ) : list.length === 0 ? (
             <div className="text-center py-16 rounded-2xl" style={{ background: '#FFFFFF' }}>
               <Truck size={32} className="mx-auto mb-3" style={{ color: '#C7C7CC' }} />
-              <p className="text-sm" style={{ color: '#86868B', ...font }}>No deliveries in this range.</p>
+              <p className="text-sm" style={{ color: '#86868B', ...font }}>{activeTab === 'today' ? 'No deliveries today.' : 'No deliveries in this range.'}</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {entries.map(e => (
+              {list.map(e => (
                 <div key={e.id} data-testid={`delivery-entry-${e.id}`} className="p-4 rounded-2xl flex items-start gap-3" style={{ background: '#FFFFFF' }}>
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: e.passed ? 'rgba(52,199,89,0.12)' : 'rgba(255,59,48,0.12)' }}>
                     {e.passed ? <Check size={18} style={{ color: '#34C759' }} /> : <X size={18} style={{ color: '#FF3B30' }} />}
