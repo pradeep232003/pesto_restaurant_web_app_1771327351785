@@ -63,14 +63,28 @@ const AdminCompliance = () => {
 
   const handlePrint = () => window.print();
 
-  const handlePreviewPDF = () => {
-    const base = import.meta.env.VITE_REACT_APP_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL || '';
-    const url = `${base}/api/admin/compliance-digest/preview-pdf`;
-    const token = localStorage.getItem('access_token');
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.blob())
-      .then(b => window.open(URL.createObjectURL(b), '_blank'))
-      .catch(err => alert('Preview failed: ' + err.message));
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const handlePreviewPDF = async () => {
+    setPdfLoading(true);
+    try {
+      const token = localStorage.getItem('access_token');
+      const resp = await fetch('/api/admin/compliance-digest/preview-pdf', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      // Anchor-click bypasses popup blockers
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    } catch (err) { alert('Preview failed: ' + err.message); }
+    finally { setPdfLoading(false); }
   };
 
   const [sending, setSending] = useState(false);
@@ -125,10 +139,10 @@ const AdminCompliance = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 mb-5 print:hidden">
-          <button data-testid="preview-pdf-btn" onClick={handlePreviewPDF}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold active:scale-95"
+          <button data-testid="preview-pdf-btn" disabled={pdfLoading} onClick={handlePreviewPDF}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50 active:scale-95"
             style={{ background: '#F5F5F7', color: '#1D1D1F', ...font }}>
-            <FileDown size={12} /> Preview PDF
+            <FileDown size={12} /> {pdfLoading ? 'Loading…' : 'Preview PDF'}
           </button>
           <button data-testid="send-digest-btn" disabled={sending} onClick={handleSendDigest}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50 active:scale-95"
