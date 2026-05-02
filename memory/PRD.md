@@ -91,6 +91,12 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - **Role hierarchy**: super_admin sees Users nav item; admin sees History tab; staff sees Entry tab only.
 - Backend: 15/15 tests passed. Frontend: save flow, history, role changes all verified.
 
+### Daily Checks (Feb 2026) - VERIFIED
+- **Daily Checks** (`/admin/daily-checks`): 15-item opening checklist digitized from physical form. Mobile-first UI staff use before serving — tap each item to pass/fail, pass counter live updates (X/15), quick "All Pass" and "Clear" actions, optional notes field. Same (location, date) upserts (no duplicates).
+- **History tab** (admin+): expandable list showing per-item pass/fail detail for any saved entry.
+- **Overview tab** (admin+): month x location grid with color-coded cells (green=all passed, orange=partial, red=missing) for compliance tracking.
+- Sidebar link + dashboard quick action tile wired. Backend 6/6 pytest + frontend E2E all passed.
+
 ## Prioritized Backlog
 
 ### P1 (High)

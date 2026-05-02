@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ClipboardCheck, Check, X, Calendar, ChevronDown, Download } from 'lucide-react';
+import { ClipboardCheck, Check, X, ChevronDown } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
-import * as XLSX from 'xlsx';
 
 const AdminDailyChecks = () => {
   const navigate = useNavigate();
@@ -48,7 +47,7 @@ const AdminDailyChecks = () => {
 
   useEffect(() => {
     if (activeTab === 'history' && isAdmin) fetchHistory();
-  }, [activeTab]);
+  }, [activeTab, selectedLocation]);
 
   useEffect(() => {
     if (activeTab === 'overview' && isAdmin) fetchGrid();
