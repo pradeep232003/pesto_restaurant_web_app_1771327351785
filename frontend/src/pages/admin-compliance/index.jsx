@@ -384,22 +384,28 @@ const AdminCompliance = () => {
       {/* Print styles */}
       <style>{`
         @media print {
-          @page { size: A4 landscape; margin: 12mm; }
+          @page { size: A4 landscape; margin: 8mm; }
           html, body { background: white !important; }
-          body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 8px !important; }
           .print\\:hidden { display: none !important; }
           .print\\:block { display: block !important; }
           .print\\:inline { display: inline !important; }
           /* Force matrix scroll-wrapper to expand so the full table prints */
           .overflow-x-auto { overflow: visible !important; }
-          table { width: 100% !important; page-break-inside: auto; font-size: 10px; }
-          th, td { padding: 3px 4px !important; }
+          table { width: 100% !important; page-break-inside: auto; font-size: 7.5px !important; table-layout: fixed; min-width: 0 !important; }
+          th, td { padding: 2px 3px !important; word-break: break-word; line-height: 1.15 !important; }
+          th { font-size: 7px !important; }
+          /* Compact status pills in matrix cells */
+          button { background: transparent !important; padding: 0 !important; font-size: 7px !important; }
           tr { page-break-inside: avoid; page-break-after: auto; }
           /* Each per-site detailed breakdown starts on its own page */
           .print-site-page { page-break-before: always; break-before: page; }
           .print-site-page:first-child { page-break-before: auto; break-before: auto; }
+          .print-site-page table { font-size: 9px !important; }
+          .print-site-page th, .print-site-page td { padding: 3px 4px !important; }
+          h1 { font-size: 16px !important; }
+          h2 { font-size: 12px !important; margin-top: 8px !important; }
           h1, h2 { page-break-after: avoid; }
-          button { background: transparent !important; }
         }
       `}</style>
     </div>
