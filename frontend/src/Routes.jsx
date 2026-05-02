@@ -33,6 +33,8 @@ import AdminCookedTemp from './pages/admin-cooked-temp';
 import AdminDeliveryRecords from './pages/admin-delivery-records';
 import AdminProbeCalibration from './pages/admin-probe-calibration';
 import AdminLegionella from './pages/admin-legionella';
+import AdminDailyCleaning from './pages/admin-daily-cleaning';
+import AdminWeeklyCleaning from './pages/admin-weekly-cleaning';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -115,6 +117,8 @@ const AppRouter = () => {
       <Route path="/admin/delivery-records" element={<AdminRoute><AdminDeliveryRecords /></AdminRoute>} />
       <Route path="/admin/probe-calibration" element={<AdminRoute><AdminProbeCalibration /></AdminRoute>} />
       <Route path="/admin/legionella" element={<AdminRoute><AdminLegionella /></AdminRoute>} />
+      <Route path="/admin/daily-cleaning" element={<AdminRoute><AdminDailyCleaning /></AdminRoute>} />
+      <Route path="/admin/weekly-cleaning" element={<AdminRoute><AdminWeeklyCleaning /></AdminRoute>} />
 
       {/* Customer loyalty card */}
       <Route path="/loyalty-card" element={<LoyaltyCard />} />

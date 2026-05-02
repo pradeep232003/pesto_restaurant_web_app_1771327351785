@@ -87,6 +87,7 @@ from routes.cooked_temp import router as cooked_temp_router
 from routes.delivery_records import router as delivery_records_router
 from routes.probe_calibration import router as probe_calibration_router
 from routes.legionella import router as legionella_router
+from routes.cleaning_schedules import daily_cleaning_router, weekly_cleaning_router, seed_cleaning_schedules
 
 app.include_router(auth_router)
 app.include_router(locations_router)
@@ -107,6 +108,8 @@ app.include_router(cooked_temp_router)
 app.include_router(delivery_records_router)
 app.include_router(probe_calibration_router)
 app.include_router(legionella_router)
+app.include_router(daily_cleaning_router)
+app.include_router(weekly_cleaning_router)
 
 # ============== PUBLIC ENDPOINTS ==============
 
@@ -146,6 +149,9 @@ async def startup_event():
     # Seed kitchen-closedown items on first boot
     from routes.kitchen_closedown import seed_kitchen_closedown_items
     seed_kitchen_closedown_items()
+
+    # Seed daily + weekly cleaning schedule items on first boot
+    seed_cleaning_schedules()
 
     # Migration: ensure all locations have new fields
     locations_collection.update_many({"wallet_enabled": {"$exists": False}}, {"$set": {"wallet_enabled": False}})

@@ -767,6 +767,26 @@ class ApiService {
   }
   async adminCreateLegionella(data) { return this.fetch('/api/admin/legionella', { method: 'POST', body: JSON.stringify(data) }); }
   async adminDeleteLegionella(id) { return this.fetch(`/api/admin/legionella/${id}`, { method: 'DELETE' }); }
+
+  // ============== CLEANING SCHEDULES (daily + weekly deep) ==============
+  // kind = 'daily-cleaning' | 'weekly-cleaning'
+  async adminGetCleaningItems(kind, locationId) {
+    const q = locationId ? `?location_id=${encodeURIComponent(locationId)}` : '';
+    return this.fetch(`/api/admin/${kind}/items${q}`);
+  }
+  async adminListAllCleaningItems(kind) { return this.fetch(`/api/admin/${kind}/items/all`); }
+  async adminCreateCleaningItem(kind, data) { return this.fetch(`/api/admin/${kind}/items`, { method: 'POST', body: JSON.stringify(data) }); }
+  async adminUpdateCleaningItem(kind, id, data) { return this.fetch(`/api/admin/${kind}/items/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  async adminDeleteCleaningItem(kind, id) { return this.fetch(`/api/admin/${kind}/items/${id}`, { method: 'DELETE' }); }
+  async adminSubmitCleaningLog(kind, data) { return this.fetch(`/api/admin/${kind}`, { method: 'POST', body: JSON.stringify(data) }); }
+  async adminGetCleaningLog(kind, locationId, weekEnding) { return this.fetch(`/api/admin/${kind}?location_id=${locationId}&week_ending=${weekEnding}`); }
+  async adminGetCleaningHistory(kind, filters = {}) {
+    const p = new URLSearchParams();
+    if (filters.location_id) p.append('location_id', filters.location_id);
+    if (filters.start_date) p.append('start_date', filters.start_date);
+    if (filters.end_date) p.append('end_date', filters.end_date);
+    return this.fetch(`/api/admin/${kind}/history?${p}`);
+  }
 }
 
 export const api = new ApiService();

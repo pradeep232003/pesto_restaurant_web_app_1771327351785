@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { UtensilsCrossed, ClipboardList, ClipboardCheck, Users, Store, Plus, UserPlus, Settings, ArrowUpRight, Thermometer, DollarSign, Power, Flame, Truck, Gauge, Droplet } from 'lucide-react';
+import { UtensilsCrossed, ClipboardList, ClipboardCheck, Users, Store, Plus, UserPlus, Settings, ArrowUpRight, Thermometer, DollarSign, Power, Flame, Truck, Gauge, Droplet, Sparkles } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -153,6 +153,24 @@ const AdminDashboard = () => {
           <div>
             <p className="text-sm font-semibold" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Legionella</p>
             <p className="text-xs" style={{ color: '#86868B' }}>Weekly water test</p>
+          </div>
+        </Link>
+        <Link to="/admin/daily-cleaning" data-testid="quick-daily-cleaning" className="group flex items-center gap-4 p-5 rounded-2xl transition-all duration-200 hover:-translate-y-0.5" style={{ background: '#FFFFFF' }}>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#5AC8FA' }}>
+            <Sparkles size={22} color="white" strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Daily Clean</p>
+            <p className="text-xs" style={{ color: '#86868B' }}>Cleaning schedule</p>
+          </div>
+        </Link>
+        <Link to="/admin/weekly-cleaning" data-testid="quick-weekly-cleaning" className="group flex items-center gap-4 p-5 rounded-2xl transition-all duration-200 hover:-translate-y-0.5" style={{ background: '#FFFFFF' }}>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#BF5AF2' }}>
+            <Sparkles size={22} color="white" strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Weekly Deep</p>
+            <p className="text-xs" style={{ color: '#86868B' }}>Deep clean tasks</p>
           </div>
         </Link>
       </div>
