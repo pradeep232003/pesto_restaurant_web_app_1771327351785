@@ -636,6 +636,32 @@ class ApiService {
   async adminUpdateTempTimeSlots(locationId, timeSlots) {
     return this.fetch('/api/admin/temp/time-slots', { method: 'PUT', body: JSON.stringify({ location_id: locationId, time_slots: timeSlots }) });
   }
+
+  // ============== DAILY CHECKS ==============
+
+  async adminGetChecklistItems() {
+    return this.fetch('/api/admin/daily-checks/items');
+  }
+
+  async adminSubmitDailyCheck(data) {
+    return this.fetch('/api/admin/daily-checks', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async adminGetDailyCheck(locationId, date) {
+    return this.fetch(`/api/admin/daily-checks?location_id=${locationId}&date=${date}`);
+  }
+
+  async adminGetDailyChecksHistory(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.location_id) params.append('location_id', filters.location_id);
+    if (filters.start_date) params.append('start_date', filters.start_date);
+    if (filters.end_date) params.append('end_date', filters.end_date);
+    return this.fetch(`/api/admin/daily-checks/history?${params}`);
+  }
+
+  async adminGetDailyChecksCompletion(month) {
+    return this.fetch(`/api/admin/daily-checks/completion?month=${month}`);
+  }
 }
 
 export const api = new ApiService();
