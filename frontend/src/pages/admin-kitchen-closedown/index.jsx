@@ -8,14 +8,13 @@ import { useLocation2 } from '../../contexts/LocationContext';
 const AdminKitchenClosedown = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, isStaff, isAdmin, loading: authLoading } = useAuth();
-  const { locations } = useLocation2();
+  const { locations, adminLocationId: selectedLocation, setAdminLocationId: setSelectedLocation } = useLocation2();
 
   const now = new Date();
   const today = now.toISOString().split('T')[0];
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
   const [activeTab, setActiveTab] = useState('check');
-  const [selectedLocation, setSelectedLocation] = useState('');
   const [entryDate, setEntryDate] = useState(today);
   const [items, setItems] = useState([]);
   const [checks, setChecks] = useState({});

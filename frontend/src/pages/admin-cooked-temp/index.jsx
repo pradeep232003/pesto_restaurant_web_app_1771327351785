@@ -16,13 +16,12 @@ const getInitials = (u) => {
 const AdminCookedTemp = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, isStaff, isAdmin, loading: authLoading } = useAuth();
-  const { locations } = useLocation2();
+  const { locations, adminLocationId: selectedLocation, setAdminLocationId: setSelectedLocation } = useLocation2();
 
   const today = new Date().toISOString().split('T')[0];
   const monthAgo = new Date(Date.now() - 29 * 864e5).toISOString().split('T')[0];
 
   const [activeTab, setActiveTab] = useState('today');
-  const [selectedLocation, setSelectedLocation] = useState('');
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);

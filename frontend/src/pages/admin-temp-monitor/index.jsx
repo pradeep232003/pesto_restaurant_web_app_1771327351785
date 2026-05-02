@@ -17,14 +17,13 @@ const isOutOfRange = (temp, type) => {
 const AdminTempMonitor = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, isStaff, isAdmin, loading: authLoading } = useAuth();
-  const { locations } = useLocation2();
+  const { locations, adminLocationId: selectedLocation, setAdminLocationId: setSelectedLocation } = useLocation2();
 
   const now = new Date();
   const today = now.toISOString().split('T')[0];
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
   const [activeTab, setActiveTab] = useState('record');
-  const [selectedLocation, setSelectedLocation] = useState('');
   const [units, setUnits] = useState([]);
   const [timeSlots, setTimeSlots] = useState(['08:00', '13:00']);
   const [readings, setReadings] = useState({});

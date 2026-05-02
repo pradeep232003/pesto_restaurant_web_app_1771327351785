@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { UtensilsCrossed, ClipboardList, ClipboardCheck, Store, Plus, Settings, ArrowUpRight, Thermometer, DollarSign, Power, Flame, Truck, Gauge, Droplet, Sparkles, Shield } from 'lucide-react';
+import { UtensilsCrossed, ClipboardList, ClipboardCheck, Store, Plus, Settings, ArrowUpRight, Thermometer, DollarSign, Power, Flame, Truck, Gauge, Droplet, Sparkles, Shield, MapPin, Check } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -30,7 +30,10 @@ const StatCard = ({ icon: IconComp, label, value, color, to }) => (
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { isAuthenticated, isStaff, isAdmin, loading: authLoading } = useAuth();
-  const { locations } = useLocation2();
+  const { locations, adminLocationId, setAdminLocationId } = useLocation2();
+  const activeLocations = locations.filter(l => l.is_active);
+  const currentLocation = activeLocations.find(l => l.id === adminLocationId);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [stats, setStats] = useState({ menuItems: 0, orders: 0, openSites: 0 });
   const [recentOrders, setRecentOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +68,13 @@ const AdminDashboard = () => {
     if (isAdmin) fetchCompliance();
   }, [isAdmin]);
 
+  // Prompt for location on first visit if nothing set yet AND locations loaded
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && isStaff && activeLocations.length > 0 && !adminLocationId) {
+      setShowLocationPicker(true);
+    }
+  }, [authLoading, isAuthenticated, isStaff, activeLocations.length, adminLocationId]);
+
   if (authLoading || loading) return (
     <div className="p-6 lg:p-8 space-y-6">
       <div className="h-7 w-40 rounded-lg animate-pulse" style={{ background: '#E8E8ED' }} />
@@ -82,6 +92,53 @@ const AdminDashboard = () => {
         <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Dashboard</h1>
         <p className="text-sm mt-1" style={{ color: '#86868B' }}>Here's what's happening today.</p>
       </div>
+
+      {/* Current Location */}
+      <button data-testid="current-location-card" onClick={() => setShowLocationPicker(true)}
+        className="w-full flex items-center justify-between p-4 rounded-2xl transition-all active:scale-[0.99] hover:-translate-y-0.5"
+        style={{ background: '#FFFFFF', textAlign: 'left' }}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: currentLocation ? '#34C759' : '#FF9500' }}>
+            <MapPin size={18} color="white" strokeWidth={1.8} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>Working At</p>
+            <p className="text-sm font-semibold truncate" data-testid="current-location-name" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>
+              {currentLocation ? currentLocation.name : 'Tap to select location'}
+            </p>
+          </div>
+        </div>
+        <span className="text-xs font-medium shrink-0 ml-2" style={{ color: '#007AFF', fontFamily: 'Outfit, sans-serif' }}>Change</span>
+      </button>
+
+      {/* Location picker modal */}
+      {showLocationPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" data-testid="location-picker-modal">
+          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => { if (adminLocationId) setShowLocationPicker(false); }} />
+          <div className="relative w-full max-w-md rounded-2xl overflow-hidden" style={{ background: '#FFFFFF' }}>
+            <div className="p-5 text-center" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+              <div className="w-12 h-12 mx-auto rounded-xl flex items-center justify-center mb-3" style={{ background: '#1D1D1F' }}>
+                <MapPin size={22} color="white" strokeWidth={1.8} />
+              </div>
+              <h2 className="text-lg font-semibold" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Which location are you working at?</h2>
+              <p className="text-xs mt-1" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>This sets the default across all compliance pages. You can change it any time.</p>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-3">
+              {activeLocations.map(l => {
+                const selected = l.id === adminLocationId;
+                return (
+                  <button key={l.id} data-testid={`picker-loc-${l.id}`} onClick={() => { setAdminLocationId(l.id); setShowLocationPicker(false); }}
+                    className="w-full flex items-center justify-between p-3 rounded-xl mb-1.5 active:scale-[0.99]"
+                    style={{ background: selected ? 'rgba(52,199,89,0.1)' : '#F5F5F7', textAlign: 'left' }}>
+                    <span className="text-sm font-medium" style={{ color: selected ? '#34C759' : '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>{l.name}</span>
+                    {selected && <Check size={16} style={{ color: '#34C759' }} />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">

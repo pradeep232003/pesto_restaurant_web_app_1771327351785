@@ -7,6 +7,7 @@ export const LocationProvider = ({ children }) => {
   const [locations, setLocations] = useState([]);
   const [selectedLocation, setSelectedLocationState] = useState(null);
   const [selectedCafeLocation, setSelectedCafeLocationState] = useState(null);
+  const [adminLocationId, setAdminLocationIdState] = useState(() => localStorage.getItem('adminLocationId') || '');
   const [loading, setLoading] = useState(true);
 
   const setSelectedLocation = (loc) => {
@@ -23,6 +24,12 @@ export const LocationProvider = ({ children }) => {
     } else if (loc === null) {
       localStorage.removeItem('selectedCafeLocationId');
     }
+  };
+
+  const setAdminLocationId = (id) => {
+    setAdminLocationIdState(id || '');
+    if (id) localStorage.setItem('adminLocationId', id);
+    else localStorage.removeItem('adminLocationId');
   };
 
   const fetchLocations = useCallback(async () => {
@@ -58,6 +65,8 @@ export const LocationProvider = ({ children }) => {
       setSelectedLocation,
       selectedCafeLocation,
       setSelectedCafeLocation,
+      adminLocationId,
+      setAdminLocationId,
       loading,
       refreshLocations: fetchLocations,
     }}>

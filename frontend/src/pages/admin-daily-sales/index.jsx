@@ -10,7 +10,7 @@ const AdminDailySales = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, isStaff, isAdmin, signOut, loading: authLoading } = useAuth();
   const { logout: customerLogout } = useCustomer();
-  const { locations } = useLocation2();
+  const { locations, adminLocationId: selectedLocation, setAdminLocationId: setSelectedLocation } = useLocation2();
   const [activeTab, setActiveTab] = useState('entry');
   const [loading, setLoading] = useState(false);
   const [staffNames, setStaffNames] = useState([]);
@@ -19,7 +19,6 @@ const AdminDailySales = () => {
   const [showSummary, setShowSummary] = useState(false);
   const summaryRef = useRef(null);
 
-  const [selectedLocation, setSelectedLocation] = useState('');
   const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]);
   const [sales, setSales] = useState('');
   const [floatAmount, setFloatAmount] = useState('');

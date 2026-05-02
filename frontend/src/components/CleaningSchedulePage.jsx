@@ -20,12 +20,11 @@ const sundayOf = (dateStr) => {
 const CleaningSchedulePage = ({ kind, title, subtitle, iconColor }) => {
   const navigate = useNavigate();
   const { isAuthenticated, isStaff, isAdmin, loading: authLoading } = useAuth();
-  const { locations } = useLocation2();
+  const { locations, adminLocationId: selectedLocation, setAdminLocationId: setSelectedLocation } = useLocation2();
 
   const todaySun = sundayOf(new Date().toISOString().split('T')[0]);
 
   const [activeTab, setActiveTab] = useState('check');
-  const [selectedLocation, setSelectedLocation] = useState('');
   const [weekEnding, setWeekEnding] = useState(todaySun);
   const [items, setItems] = useState([]);
   const [ticks, setTicks] = useState({});
