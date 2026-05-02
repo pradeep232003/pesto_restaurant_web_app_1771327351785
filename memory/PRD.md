@@ -104,6 +104,12 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - Submissions now store `items_snapshot` — history renders correctly even after items are edited/deleted later.
 - Backend 11/11 pytest + frontend E2E (mobile + desktop) all passed.
 
+### Kitchen Closedown Checks (Feb 2026) - VERIFIED
+- **Kitchen Closedown** (`/admin/kitchen-closedown`): End-of-day checklist digitized from the physical "Kitchen Closedown Checks" form. 9 default items seeded (weekly cleaning sign-off, food covered/labelled, waste removed, fridge temps recorded, appliances off, extraction off, out-of-date food discarded, prep areas disinfected, floors swept).
+- Same feature set as Daily Checks: Check / History / Overview / Manage tabs; per-location item scope; upsert behaviour; items_snapshot stored on each submission.
+- Fully independent from Daily Checks — separate Mongo collections (`kitchen_closedown`, `kitchen_closedown_items`), separate API namespace (`/api/admin/kitchen-closedown`), cross-contamination test passes.
+- Sidebar link (Power icon) + dashboard quick-action tile (purple, lg:grid-cols-4). Backend 12/12 pytest + frontend E2E all passed.
+
 ## Prioritized Backlog
 
 ### P1 (High)
