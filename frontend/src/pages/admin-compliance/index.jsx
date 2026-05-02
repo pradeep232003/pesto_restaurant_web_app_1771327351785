@@ -64,9 +64,9 @@ const AdminCompliance = () => {
   const handlePrint = () => window.print();
 
   const handlePreviewPDF = () => {
-    const url = `${process.env.REACT_APP_BACKEND_URL}/api/admin/compliance-digest/preview-pdf`;
+    const base = import.meta.env.VITE_REACT_APP_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL || '';
+    const url = `${base}/api/admin/compliance-digest/preview-pdf`;
     const token = localStorage.getItem('access_token');
-    // Fetch with auth then open blob URL (direct GET can't include bearer header)
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.blob())
       .then(b => window.open(URL.createObjectURL(b), '_blank'))

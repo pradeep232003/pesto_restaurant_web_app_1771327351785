@@ -132,6 +132,14 @@ Admin-only (/admin/compliance) EHO-ready compliance matrix aggregating all 9 foo
 - **Frontend**: Matrix table (sites × 9 checks) with colored status pills (green/orange/red/gray), per-site score chip, overall % KPI. Filters: date range, site, check type, status. Click cell → side drawer with full entries. Dashboard widget card (admin-only) showing last-7-day overall % + top-5 sites. Sidebar link (Shield icon) admin+ only. **Print Report** button uses browser `window.print()` with `.print:hidden` / `.print:block` toggles — print view shows one summary table per site (Check / Status / Coverage / Last Record / Completed By) suitable for EHO inspections.
 - Backend 39/39 pytest passed. Frontend 100% E2E including non-admin redirect, filter combinations, drill-down, and print layout.
 
+### Weekly Compliance Digest Auto-Email (Feb 2026) - VERIFIED
+Automated Monday-morning email digest of the previous week's compliance matrix to all admin/super_admin recipients.
+- **Backend**: `/app/backend/routes/compliance_digest.py` uses **reportlab** (landscape A4) to generate a multi-page PDF — page 1 is the colored site × 9-check matrix with overall %, subsequent pages contain per-site detailed breakdown tables (EHO audit-ready). **APScheduler** BackgroundScheduler registered on startup with CronTrigger (day_of_week=mon, hour=7, minute=0, tz=Europe/London). Recipients union-queried from both `users_collection` and `customers_collection` where role ∈ {admin, super_admin}.
+- **Endpoints** (all admin-gated): `POST /api/admin/compliance-digest/send-now` (manual trigger), `GET /recipients`, `GET /preview-pdf` (returns inline PDF).
+- **Frontend**: /admin/compliance page has "Preview PDF" and "Email Digest Now" buttons + "Auto-sent every Monday 07:00 UK" note. `import.meta.env.VITE_REACT_APP_BACKEND_URL` pattern used (Vite-compatible).
+- Dependencies added: reportlab, APScheduler, tzlocal (in both `requirements.txt` and `requirements-prod.txt`).
+- Backend 9/9 pytest passed. Live SMTP send verified. Iteration 25 Preview-PDF env-var bug fixed.
+
 ## Prioritized Backlog
 
 ### P1 (High)
