@@ -110,6 +110,14 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 - Fully independent from Daily Checks — separate Mongo collections (`kitchen_closedown`, `kitchen_closedown_items`), separate API namespace (`/api/admin/kitchen-closedown`), cross-contamination test passes.
 - Sidebar link (Power icon) + dashboard quick-action tile (purple, lg:grid-cols-4). Backend 12/12 pytest + frontend E2E all passed.
 
+### Food Safety Log Forms (Feb 2026) - VERIFIED
+Four log-entry style admin pages digitizing physical food-safety forms. Each has location selector, date range filter, "New Entry" inline form, card list of entries with auto-computed pass/fail indicator (green check / red X) and admin-only delete. Shared backend pattern: POST create → GET list (with filters) → DELETE by id (admin only).
+- **Cooked & Reheated Temp** (`/admin/cooked-temp`, Flame icon): food_item, cooking_method (Combi/Grill/Microwave/Oven/Stove/Fryer/Bain-Marie/Other), temp_c, time, initials. Pass = temp ≥ 75°C.
+- **Delivery Records** (`/admin/delivery-records`, Truck icon): supplier, invoice_number, food_frozen_temp, food_chilled_temp, quality_comments. Pass = frozen ≤ -15°C AND chilled ≤ 8°C.
+- **Probe Calibration** (`/admin/probe-calibration`, Gauge icon): probe_no, tested_by, cold_temp, hot_temp, comments. Pass = |cold - 0| ≤ 1 AND |hot - 100| ≤ 1.
+- **Legionella Water Testing** (`/admin/legionella`, Droplet icon): test_time, hot_water_temp, cold_water_temp, name, initials, location_of_test, action_taken. Pass = hot > 50°C AND cold < 20°C.
+- Backend 18/18 pytest passed. Collections: `cooked_temp_logs`, `delivery_records`, `probe_calibrations`, `legionella_tests`.
+
 ## Prioritized Backlog
 
 ### P1 (High)
