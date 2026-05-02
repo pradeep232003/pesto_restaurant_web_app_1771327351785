@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { UtensilsCrossed, ClipboardList, Users, Store, Plus, UserPlus, Settings, ArrowUpRight, Thermometer, DollarSign } from 'lucide-react';
+import { UtensilsCrossed, ClipboardList, ClipboardCheck, Users, Store, Plus, UserPlus, Settings, ArrowUpRight, Thermometer, DollarSign } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -82,7 +82,7 @@ const AdminDashboard = () => {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Link to="/admin/daily-sales" data-testid="quick-daily-sales" className="group flex items-center gap-4 p-5 rounded-2xl transition-all duration-200 hover:-translate-y-0.5" style={{ background: '#FFFFFF' }}>
           <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#34C759' }}>
             <DollarSign size={22} color="white" strokeWidth={1.5} />
@@ -99,6 +99,15 @@ const AdminDashboard = () => {
           <div>
             <p className="text-sm font-semibold" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Temp Log</p>
             <p className="text-xs" style={{ color: '#86868B' }}>Record temperatures</p>
+          </div>
+        </Link>
+        <Link to="/admin/daily-checks" data-testid="quick-daily-checks" className="group flex items-center gap-4 p-5 rounded-2xl transition-all duration-200 hover:-translate-y-0.5" style={{ background: '#FFFFFF' }}>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#FF9500' }}>
+            <ClipboardCheck size={22} color="white" strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Daily Checks</p>
+            <p className="text-xs" style={{ color: '#86868B' }}>Opening checklist</p>
           </div>
         </Link>
       </div>
