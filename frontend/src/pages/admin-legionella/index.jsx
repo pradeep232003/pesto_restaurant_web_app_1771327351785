@@ -6,9 +6,16 @@ import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
 
+const getInitials = (u) => {
+  if (!u) return '';
+  if (u.name) return u.name.split(' ').map(n => n[0]).join('').slice(0, 3).toUpperCase();
+  if (u.email) return u.email.split('@')[0].slice(0, 3).toUpperCase();
+  return '';
+};
+
 const AdminLegionella = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, isStaff, isAdmin, loading: authLoading } = useAuth();
+  const { user, isAuthenticated, isStaff, isAdmin, loading: authLoading } = useAuth();
   const { locations, adminLocationId: selectedLocation, setAdminLocationId: setSelectedLocation } = useLocation2();
 
   const today = new Date().toISOString().split('T')[0];
@@ -19,7 +26,11 @@ const AdminLegionella = () => {
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ date: today, test_time: '', hot_water_temp: '', cold_water_temp: '', name: '', initials: '', location_of_test: '', action_taken: '' });
+  const [form, setForm] = useState({ date: today, test_time: '', hot_water_temp: '', cold_water_temp: '', name: user?.name || '', initials: getInitials(user), location_of_test: '', action_taken: '' });
+
+  useEffect(() => {
+    setForm(f => ({ ...f, name: f.name || user?.name || '', initials: f.initials || getInitials(user) }));
+  }, [user]);
 
   const [historyStart, setHistoryStart] = useState(monthAgo);
   const [historyEnd, setHistoryEnd] = useState(today);
@@ -62,7 +73,7 @@ const AdminLegionella = () => {
         location_of_test: form.location_of_test,
         action_taken: form.action_taken,
       });
-      setForm({ date: today, test_time: '', hot_water_temp: '', cold_water_temp: '', name: '', initials: '', location_of_test: '', action_taken: '' });
+      setForm({ date: today, test_time: '', hot_water_temp: '', cold_water_temp: '', name: user?.name || '', initials: getInitials(user), location_of_test: '', action_taken: '' });
       setShowForm(false);
       await fetchEntries();
     } catch (err) { alert('Failed: ' + err.message); }
@@ -153,8 +164,8 @@ const AdminLegionella = () => {
                 <input data-testid="cold-water" type="number" step="0.1" placeholder="Cold °C (&lt; 20)" value={form.cold_water_temp} onChange={e => setForm({ ...form, cold_water_temp: e.target.value })} className="px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={inputStyle} />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <input placeholder="Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={inputStyle} />
-                <input placeholder="Initials" value={form.initials} onChange={e => setForm({ ...form, initials: e.target.value })} className="px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={inputStyle} />
+                <input data-testid="legionella-name" placeholder="Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={inputStyle} />
+                <input data-testid="legionella-initials" placeholder="Initials" value={form.initials} onChange={e => setForm({ ...form, initials: e.target.value })} className="px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={inputStyle} />
               </div>
               <textarea rows={2} placeholder="Action taken (if any)" value={form.action_taken} onChange={e => setForm({ ...form, action_taken: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm border-0 outline-none resize-none" style={inputStyle} />
               <button data-testid="save-legionella-btn" disabled={saving || !form.location_of_test} onClick={handleSave}
@@ -200,6 +211,7 @@ const AdminLegionella = () => {
                       {e.initials ? ` · ${e.initials}` : ''}
                     </p>
                     {e.action_taken && <p className="text-[11px] mt-1" style={{ color: '#FF9500' }}>⚠ {e.action_taken}</p>}
+                    {(e.created_by_name || e.created_by) && <p className="text-[10px] mt-0.5" style={{ color: '#C7C7CC', ...font }}>Logged by {e.created_by_name || e.created_by}</p>}
                   </div>
                   {isAdmin && (
                     <button data-testid={`del-legionella-${e.id}`} onClick={() => handleDelete(e.id)} className="w-8 h-8 rounded-lg flex items-center justify-center active:scale-95" style={{ background: 'rgba(255,59,48,0.1)' }}>

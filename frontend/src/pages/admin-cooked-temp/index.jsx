@@ -202,6 +202,7 @@ const AdminCookedTemp = () => {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium" style={{ color: '#1D1D1F', ...font }}>{e.food_item}</p>
                     <p className="text-[11px]" style={{ color: '#86868B' }}>{e.date}{e.time ? ` · ${e.time}` : ''} · {e.cooking_method} · <span className={e.passed ? '' : 'font-semibold'} style={{ color: e.passed ? '#86868B' : '#FF3B30' }}>{e.temp_c}°C</span>{e.initials ? ` · ${e.initials}` : ''}</p>
+                    {(e.created_by_name || e.created_by) && <p className="text-[10px] mt-0.5" style={{ color: '#C7C7CC', ...font }}>Logged by {e.created_by_name || e.created_by}</p>}
                   </div>
                   {isAdmin && (
                     <button data-testid={`del-cooked-${e.id}`} onClick={() => handleDelete(e.id)} className="w-8 h-8 rounded-lg flex items-center justify-center active:scale-95" style={{ background: 'rgba(255,59,48,0.1)' }}>

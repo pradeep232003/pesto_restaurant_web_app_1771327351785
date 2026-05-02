@@ -191,6 +191,7 @@ const AdminDeliveryRecords = () => {
                       {e.food_chilled_temp != null && ` · Chilled ${e.food_chilled_temp}°C`}
                     </p>
                     {e.quality_comments && <p className="text-[11px] mt-1" style={{ color: '#FF9500' }}>⚠ {e.quality_comments}</p>}
+                    {(e.created_by_name || e.created_by) && <p className="text-[10px] mt-0.5" style={{ color: '#C7C7CC', ...font }}>Logged by {e.created_by_name || e.created_by}</p>}
                   </div>
                   {isAdmin && (
                     <button data-testid={`del-delivery-${e.id}`} onClick={() => handleDelete(e.id)} className="w-8 h-8 rounded-lg flex items-center justify-center active:scale-95" style={{ background: 'rgba(255,59,48,0.1)' }}>

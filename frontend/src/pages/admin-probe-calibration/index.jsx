@@ -8,7 +8,7 @@ import { useLocation2 } from '../../contexts/LocationContext';
 
 const AdminProbeCalibration = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, isStaff, isAdmin, loading: authLoading } = useAuth();
+  const { user, isAuthenticated, isStaff, isAdmin, loading: authLoading } = useAuth();
   const { locations, adminLocationId: selectedLocation, setAdminLocationId: setSelectedLocation } = useLocation2();
 
   const today = new Date().toISOString().split('T')[0];
@@ -19,7 +19,11 @@ const AdminProbeCalibration = () => {
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ date: today, probe_no: '', tested_by: '', cold_temp: '', hot_temp: '', comments: '' });
+  const [form, setForm] = useState({ date: today, probe_no: '', tested_by: user?.name || '', cold_temp: '', hot_temp: '', comments: '' });
+
+  useEffect(() => {
+    setForm(f => ({ ...f, tested_by: f.tested_by || user?.name || '' }));
+  }, [user]);
 
   const [historyStart, setHistoryStart] = useState(monthAgo);
   const [historyEnd, setHistoryEnd] = useState(today);
@@ -60,7 +64,7 @@ const AdminProbeCalibration = () => {
         hot_temp: form.hot_temp === '' ? null : parseFloat(form.hot_temp),
         comments: form.comments,
       });
-      setForm({ date: today, probe_no: '', tested_by: '', cold_temp: '', hot_temp: '', comments: '' });
+      setForm({ date: today, probe_no: '', tested_by: user?.name || '', cold_temp: '', hot_temp: '', comments: '' });
       setShowForm(false);
       await fetchEntries();
     } catch (err) { alert('Failed: ' + err.message); }
@@ -144,7 +148,7 @@ const AdminProbeCalibration = () => {
               <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="w-full px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={inputStyle} />
               <div className="grid grid-cols-2 gap-3">
                 <input data-testid="probe-no" placeholder="Probe No." value={form.probe_no} onChange={e => setForm({ ...form, probe_no: e.target.value })} className="px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={inputStyle} />
-                <input placeholder="Tested by" value={form.tested_by} onChange={e => setForm({ ...form, tested_by: e.target.value })} className="px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={inputStyle} />
+                <input data-testid="tested-by" placeholder="Tested by" value={form.tested_by} onChange={e => setForm({ ...form, tested_by: e.target.value })} className="px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={inputStyle} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <input data-testid="cold-temp" type="number" step="0.1" placeholder="Cold °C (0 ± 1)" value={form.cold_temp} onChange={e => setForm({ ...form, cold_temp: e.target.value })} className="px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={inputStyle} />
@@ -193,6 +197,7 @@ const AdminProbeCalibration = () => {
                       {e.hot_temp != null && ` · Hot ${e.hot_temp}°C`}
                     </p>
                     {e.comments && <p className="text-[11px] mt-1" style={{ color: '#FF9500' }}>⚠ {e.comments}</p>}
+                    {(e.created_by_name || e.created_by) && <p className="text-[10px] mt-0.5" style={{ color: '#C7C7CC', ...font }}>Logged by {e.created_by_name || e.created_by}</p>}
                   </div>
                   {isAdmin && (
                     <button data-testid={`del-probe-${e.id}`} onClick={() => handleDelete(e.id)} className="w-8 h-8 rounded-lg flex items-center justify-center active:scale-95" style={{ background: 'rgba(255,59,48,0.1)' }}>
