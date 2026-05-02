@@ -112,11 +112,25 @@ Full-stack restaurant management app with MongoDB, admin CRUD, authentication, r
 
 ### Food Safety Log Forms (Feb 2026) - VERIFIED
 Four log-entry style admin pages digitizing physical food-safety forms. Each has location selector, date range filter, "New Entry" inline form, card list of entries with auto-computed pass/fail indicator (green check / red X) and admin-only delete. Shared backend pattern: POST create → GET list (with filters) → DELETE by id (admin only).
-- **Cooked & Reheated Temp** (`/admin/cooked-temp`, Flame icon): food_item, cooking_method (Combi/Grill/Microwave/Oven/Stove/Fryer/Bain-Marie/Other), temp_c, time, initials. Pass = temp ≥ 75°C.
+- **Cooked & Reheated Temp** (`/admin/cooked-temp`, Flame icon): food_item, cooking_method (Combi/Grill/Microwave/Oven/Stove/Fryer/Bain-Marie/Other), temp_c, time, initials. Pass = temp ≥ 75°C. Initials auto-fill from logged-in user's name.
 - **Delivery Records** (`/admin/delivery-records`, Truck icon): supplier, invoice_number, food_frozen_temp, food_chilled_temp, quality_comments. Pass = frozen ≤ -15°C AND chilled ≤ 8°C.
 - **Probe Calibration** (`/admin/probe-calibration`, Gauge icon): probe_no, tested_by, cold_temp, hot_temp, comments. Pass = |cold - 0| ≤ 1 AND |hot - 100| ≤ 1.
 - **Legionella Water Testing** (`/admin/legionella`, Droplet icon): test_time, hot_water_temp, cold_water_temp, name, initials, location_of_test, action_taken. Pass = hot > 50°C AND cold < 20°C.
-- Backend 18/18 pytest passed. Collections: `cooked_temp_logs`, `delivery_records`, `probe_calibrations`, `legionella_tests`.
+- All 4 pages have: Today/History tabs (admin-only History with date-range + Excel `.xlsx` download), back-to-dashboard link, dashboard quick-action tile.
+- Backend 18/18 pytest passed.
+
+### Cleaning Schedules (Feb 2026) - VERIFIED
+Two new admin pages digitizing the physical "Daily Cleaning" and "Weekly Deep Cleaning" forms.
+- **Daily Cleaning** (`/admin/daily-cleaning`, cyan Sparkles): 18 seeded items (FRIDGE, FREEZER, SURFACES, GRILL, FRYER, MICROWAVE, COFFEE MACHINE, OVEN/HOB, POTS/PANS, HAND CONTACT, SINKS, TAPS, RUBBISH BIN, FLOOR, DUST PAN, TIN OPENERS, STOOLS/FAN, STAIRS).
+- **Weekly Deep Cleaning** (`/admin/weekly-cleaning`, purple Sparkles): 7 seeded items (RUBBISH BIN, FRIDGE/FREEZER, SHELVES/WALL, FRYER, MICROWAVE, OVEN/HOB, CEILING).
+- Each item: name, frequency (EOS/CAYG/AM/WEEKLY), method description, chemical. Schedule tab = 7-day tick-box grid (Mon-Sun) with upsert per (location, week_ending). Manage Items tab (admin) allows add/edit/delete with Global or Specific-Location scope. Back-to-dashboard link.
+- Backend factory pattern (1 shared module → 2 routers). Collections: `daily_cleaning_items/logs`, `weekly_cleaning_items/logs`.
+
+### Food Safety Compliance Dashboard (Feb 2026) - VERIFIED
+Admin-only (/admin/compliance) EHO-ready compliance matrix aggregating all 9 food-safety checks across every site.
+- **Backend**: `GET /api/admin/compliance?start_date=X&end_date=Y[&location_id=Z]` returns `{overall_pct, sites:[{location_id, location_name, compliance_pct, checks:{9 keys}}], check_types}`. Each check computes coverage `actual_periods/expected` (daily cadence = days in range; weekly cadence = distinct ISO weeks), status = complete/partial/overdue/missing, last_date, last_by. Status weighting: complete=1, partial=0.5, else 0. Drill-down: `/api/admin/compliance/detail` returns full entry list.
+- **Frontend**: Matrix table (sites × 9 checks) with colored status pills (green/orange/red/gray), per-site score chip, overall % KPI. Filters: date range, site, check type, status. Click cell → side drawer with full entries. Dashboard widget card (admin-only) showing last-7-day overall % + top-5 sites. Sidebar link (Shield icon) admin+ only. **Print Report** button uses browser `window.print()` with `.print:hidden` / `.print:block` toggles — print view shows one summary table per site (Check / Status / Coverage / Last Record / Completed By) suitable for EHO inspections.
+- Backend 39/39 pytest passed. Frontend 100% E2E including non-admin redirect, filter combinations, drill-down, and print layout.
 
 ## Prioritized Backlog
 
