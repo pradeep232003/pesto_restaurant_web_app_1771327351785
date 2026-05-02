@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Shield, ArrowLeft, Printer, Check, X, AlertTriangle, Clock, Filter, Mail, FileDown } from 'lucide-react';
-import api from '../../lib/api';
+import api, { API_BASE_URL } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
 
@@ -68,7 +68,7 @@ const AdminCompliance = () => {
     setPdfLoading(true);
     try {
       const token = localStorage.getItem('access_token');
-      const resp = await fetch('/api/admin/compliance-digest/preview-pdf', {
+      const resp = await fetch(`${API_BASE_URL}/api/admin/compliance-digest/preview-pdf`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -290,11 +290,12 @@ const AdminCompliance = () => {
             </div>
           </div>
 
-          {/* Print detail tables — full per-site breakdown */}
-          <div className="hidden print:block space-y-6">
+          {/* Print detail tables — full per-site breakdown, one location per page */}
+          <div className="hidden print:block">
             {data.sites.map(site => (
-              <div key={site.location_id} style={{ breakInside: 'avoid' }}>
+              <div key={site.location_id} className="print-site-page" style={{ breakInside: 'avoid' }}>
                 <h2 className="text-lg font-bold mt-6" style={font}>{site.location_name} — {site.compliance_pct}%</h2>
+                <p className="text-xs mb-2" style={{ color: '#86868B', ...font }}>Period: {startDate} to {endDate}</p>
                 <table className="w-full text-xs mt-2" style={{ borderCollapse: 'collapse' }}>
                   <thead>
                     <tr><th className="border p-1 text-left">Check</th><th className="border p-1 text-left">Status</th><th className="border p-1 text-left">Coverage</th><th className="border p-1 text-left">Last Record</th><th className="border p-1 text-left">Completed By</th></tr>
@@ -383,12 +384,22 @@ const AdminCompliance = () => {
       {/* Print styles */}
       <style>{`
         @media print {
-          body { background: white !important; }
+          @page { size: A4 landscape; margin: 12mm; }
+          html, body { background: white !important; }
+          body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           .print\\:hidden { display: none !important; }
           .print\\:block { display: block !important; }
           .print\\:inline { display: inline !important; }
-          table { page-break-inside: auto; }
+          /* Force matrix scroll-wrapper to expand so the full table prints */
+          .overflow-x-auto { overflow: visible !important; }
+          table { width: 100% !important; page-break-inside: auto; font-size: 10px; }
+          th, td { padding: 3px 4px !important; }
           tr { page-break-inside: avoid; page-break-after: auto; }
+          /* Each per-site detailed breakdown starts on its own page */
+          .print-site-page { page-break-before: always; break-before: page; }
+          .print-site-page:first-child { page-break-before: auto; break-before: auto; }
+          h1, h2 { page-break-after: avoid; }
+          button { background: transparent !important; }
         }
       `}</style>
     </div>

@@ -4,6 +4,8 @@ const PROD_BACKEND = 'https://jollys-kafe-backend-production.up.railway.app';
 const API_BASE_URL = import.meta.env.VITE_API_URL ||
   (typeof window !== 'undefined' && window.location.hostname === 'www.jollyskafe.com' ? PROD_BACKEND : '');
 
+export { API_BASE_URL };
+
 // Helper to resolve image URLs - prepends API base for cross-origin setups
 export function resolveImageUrl(path) {
   if (!path) return null;

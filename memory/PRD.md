@@ -140,6 +140,10 @@ Automated Monday-morning email digest of the previous week's compliance matrix t
 - Dependencies added: reportlab, APScheduler, tzlocal (in both `requirements.txt` and `requirements-prod.txt`).
 - Backend 9/9 pytest passed. Live SMTP send verified. Iteration 25 Preview-PDF env-var bug fixed.
 
+### Compliance Print & Preview Fixes (Feb 2026) - VERIFIED
+- **Print Report** now renders in **A4 landscape** with `@page { size: A4 landscape; margin: 12mm }` so the full 9-check compliance matrix fits on one row. Each per-site detailed breakdown table now starts on its own page (`page-break-before: always` on `.print-site-page`), giving EHO inspectors a clean, one-page-per-location printout. Color retention enforced via `-webkit-print-color-adjust: exact`.
+- **Preview PDF** button now uses `API_BASE_URL`-prefixed fetch (exported from `/app/frontend/src/lib/api.js`) instead of bare relative URL — fixes the button on www.jollyskafe.com production where frontend and backend are on different hosts. Blob is opened via an anchor-click (`target=_blank`) to bypass popup blockers; blob URL revoked after 30 s.
+
 ## Prioritized Backlog
 
 ### P1 (High)
