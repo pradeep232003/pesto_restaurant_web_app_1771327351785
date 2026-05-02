@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Thermometer, Plus, Trash2, Check, Download, Clock, Settings } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Thermometer, Plus, Trash2, Check, Download, Clock, Settings, ArrowLeft } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -173,6 +173,9 @@ const AdminTempMonitor = () => {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto" data-testid="admin-temp-monitor-page">
+      <Link to="/admin" data-testid="back-to-dashboard" className="inline-flex items-center gap-1.5 text-xs font-medium mb-3 active:scale-95" style={{ color: '#007AFF', ...font }}>
+        <ArrowLeft size={13} /> Dashboard
+      </Link>
       <div className="mb-5">
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: '#1D1D1F', ...font }}>Temp Monitoring</h1>
         <p className="text-xs sm:text-sm mt-1" style={{ color: '#86868B' }}>Fridge, Freezer & Chiller daily checks</p>

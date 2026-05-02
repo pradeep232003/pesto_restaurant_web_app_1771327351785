@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { UtensilsCrossed, ClipboardList, ClipboardCheck, Users, Store, Plus, UserPlus, Settings, ArrowUpRight, Thermometer, DollarSign, Power, Flame, Truck, Gauge, Droplet, Sparkles, Shield } from 'lucide-react';
+import { UtensilsCrossed, ClipboardList, ClipboardCheck, Store, Plus, Settings, ArrowUpRight, Thermometer, DollarSign, Power, Flame, Truck, Gauge, Droplet, Sparkles, Shield } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -31,7 +31,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const { isAuthenticated, isStaff, isAdmin, loading: authLoading } = useAuth();
   const { locations } = useLocation2();
-  const [stats, setStats] = useState({ menuItems: 0, orders: 0, residents: 0, openSites: 0 });
+  const [stats, setStats] = useState({ menuItems: 0, orders: 0, openSites: 0 });
   const [recentOrders, setRecentOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [compliance, setCompliance] = useState(null);
@@ -43,13 +43,12 @@ const AdminDashboard = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [menuItems, orders, residents, siteSettings] = await Promise.all([
+        const [menuItems, orders, siteSettings] = await Promise.all([
           api.adminGetMenuItems().catch(() => []),
           api.adminGetOrders().catch(() => []),
-          api.adminGetResidents().catch(() => []),
           api.adminGetSiteSettings().catch(() => []),
         ]);
-        setStats({ menuItems: menuItems.length, orders: orders.length, residents: residents.length, openSites: siteSettings.filter(s => s.ordering_enabled).length });
+        setStats({ menuItems: menuItems.length, orders: orders.length, openSites: siteSettings.filter(s => s.ordering_enabled).length });
         setRecentOrders(orders.slice(0, 5));
       } catch {} finally { setLoading(false); }
     };
@@ -85,10 +84,9 @@ const AdminDashboard = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard icon={UtensilsCrossed} label="Menu Items" value={stats.menuItems} color="#1D1D1F" to="/admin/menu" />
         <StatCard icon={ClipboardList} label="Total Orders" value={stats.orders} color="#007AFF" to="/admin/orders" />
-        <StatCard icon={Users} label="Residents" value={stats.residents} color="#34C759" to="/admin/residents" />
         <StatCard icon={Store} label="Sites Open" value={`${stats.openSites}/${locations.length}`} color="#FF9500" to="/admin/site-settings" />
       </div>
 
@@ -250,10 +248,9 @@ const AdminDashboard = () => {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {[
           { to: '/admin/menu', icon: Plus, label: 'Add Menu Item', desc: 'Create a new dish', color: '#1D1D1F' },
-          { to: '/admin/residents', icon: UserPlus, label: 'Add Resident', desc: 'Register new resident', color: '#34C759' },
           { to: '/admin/site-settings', icon: Settings, label: 'Site Settings', desc: 'Hours & ordering', color: '#FF9500' },
         ].map(a => (
           <Link key={a.to} to={a.to} className="p-5 rounded-2xl transition-all duration-200 group hover:-translate-y-0.5" style={{ background: '#FFFFFF' }}>

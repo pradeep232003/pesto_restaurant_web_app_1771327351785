@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { DollarSign, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, FileText, Share2, X, LogOut, Pencil, Check, Grid3X3 } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { DollarSign, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, FileText, Share2, X, LogOut, Pencil, Check, Grid3X3, ArrowLeft } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCustomer } from '../../contexts/CustomerContext';
@@ -235,6 +235,9 @@ const AdminDailySales = () => {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto overflow-hidden" data-testid="admin-daily-sales-page">
+      <Link to="/admin" data-testid="back-to-dashboard" className="inline-flex items-center gap-1.5 text-xs font-medium mb-3 active:scale-95" style={{ color: '#007AFF', ...font }}>
+        <ArrowLeft size={13} /> Dashboard
+      </Link>
       {/* Header */}
       <div className="mb-5 flex items-center justify-between">
         <div>
