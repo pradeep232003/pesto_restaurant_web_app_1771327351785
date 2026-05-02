@@ -29,6 +29,10 @@ import LoyaltyCard from './pages/loyalty-card';
 import AdminTempMonitor from './pages/admin-temp-monitor';
 import AdminDailyChecks from './pages/admin-daily-checks';
 import AdminKitchenClosedown from './pages/admin-kitchen-closedown';
+import AdminCookedTemp from './pages/admin-cooked-temp';
+import AdminDeliveryRecords from './pages/admin-delivery-records';
+import AdminProbeCalibration from './pages/admin-probe-calibration';
+import AdminLegionella from './pages/admin-legionella';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -107,6 +111,10 @@ const AppRouter = () => {
       <Route path="/admin/temp-monitor" element={<AdminRoute><AdminTempMonitor /></AdminRoute>} />
       <Route path="/admin/daily-checks" element={<AdminRoute><AdminDailyChecks /></AdminRoute>} />
       <Route path="/admin/kitchen-closedown" element={<AdminRoute><AdminKitchenClosedown /></AdminRoute>} />
+      <Route path="/admin/cooked-temp" element={<AdminRoute><AdminCookedTemp /></AdminRoute>} />
+      <Route path="/admin/delivery-records" element={<AdminRoute><AdminDeliveryRecords /></AdminRoute>} />
+      <Route path="/admin/probe-calibration" element={<AdminRoute><AdminProbeCalibration /></AdminRoute>} />
+      <Route path="/admin/legionella" element={<AdminRoute><AdminLegionella /></AdminRoute>} />
 
       {/* Customer loyalty card */}
       <Route path="/loyalty-card" element={<LoyaltyCard />} />

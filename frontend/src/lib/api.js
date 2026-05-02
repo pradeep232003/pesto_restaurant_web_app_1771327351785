@@ -722,6 +722,51 @@ class ApiService {
   async adminGetClosedownCompletion(month) {
     return this.fetch(`/api/admin/kitchen-closedown/completion?month=${month}`);
   }
+
+  // ============== COOKED & REHEATED TEMP ==============
+  async adminListCookedTemp(filters = {}) {
+    const p = new URLSearchParams();
+    if (filters.location_id) p.append('location_id', filters.location_id);
+    if (filters.start_date) p.append('start_date', filters.start_date);
+    if (filters.end_date) p.append('end_date', filters.end_date);
+    return this.fetch(`/api/admin/cooked-temp?${p}`);
+  }
+  async adminGetCookingMethods() { return this.fetch('/api/admin/cooked-temp/methods'); }
+  async adminCreateCookedTemp(data) { return this.fetch('/api/admin/cooked-temp', { method: 'POST', body: JSON.stringify(data) }); }
+  async adminDeleteCookedTemp(id) { return this.fetch(`/api/admin/cooked-temp/${id}`, { method: 'DELETE' }); }
+
+  // ============== DELIVERY RECORDS ==============
+  async adminListDeliveryRecords(filters = {}) {
+    const p = new URLSearchParams();
+    if (filters.location_id) p.append('location_id', filters.location_id);
+    if (filters.start_date) p.append('start_date', filters.start_date);
+    if (filters.end_date) p.append('end_date', filters.end_date);
+    return this.fetch(`/api/admin/delivery-records?${p}`);
+  }
+  async adminCreateDeliveryRecord(data) { return this.fetch('/api/admin/delivery-records', { method: 'POST', body: JSON.stringify(data) }); }
+  async adminDeleteDeliveryRecord(id) { return this.fetch(`/api/admin/delivery-records/${id}`, { method: 'DELETE' }); }
+
+  // ============== PROBE CALIBRATION ==============
+  async adminListProbeCalibration(filters = {}) {
+    const p = new URLSearchParams();
+    if (filters.location_id) p.append('location_id', filters.location_id);
+    if (filters.start_date) p.append('start_date', filters.start_date);
+    if (filters.end_date) p.append('end_date', filters.end_date);
+    return this.fetch(`/api/admin/probe-calibration?${p}`);
+  }
+  async adminCreateProbeCalibration(data) { return this.fetch('/api/admin/probe-calibration', { method: 'POST', body: JSON.stringify(data) }); }
+  async adminDeleteProbeCalibration(id) { return this.fetch(`/api/admin/probe-calibration/${id}`, { method: 'DELETE' }); }
+
+  // ============== LEGIONELLA ==============
+  async adminListLegionella(filters = {}) {
+    const p = new URLSearchParams();
+    if (filters.location_id) p.append('location_id', filters.location_id);
+    if (filters.start_date) p.append('start_date', filters.start_date);
+    if (filters.end_date) p.append('end_date', filters.end_date);
+    return this.fetch(`/api/admin/legionella?${p}`);
+  }
+  async adminCreateLegionella(data) { return this.fetch('/api/admin/legionella', { method: 'POST', body: JSON.stringify(data) }); }
+  async adminDeleteLegionella(id) { return this.fetch(`/api/admin/legionella/${id}`, { method: 'DELETE' }); }
 }
 
 export const api = new ApiService();

@@ -83,6 +83,10 @@ from routes.loyalty import router as loyalty_router
 from routes.temp_monitoring import router as temp_router
 from routes.daily_checks import router as daily_checks_router
 from routes.kitchen_closedown import router as kitchen_closedown_router
+from routes.cooked_temp import router as cooked_temp_router
+from routes.delivery_records import router as delivery_records_router
+from routes.probe_calibration import router as probe_calibration_router
+from routes.legionella import router as legionella_router
 
 app.include_router(auth_router)
 app.include_router(locations_router)
@@ -99,6 +103,10 @@ app.include_router(loyalty_router)
 app.include_router(temp_router)
 app.include_router(daily_checks_router)
 app.include_router(kitchen_closedown_router)
+app.include_router(cooked_temp_router)
+app.include_router(delivery_records_router)
+app.include_router(probe_calibration_router)
+app.include_router(legionella_router)
 
 # ============== PUBLIC ENDPOINTS ==============
 
