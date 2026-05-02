@@ -82,6 +82,7 @@ from routes.finance import router as finance_router
 from routes.loyalty import router as loyalty_router
 from routes.temp_monitoring import router as temp_router
 from routes.daily_checks import router as daily_checks_router
+from routes.kitchen_closedown import router as kitchen_closedown_router
 
 app.include_router(auth_router)
 app.include_router(locations_router)
@@ -97,6 +98,7 @@ app.include_router(finance_router)
 app.include_router(loyalty_router)
 app.include_router(temp_router)
 app.include_router(daily_checks_router)
+app.include_router(kitchen_closedown_router)
 
 # ============== PUBLIC ENDPOINTS ==============
 
@@ -132,6 +134,10 @@ async def startup_event():
     # Seed daily-check items on first boot
     from routes.daily_checks import seed_daily_check_items
     seed_daily_check_items()
+
+    # Seed kitchen-closedown items on first boot
+    from routes.kitchen_closedown import seed_kitchen_closedown_items
+    seed_kitchen_closedown_items()
 
     # Migration: ensure all locations have new fields
     locations_collection.update_many({"wallet_enabled": {"$exists": False}}, {"$set": {"wallet_enabled": False}})

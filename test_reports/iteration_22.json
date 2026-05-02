@@ -1,0 +1,38 @@
+{
+  "summary": "Full backend + frontend testing of new Kitchen Closedown feature (mirror of Daily Checks). Backend: 12/12 pytest tests pass — default 9-item seed with fixed IDs (weekly_cleaning_signoff, food_covered_labelled, waste_removed_bins, fridge_temp_recorded, appliances_off, extraction_off, out_of_date_discarded, prep_areas_disinfected, floors_swept_clean) verified, GET /items (global + location-scoped), GET /items/all admin-gated, POST/PATCH/DELETE admin-gated (401/403 without auth), POST /api/admin/kitchen-closedown upsert with items_snapshot stored, GET single submission, GET /history admin-only, GET /completion?month=YYYY-MM admin-only with correct days_in_month, scope flipping (global<->location via 'scope' field), 404 on non-existent PATCH/DELETE, 422 on too-short text. INDEPENDENCE confirmed: a closedown item is NOT visible in /api/admin/daily-checks/items and vice-versa (separate collections kitchen_closedown_items vs daily_check_items). Frontend (1920x1080 + mobile 390x844): super_admin login, sidebar 'Closedown' link with Power icon visible, dashboard 4 quick-tile grid shows purple 'Closedown' tile (data-testid=quick-kitchen-closedown). Page /admin/kitchen-closedown loads with title 'Kitchen Closedown' and subtitle 'End-of-day checks — complete before locking up'. Selecting Timperley renders all 9 default items with correct text. Save button data-testid=save-closedown-btn shows 'Save (0/9)' counter, save executes, 'Last completed by Admin' badge confirms persistence on reload. Manage tab visible to super_admin lists '9 items total' with 'All Locations' badge for each (global scope). All data-testids properly prefixed with 'closedown-' (closedown-tab-check/history/overview/manage, closedown-add-item-btn, closedown-manage-item-{id}, closedown-edit-{id}, closedown-delete-{id}, closedown-location). History/Overview tabs render. Mobile viewport: no horizontal overflow. Regression: /admin/daily-checks still loads correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin/kitchen-closedown", "issues": ["Date input uses browser-native type=date picker rather than shadcn Calendar component (carried over from Daily Checks pattern, intentional consistency)"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_kitchen_closedown.py",
+    "/app/test_reports/pytest/pytest_kitchen_closedown.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/kitchen_closedown.py:42 — _active_items_for_location uses pymongo sync calls inside async handlers; same sync-in-async concern as daily_checks (non-blocking but worth migration to motor).",
+    "routes/kitchen_closedown.py:80-93 create_closedown_item — next_order computed without transaction/lock; concurrent POSTs in same scope can collide on order (cosmetic).",
+    "routes/kitchen_closedown.py:106-111 update_closedown_item — when scope='location' but location_id missing/empty, the scope branch silently no-ops (consider 400 response).",
+    "routes/kitchen_closedown.py:124-129 delete_closedown_item is hard delete; historical submissions still preserve text via items_snapshot but consider soft-delete (is_active=false) for consistency.",
+    "DEFAULT_CLOSEDOWN_ITEMS uses fixed string IDs (e.g., weekly_cleaning_signoff) while user-created items use uuid prefix. Mixed ID scheme is acceptable but worth documenting.",
+    "admin-kitchen-closedown/index.jsx likely inherits same patterns as admin-daily-checks (empty catch{} blocks, alert() on errors, native window.confirm). Not re-verified in this iteration but should be assumed present given mirror structure."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_kitchen_closedown.py",
+    "/app/test_reports/iteration_22.json"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@jollys.com / Admin123! (super_admin) - working",
+  "seed_data_creation": "All TEST_ items created during backend testing were cleaned up via autouse cleanup fixture (deletes any kitchen_closedown_items with text starting with TEST_, plus cross-cleanup of TEST_ daily_check_items used in independence test). Two closedown submission rows persist for Timperley date 2026-04-15 (test data) — non-blocking, no delete endpoint exists for closedown entries (same convention as daily_checks).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Kitchen Closedown feature is fully working end-to-end with 9 default items (IDs: weekly_cleaning_signoff, food_covered_labelled, waste_removed_bins, fridge_temp_recorded, appliances_off, extraction_off, out_of_date_discarded, prep_areas_disinfected, floors_swept_clean). Collections kitchen_closedown and kitchen_closedown_items are completely independent of daily_checks/daily_check_items — verified in test_closedown_independent_from_daily_checks. All admin role gating works (POST/PATCH/DELETE/items-all/history/completion = admin-only; GET items + GET single + POST submit = staff-or-above). Frontend data-testids all prefixed 'closedown-' so no collision with Daily Checks. Manage tab CRUD UI renders edit/delete buttons per item. Login URL is /admin-login (not /admin/login) and successful login redirects to /admin (the dashboard). Save button data-testid is save-closedown-btn (not save-btn). Note: checkboxes are styled divs (shadcn Checkbox) not native input[type=checkbox] — playwright must click the wrapper not query input[type=checkbox].",
+  "rca of the issue": "No bugs found - feature works as designed and is fully independent from Daily Checks."
+}

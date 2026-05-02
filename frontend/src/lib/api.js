@@ -679,6 +679,49 @@ class ApiService {
   async adminGetDailyChecksCompletion(month) {
     return this.fetch(`/api/admin/daily-checks/completion?month=${month}`);
   }
+
+  // ============== KITCHEN CLOSEDOWN ==============
+
+  async adminGetClosedownItems(locationId) {
+    const q = locationId ? `?location_id=${encodeURIComponent(locationId)}` : '';
+    return this.fetch(`/api/admin/kitchen-closedown/items${q}`);
+  }
+
+  async adminListAllClosedownItems() {
+    return this.fetch('/api/admin/kitchen-closedown/items/all');
+  }
+
+  async adminCreateClosedownItem(data) {
+    return this.fetch('/api/admin/kitchen-closedown/items', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async adminUpdateClosedownItem(itemId, data) {
+    return this.fetch(`/api/admin/kitchen-closedown/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  async adminDeleteClosedownItem(itemId) {
+    return this.fetch(`/api/admin/kitchen-closedown/items/${itemId}`, { method: 'DELETE' });
+  }
+
+  async adminSubmitClosedown(data) {
+    return this.fetch('/api/admin/kitchen-closedown', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async adminGetClosedown(locationId, date) {
+    return this.fetch(`/api/admin/kitchen-closedown?location_id=${locationId}&date=${date}`);
+  }
+
+  async adminGetClosedownHistory(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.location_id) params.append('location_id', filters.location_id);
+    if (filters.start_date) params.append('start_date', filters.start_date);
+    if (filters.end_date) params.append('end_date', filters.end_date);
+    return this.fetch(`/api/admin/kitchen-closedown/history?${params}`);
+  }
+
+  async adminGetClosedownCompletion(month) {
+    return this.fetch(`/api/admin/kitchen-closedown/completion?month=${month}`);
+  }
 }
 
 export const api = new ApiService();

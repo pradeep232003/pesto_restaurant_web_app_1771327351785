@@ -28,6 +28,7 @@ import AdminLoyalty from './pages/admin-loyalty';
 import LoyaltyCard from './pages/loyalty-card';
 import AdminTempMonitor from './pages/admin-temp-monitor';
 import AdminDailyChecks from './pages/admin-daily-checks';
+import AdminKitchenClosedown from './pages/admin-kitchen-closedown';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -105,6 +106,7 @@ const AppRouter = () => {
       <Route path="/admin/loyalty" element={<AdminRoute><AdminLoyalty /></AdminRoute>} />
       <Route path="/admin/temp-monitor" element={<AdminRoute><AdminTempMonitor /></AdminRoute>} />
       <Route path="/admin/daily-checks" element={<AdminRoute><AdminDailyChecks /></AdminRoute>} />
+      <Route path="/admin/kitchen-closedown" element={<AdminRoute><AdminKitchenClosedown /></AdminRoute>} />
 
       {/* Customer loyalty card */}
       <Route path="/loyalty-card" element={<LoyaltyCard />} />
