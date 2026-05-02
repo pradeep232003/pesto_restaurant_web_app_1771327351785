@@ -598,6 +598,36 @@ class ApiService {
   async adminGetLoyaltyDetail(customerId) {
     return this.fetch(`/api/admin/loyalty/customer/${customerId}`);
   }
+
+  // ============== TEMP MONITORING ==============
+
+  async adminGetTempUnits(locationId) {
+    const qs = locationId ? `?location_id=${locationId}` : '';
+    return this.fetch(`/api/admin/temp/units${qs}`);
+  }
+
+  async adminCreateTempUnit(data) {
+    return this.fetch('/api/admin/temp/units', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async adminDeleteTempUnit(id) {
+    return this.fetch(`/api/admin/temp/units/${id}`, { method: 'DELETE' });
+  }
+
+  async adminSubmitTempLog(data) {
+    return this.fetch('/api/admin/temp/log', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async adminGetTempLogs(locationId, opts = {}) {
+    const params = new URLSearchParams({ location_id: locationId });
+    if (opts.date) params.append('date', opts.date);
+    if (opts.month) params.append('month', opts.month);
+    return this.fetch(`/api/admin/temp/log?${params}`);
+  }
+
+  async adminSeedTempDefaults() {
+    return this.fetch('/api/admin/temp/seed-defaults', { method: 'POST' });
+  }
 }
 
 export const api = new ApiService();

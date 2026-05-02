@@ -26,6 +26,7 @@ import AdminEditLog from './pages/admin-edit-log';
 import AdminLoyaltyScanner from './pages/admin-loyalty-scanner';
 import AdminLoyalty from './pages/admin-loyalty';
 import LoyaltyCard from './pages/loyalty-card';
+import AdminTempMonitor from './pages/admin-temp-monitor';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -101,6 +102,7 @@ const AppRouter = () => {
       <Route path="/admin/edit-log" element={<AdminRoute><AdminEditLog /></AdminRoute>} />
       <Route path="/admin/loyalty-scanner" element={<AdminRoute><AdminLoyaltyScanner /></AdminRoute>} />
       <Route path="/admin/loyalty" element={<AdminRoute><AdminLoyalty /></AdminRoute>} />
+      <Route path="/admin/temp-monitor" element={<AdminRoute><AdminTempMonitor /></AdminRoute>} />
 
       {/* Customer loyalty card */}
       <Route path="/loyalty-card" element={<LoyaltyCard />} />
