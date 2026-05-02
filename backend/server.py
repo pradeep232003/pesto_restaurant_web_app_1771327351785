@@ -129,6 +129,10 @@ async def startup_event():
     seed_admin()
     seed_site_settings()
 
+    # Seed daily-check items on first boot
+    from routes.daily_checks import seed_daily_check_items
+    seed_daily_check_items()
+
     # Migration: ensure all locations have new fields
     locations_collection.update_many({"wallet_enabled": {"$exists": False}}, {"$set": {"wallet_enabled": False}})
     locations_collection.update_many(

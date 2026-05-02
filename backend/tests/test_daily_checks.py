@@ -142,8 +142,151 @@ def test_staff_cannot_access_history_and_completion(admin_headers, first_locatio
     assert r2.status_code in (401, 403)
 
 
+# ---------- Items CRUD ----------
+def test_items_crud_and_scope(admin_headers, first_location):
+    loc_id = first_location["id"]
+
+    # Baseline counts
+    r_global = requests.get(f"{BASE_URL}/api/admin/daily-checks/items", headers=admin_headers)
+    assert r_global.status_code == 200
+    baseline_global = len(r_global.json())
+    assert baseline_global == 15
+
+    r_loc = requests.get(f"{BASE_URL}/api/admin/daily-checks/items", headers=admin_headers, params={"location_id": loc_id})
+    assert r_loc.status_code == 200
+    baseline_loc = len(r_loc.json())
+    assert baseline_loc == baseline_global  # no location-specific items yet
+
+    # admin-only /items/all
+    r_all = requests.get(f"{BASE_URL}/api/admin/daily-checks/items/all", headers=admin_headers)
+    assert r_all.status_code == 200
+    all_items = r_all.json()
+    assert isinstance(all_items, list)
+    assert len(all_items) >= 15
+
+    # CREATE location-specific
+    r_c = requests.post(
+        f"{BASE_URL}/api/admin/daily-checks/items",
+        headers=admin_headers,
+        json={"text": "TEST_location_item_for_timperley", "location_id": loc_id},
+    )
+    assert r_c.status_code == 200, r_c.text
+    created = r_c.json()
+    assert created["text"] == "TEST_location_item_for_timperley"
+    assert created["location_id"] == loc_id
+    assert created["is_active"] is True
+    new_id = created["id"]
+
+    # Verify visible only for that location
+    r_loc2 = requests.get(f"{BASE_URL}/api/admin/daily-checks/items", headers=admin_headers, params={"location_id": loc_id})
+    texts_loc = [i["text"] for i in r_loc2.json()]
+    assert "TEST_location_item_for_timperley" in texts_loc
+    assert len(r_loc2.json()) == baseline_loc + 1
+
+    r_global2 = requests.get(f"{BASE_URL}/api/admin/daily-checks/items", headers=admin_headers)
+    texts_global = [i["text"] for i in r_global2.json()]
+    assert "TEST_location_item_for_timperley" not in texts_global
+    assert len(r_global2.json()) == baseline_global
+
+    # Submit should reflect new total for this location
+    r_sub = requests.post(
+        f"{BASE_URL}/api/admin/daily-checks",
+        headers=admin_headers,
+        json={"location_id": loc_id, "date": "2026-03-01", "checks": {new_id: True, "staff_fit": True}, "note": "TEST_with_local_item"},
+    )
+    assert r_sub.status_code == 200
+    assert r_sub.json()["total"] == baseline_loc + 1
+
+    # Verify items_snapshot was stored
+    r_get = requests.get(
+        f"{BASE_URL}/api/admin/daily-checks",
+        headers=admin_headers,
+        params={"location_id": loc_id, "date": "2026-03-01"},
+    )
+    saved = r_get.json()
+    assert saved is not None
+    assert "items_snapshot" in saved and isinstance(saved["items_snapshot"], list)
+    snap_ids = [s["id"] for s in saved["items_snapshot"]]
+    assert new_id in snap_ids
+
+    # UPDATE: change text and flip scope to global
+    r_u = requests.patch(
+        f"{BASE_URL}/api/admin/daily-checks/items/{new_id}",
+        headers=admin_headers,
+        json={"text": "TEST_updated_global", "scope": "global"},
+    )
+    assert r_u.status_code == 200, r_u.text
+    updated = r_u.json()
+    assert updated["text"] == "TEST_updated_global"
+    assert updated["location_id"] is None
+
+    # Now visible for global and any location
+    r_g3 = requests.get(f"{BASE_URL}/api/admin/daily-checks/items", headers=admin_headers)
+    assert any(i["id"] == new_id for i in r_g3.json())
+
+    # UPDATE: flip back to location-scoped
+    r_u2 = requests.patch(
+        f"{BASE_URL}/api/admin/daily-checks/items/{new_id}",
+        headers=admin_headers,
+        json={"scope": "location", "location_id": loc_id},
+    )
+    assert r_u2.status_code == 200
+    assert r_u2.json()["location_id"] == loc_id
+
+    # DELETE
+    r_d = requests.delete(f"{BASE_URL}/api/admin/daily-checks/items/{new_id}", headers=admin_headers)
+    assert r_d.status_code == 200
+
+    # Gone from both views
+    r_all2 = requests.get(f"{BASE_URL}/api/admin/daily-checks/items/all", headers=admin_headers)
+    assert not any(i["id"] == new_id for i in r_all2.json())
+
+
+def test_items_admin_only_gating():
+    """No auth should be rejected on POST/PATCH/DELETE and /items/all."""
+    r = requests.post(f"{BASE_URL}/api/admin/daily-checks/items", json={"text": "should fail"})
+    assert r.status_code in (401, 403)
+    r2 = requests.patch(f"{BASE_URL}/api/admin/daily-checks/items/fakeid", json={"text": "no"})
+    assert r2.status_code in (401, 403)
+    r3 = requests.delete(f"{BASE_URL}/api/admin/daily-checks/items/fakeid")
+    assert r3.status_code in (401, 403)
+    r4 = requests.get(f"{BASE_URL}/api/admin/daily-checks/items/all")
+    assert r4.status_code in (401, 403)
+
+
+def test_update_nonexistent_item_returns_404(admin_headers):
+    r = requests.patch(
+        f"{BASE_URL}/api/admin/daily-checks/items/nonexistent_id_xyz",
+        headers=admin_headers,
+        json={"text": "TEST_notfound"},
+    )
+    assert r.status_code == 404
+
+
+def test_delete_nonexistent_item_returns_404(admin_headers):
+    r = requests.delete(f"{BASE_URL}/api/admin/daily-checks/items/nonexistent_id_xyz", headers=admin_headers)
+    assert r.status_code == 404
+
+
+def test_create_item_validation_short_text(admin_headers):
+    r = requests.post(
+        f"{BASE_URL}/api/admin/daily-checks/items",
+        headers=admin_headers,
+        json={"text": "a"},
+    )
+    assert r.status_code == 422
+
+
 # ---------- Cleanup ----------
 @pytest.fixture(scope="module", autouse=True)
 def cleanup(admin_headers, first_location):
     yield
-    # No delete endpoint for daily checks - leftovers will be TEST_ prefixed notes
+    # Best-effort: remove any TEST_ items left behind
+    try:
+        r = requests.get(f"{BASE_URL}/api/admin/daily-checks/items/all", headers=admin_headers)
+        if r.status_code == 200:
+            for i in r.json():
+                if str(i.get("text", "")).startswith("TEST_"):
+                    requests.delete(f"{BASE_URL}/api/admin/daily-checks/items/{i['id']}", headers=admin_headers)
+    except Exception:
+        pass

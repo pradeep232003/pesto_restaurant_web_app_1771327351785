@@ -639,8 +639,25 @@ class ApiService {
 
   // ============== DAILY CHECKS ==============
 
-  async adminGetChecklistItems() {
-    return this.fetch('/api/admin/daily-checks/items');
+  async adminGetChecklistItems(locationId) {
+    const q = locationId ? `?location_id=${encodeURIComponent(locationId)}` : '';
+    return this.fetch(`/api/admin/daily-checks/items${q}`);
+  }
+
+  async adminListAllChecklistItems() {
+    return this.fetch('/api/admin/daily-checks/items/all');
+  }
+
+  async adminCreateChecklistItem(data) {
+    return this.fetch('/api/admin/daily-checks/items', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async adminUpdateChecklistItem(itemId, data) {
+    return this.fetch(`/api/admin/daily-checks/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  async adminDeleteChecklistItem(itemId) {
+    return this.fetch(`/api/admin/daily-checks/items/${itemId}`, { method: 'DELETE' });
   }
 
   async adminSubmitDailyCheck(data) {

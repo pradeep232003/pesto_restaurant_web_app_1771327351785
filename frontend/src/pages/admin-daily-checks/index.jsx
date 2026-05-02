@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ClipboardCheck, Check, X, ChevronDown } from 'lucide-react';
+import { ClipboardCheck, Check, X, ChevronDown, Plus, Pencil, Trash2, Globe, MapPin, Save } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -35,11 +35,23 @@ const AdminDailyChecks = () => {
   const [gridData, setGridData] = useState(null);
   const [gridLoading, setGridLoading] = useState(false);
 
+  // Manage items
+  const [allItems, setAllItems] = useState([]);
+  const [manageLoading, setManageLoading] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState('');
+  const [editScope, setEditScope] = useState('global');
+  const [editLocId, setEditLocId] = useState('');
+  const [newText, setNewText] = useState('');
+  const [newScope, setNewScope] = useState('global');
+  const [newLocId, setNewLocId] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !isStaff)) navigate('/admin-login');
   }, [authLoading, isAuthenticated, isStaff, navigate]);
 
-  useEffect(() => { fetchItems(); }, []);
+  useEffect(() => { fetchItems(); }, [selectedLocation]);
 
   useEffect(() => {
     if (selectedLocation && entryDate) loadExisting();
@@ -53,8 +65,62 @@ const AdminDailyChecks = () => {
     if (activeTab === 'overview' && isAdmin) fetchGrid();
   }, [activeTab, gridMonth]);
 
+  useEffect(() => {
+    if (activeTab === 'manage' && isAdmin) fetchAllItems();
+  }, [activeTab]);
+
   const fetchItems = async () => {
-    try { setItems(await api.adminGetChecklistItems()); } catch {}
+    try { setItems(await api.adminGetChecklistItems(selectedLocation || undefined)); } catch {}
+  };
+
+  const fetchAllItems = async () => {
+    setManageLoading(true);
+    try { setAllItems(await api.adminListAllChecklistItems()); }
+    catch (err) { alert('Failed to load items: ' + err.message); }
+    finally { setManageLoading(false); }
+  };
+
+  const handleAddItem = async () => {
+    if (!newText.trim()) return;
+    try {
+      await api.adminCreateChecklistItem({
+        text: newText.trim(),
+        location_id: newScope === 'location' ? newLocId : null,
+      });
+      setNewText(''); setNewScope('global'); setNewLocId(''); setShowAddForm(false);
+      await fetchAllItems();
+      await fetchItems();
+    } catch (err) { alert('Failed to add item: ' + err.message); }
+  };
+
+  const startEdit = (item) => {
+    setEditingId(item.id);
+    setEditText(item.text);
+    setEditScope(item.location_id ? 'location' : 'global');
+    setEditLocId(item.location_id || '');
+  };
+
+  const saveEdit = async () => {
+    if (!editText.trim()) return;
+    try {
+      await api.adminUpdateChecklistItem(editingId, {
+        text: editText.trim(),
+        scope: editScope,
+        location_id: editScope === 'location' ? editLocId : null,
+      });
+      setEditingId(null);
+      await fetchAllItems();
+      await fetchItems();
+    } catch (err) { alert('Failed to update item: ' + err.message); }
+  };
+
+  const handleDelete = async (item) => {
+    if (!window.confirm(`Delete "${item.text.slice(0, 60)}${item.text.length > 60 ? '…' : ''}"?`)) return;
+    try {
+      await api.adminDeleteChecklistItem(item.id);
+      await fetchAllItems();
+      await fetchItems();
+    } catch (err) { alert('Failed to delete: ' + err.message); }
   };
 
   const loadExisting = async () => {
@@ -131,20 +197,29 @@ const AdminDailyChecks = () => {
         </select>
       </div>
 
-      {selectedLocation && (
+      {/* Tabs — always show for admin */}
+      {isAdmin && (
+        <div className="flex gap-1 mb-5 p-1 rounded-xl" style={{ background: '#E8E8ED' }}>
+          {[{k:'check',l:'Check'},{k:'history',l:'History'},{k:'overview',l:'Overview'},{k:'manage',l:'Manage'}].map(tab => (
+            <button key={tab.k} data-testid={`tab-${tab.k}`} onClick={() => setActiveTab(tab.k)}
+              className="flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-center"
+              style={{ background: activeTab === tab.k ? '#FFFFFF' : 'transparent', color: activeTab === tab.k ? '#1D1D1F' : '#86868B', ...font, boxShadow: activeTab === tab.k ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}>
+              {tab.l}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'check' && !selectedLocation && (
+        <div className="text-center py-16 rounded-2xl" style={{ background: '#FFFFFF' }}>
+          <ClipboardCheck size={32} className="mx-auto mb-3" style={{ color: '#C7C7CC' }} />
+          <p className="text-sm" style={{ color: '#86868B', ...font }}>Select a location above to begin.</p>
+        </div>
+      )}
+
+      {((activeTab === 'check' && selectedLocation) || activeTab === 'history' || activeTab === 'overview' || activeTab === 'manage') && (
         <>
-          {/* Tabs */}
-          {isAdmin && (
-            <div className="flex gap-1 mb-5 p-1 rounded-xl" style={{ background: '#E8E8ED' }}>
-              {[{k:'check',l:'Check'},{k:'history',l:'History'},{k:'overview',l:'Overview'}].map(tab => (
-                <button key={tab.k} onClick={() => setActiveTab(tab.k)}
-                  className="flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-center"
-                  style={{ background: activeTab === tab.k ? '#FFFFFF' : 'transparent', color: activeTab === tab.k ? '#1D1D1F' : '#86868B', ...font, boxShadow: activeTab === tab.k ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}>
-                  {tab.l}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* placeholder-for-prior-structure */}
 
           {/* ========= CHECK TAB ========= */}
           {activeTab === 'check' && (
@@ -255,7 +330,7 @@ const AdminDailyChecks = () => {
                         {isOpen && (
                           <div className="px-4 pb-4" style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
                             <div className="space-y-1.5 mt-3">
-                              {items.map(item => {
+                              {(entry.items_snapshot && entry.items_snapshot.length ? entry.items_snapshot : items).map(item => {
                                 const passed = entry.checks?.[item.id];
                                 return (
                                   <div key={item.id} className="flex items-start gap-2 px-3 py-2 rounded-lg" style={{ background: passed ? 'rgba(52,199,89,0.04)' : 'rgba(255,59,48,0.04)' }}>
@@ -361,6 +436,130 @@ const AdminDailyChecks = () => {
                   </div>
                 );
               })()}
+            </div>
+          )}
+          {/* ========= MANAGE TAB ========= */}
+          {activeTab === 'manage' && isAdmin && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs" style={{ color: '#86868B', ...font }}>
+                  {allItems.length} item{allItems.length === 1 ? '' : 's'} total
+                </p>
+                <button data-testid="add-item-btn" onClick={() => setShowAddForm(!showAddForm)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold active:scale-95"
+                  style={{ background: '#1D1D1F', color: '#FFFFFF', ...font }}>
+                  <Plus size={13} /> {showAddForm ? 'Cancel' : 'Add Item'}
+                </button>
+              </div>
+
+              {showAddForm && (
+                <div className="p-4 rounded-2xl mb-4 space-y-3" style={{ background: '#FFFFFF' }}>
+                  <textarea data-testid="new-item-text" value={newText} onChange={e => setNewText(e.target.value)} rows={2}
+                    placeholder="Enter checklist item text..."
+                    className="w-full px-3 py-2.5 rounded-xl text-sm border-0 outline-none resize-none"
+                    style={{ ...inputStyle }} />
+                  <div className="flex gap-2">
+                    <select data-testid="new-item-scope" value={newScope} onChange={e => setNewScope(e.target.value)}
+                      className="flex-1 px-3 py-2.5 rounded-xl text-sm border-0 outline-none"
+                      style={{ ...inputStyle, background: '#F5F5F7' }}>
+                      <option value="global">All Locations</option>
+                      <option value="location">Specific Location</option>
+                    </select>
+                    {newScope === 'location' && (
+                      <select data-testid="new-item-location" value={newLocId} onChange={e => setNewLocId(e.target.value)}
+                        className="flex-1 px-3 py-2.5 rounded-xl text-sm border-0 outline-none"
+                        style={{ ...inputStyle, background: '#F5F5F7' }}>
+                        <option value="">Select...</option>
+                        {locations.filter(l => l.is_active).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                      </select>
+                    )}
+                  </div>
+                  <button data-testid="save-new-item-btn" onClick={handleAddItem}
+                    disabled={!newText.trim() || (newScope === 'location' && !newLocId)}
+                    className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-40 active:scale-[0.98]"
+                    style={{ background: '#34C759', color: '#FFFFFF', ...font }}>
+                    Save Item
+                  </button>
+                </div>
+              )}
+
+              {manageLoading ? (
+                <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" /></div>
+              ) : allItems.length === 0 ? (
+                <div className="text-center py-16 rounded-2xl" style={{ background: '#FFFFFF' }}>
+                  <ClipboardCheck size={32} className="mx-auto mb-3" style={{ color: '#C7C7CC' }} />
+                  <p className="text-sm" style={{ color: '#86868B', ...font }}>No items yet. Add your first one above.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {allItems.map(item => {
+                    const isEditing = editingId === item.id;
+                    const scopeLabel = item.location_id ? getLocationName(item.location_id) : 'All Locations';
+                    return (
+                      <div key={item.id} data-testid={`manage-item-${item.id}`} className="p-4 rounded-2xl" style={{ background: '#FFFFFF' }}>
+                        {isEditing ? (
+                          <div className="space-y-3">
+                            <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={2}
+                              className="w-full px-3 py-2.5 rounded-xl text-sm border-0 outline-none resize-none"
+                              style={{ ...inputStyle }} />
+                            <div className="flex gap-2">
+                              <select value={editScope} onChange={e => setEditScope(e.target.value)}
+                                className="flex-1 px-3 py-2.5 rounded-xl text-sm border-0 outline-none"
+                                style={{ ...inputStyle, background: '#F5F5F7' }}>
+                                <option value="global">All Locations</option>
+                                <option value="location">Specific Location</option>
+                              </select>
+                              {editScope === 'location' && (
+                                <select value={editLocId} onChange={e => setEditLocId(e.target.value)}
+                                  className="flex-1 px-3 py-2.5 rounded-xl text-sm border-0 outline-none"
+                                  style={{ ...inputStyle, background: '#F5F5F7' }}>
+                                  <option value="">Select...</option>
+                                  {locations.filter(l => l.is_active).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                </select>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              <button data-testid={`save-edit-${item.id}`} onClick={saveEdit}
+                                disabled={!editText.trim() || (editScope === 'location' && !editLocId)}
+                                className="flex-1 flex items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-semibold disabled:opacity-40 active:scale-95"
+                                style={{ background: '#34C759', color: '#FFFFFF', ...font }}>
+                                <Save size={13} /> Save
+                              </button>
+                              <button onClick={() => setEditingId(null)}
+                                className="flex-1 py-2.5 rounded-xl text-xs font-semibold active:scale-95"
+                                style={{ background: '#F5F5F7', color: '#86868B', ...font }}>
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start gap-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm leading-snug mb-2" style={{ color: '#1D1D1F', ...font }}>{item.text}</p>
+                              <div className="flex items-center gap-1.5">
+                                {item.location_id ? <MapPin size={11} style={{ color: '#007AFF' }} /> : <Globe size={11} style={{ color: '#34C759' }} />}
+                                <span className="text-[11px] font-medium" style={{ color: item.location_id ? '#007AFF' : '#34C759', ...font }}>{scopeLabel}</span>
+                              </div>
+                            </div>
+                            <div className="flex gap-1 shrink-0">
+                              <button data-testid={`edit-${item.id}`} onClick={() => startEdit(item)}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center active:scale-95"
+                                style={{ background: '#F5F5F7' }}>
+                                <Pencil size={13} style={{ color: '#1D1D1F' }} />
+                              </button>
+                              <button data-testid={`delete-${item.id}`} onClick={() => handleDelete(item)}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center active:scale-95"
+                                style={{ background: 'rgba(255,59,48,0.1)' }}>
+                                <Trash2 size={13} style={{ color: '#FF3B30' }} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </>
