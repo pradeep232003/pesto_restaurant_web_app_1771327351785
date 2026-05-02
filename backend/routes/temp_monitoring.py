@@ -15,16 +15,20 @@ class TempUnitCreate(BaseModel):
     name: str  # e.g. "Fridge 1", "Freezer", "Display Chiller"
     unit_type: str  # fridge, freezer, chiller
     location_id: str
+    time_slots: Optional[List[str]] = None  # e.g. ["08:00", "13:00"]
 
 class TempReading(BaseModel):
     unit_id: str
-    temp_8am: Optional[float] = None
-    temp_1pm: Optional[float] = None
+    temps: Optional[dict] = {}  # {"08:00": 4.2, "13:00": 4.8}
 
 class TempLogSubmit(BaseModel):
     location_id: str
     date: str  # YYYY-MM-DD
     readings: List[TempReading]
+
+class LocationTimeSlotsUpdate(BaseModel):
+    location_id: str
+    time_slots: List[str]  # ["08:00", "13:00"]
 
 
 # ============== UNIT MANAGEMENT (Admin) ==============
@@ -36,6 +40,7 @@ async def create_unit(body: TempUnitCreate, user: dict = Depends(get_admin_user)
         "name": body.name,
         "unit_type": body.unit_type,
         "location_id": body.location_id,
+        "time_slots": body.time_slots or ["08:00", "13:00"],
         "is_active": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -60,26 +65,42 @@ async def delete_unit(unit_id: str, user: dict = Depends(get_admin_user)):
     return {"message": "Unit removed"}
 
 
+@router.put("/time-slots")
+async def update_location_time_slots(body: LocationTimeSlotsUpdate, user: dict = Depends(get_admin_user)):
+    """Update recording time slots for all units at a location"""
+    result = temp_units_collection.update_many(
+        {"location_id": body.location_id, "is_active": True},
+        {"$set": {"time_slots": body.time_slots}},
+    )
+    return {"message": f"Updated {result.modified_count} units", "time_slots": body.time_slots}
+
+
+@router.get("/time-slots/{location_id}")
+async def get_location_time_slots(location_id: str, user: dict = Depends(get_staff_or_above)):
+    """Get recording time slots for a location"""
+    unit = temp_units_collection.find_one({"location_id": location_id, "is_active": True}, {"_id": 0, "time_slots": 1})
+    return {"time_slots": unit.get("time_slots", ["08:00", "13:00"]) if unit else ["08:00", "13:00"]}
+
+
 # ============== TEMP LOGGING (Staff) ==============
 
 @router.post("/log")
 async def submit_temp_log(body: TempLogSubmit, user: dict = Depends(get_staff_or_above)):
     """Submit temperature readings for a location on a date"""
     for r in body.readings:
-        # Upsert per unit+date
         existing = temp_logs_collection.find_one({
             "unit_id": r.unit_id, "date": body.date, "location_id": body.location_id,
         })
         update = {"updated_by": user.get("email", ""), "updated_by_name": user.get("name", ""), "updated_at": datetime.now(timezone.utc).isoformat()}
-        if r.temp_8am is not None:
-            update["temp_8am"] = r.temp_8am
-        if r.temp_1pm is not None:
-            update["temp_1pm"] = r.temp_1pm
+        # Merge temps into existing
+        if r.temps:
+            for slot, val in r.temps.items():
+                if val is not None:
+                    update[f"temp_{slot.replace(':', '')}"] = val
 
         if existing:
             temp_logs_collection.update_one({"id": existing["id"]}, {"$set": update})
         else:
-            # Get unit info for type
             unit = temp_units_collection.find_one({"id": r.unit_id}, {"_id": 0})
             doc = {
                 "id": str(uuid.uuid4())[:12],
@@ -88,8 +109,6 @@ async def submit_temp_log(body: TempLogSubmit, user: dict = Depends(get_staff_or
                 "unit_type": unit.get("unit_type", "") if unit else "",
                 "location_id": body.location_id,
                 "date": body.date,
-                "temp_8am": r.temp_8am,
-                "temp_1pm": r.temp_1pm,
                 "created_by": user.get("email", ""),
                 "created_by_name": user.get("name", ""),
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -142,6 +161,7 @@ async def seed_default_units(user: dict = Depends(get_admin_user)):
                     "name": name,
                     "unit_type": utype,
                     "location_id": loc["id"],
+                    "time_slots": ["08:00", "13:00"],
                     "is_active": True,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 })

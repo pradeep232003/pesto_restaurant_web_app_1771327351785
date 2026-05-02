@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Thermometer, Plus, Trash2, Check, ChevronDown, Download } from 'lucide-react';
+import { Thermometer, Plus, Trash2, Check, Download, Clock, Settings } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -11,8 +11,7 @@ const isOutOfRange = (temp, type) => {
   if (temp === null || temp === undefined || temp === '') return false;
   const t = parseFloat(temp);
   if (isNaN(t)) return false;
-  if (type === 'freezer') return t > -18;
-  return t > 8;
+  return type === 'freezer' ? t > -18 : t > 8;
 };
 
 const AdminTempMonitor = () => {
@@ -27,28 +26,34 @@ const AdminTempMonitor = () => {
   const [activeTab, setActiveTab] = useState('record');
   const [selectedLocation, setSelectedLocation] = useState('');
   const [units, setUnits] = useState([]);
+  const [timeSlots, setTimeSlots] = useState(['08:00', '13:00']);
   const [readings, setReadings] = useState({});
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [entryDate, setEntryDate] = useState(today);
 
-  // Monthly view
   const [viewMonth, setViewMonth] = useState(currentMonth);
   const [monthlyLogs, setMonthlyLogs] = useState([]);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
 
-  // Unit management
   const [showAddUnit, setShowAddUnit] = useState(false);
   const [newUnitName, setNewUnitName] = useState('');
   const [newUnitType, setNewUnitType] = useState('fridge');
+
+  const [showTimeSettings, setShowTimeSettings] = useState(false);
+  const [editTimeSlots, setEditTimeSlots] = useState([]);
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !isStaff)) navigate('/admin-login');
   }, [authLoading, isAuthenticated, isStaff, navigate]);
 
   useEffect(() => {
-    if (selectedLocation) { fetchUnits(); loadExistingReadings(); }
-  }, [selectedLocation, entryDate]);
+    if (selectedLocation) { fetchUnits(); fetchTimeSlots(); }
+  }, [selectedLocation]);
+
+  useEffect(() => {
+    if (selectedLocation && units.length > 0) loadExistingReadings();
+  }, [selectedLocation, entryDate, units]);
 
   useEffect(() => {
     if (activeTab === 'monthly' && selectedLocation) fetchMonthly();
@@ -56,14 +61,19 @@ const AdminTempMonitor = () => {
 
   const fetchUnits = async () => {
     try {
-      const u = await api.adminGetTempUnits(selectedLocation);
-      setUnits(u);
+      let u = await api.adminGetTempUnits(selectedLocation);
       if (u.length === 0 && isAdmin) {
-        // Auto-seed defaults
         await api.adminSeedTempDefaults();
-        const u2 = await api.adminGetTempUnits(selectedLocation);
-        setUnits(u2);
+        u = await api.adminGetTempUnits(selectedLocation);
       }
+      setUnits(u);
+    } catch {}
+  };
+
+  const fetchTimeSlots = async () => {
+    try {
+      const d = await api.adminGetTempTimeSlots(selectedLocation);
+      setTimeSlots(d.time_slots || ['08:00', '13:00']);
     } catch {}
   };
 
@@ -71,24 +81,36 @@ const AdminTempMonitor = () => {
     try {
       const logs = await api.adminGetTempLogs(selectedLocation, { date: entryDate });
       const r = {};
-      logs.forEach(l => { r[l.unit_id] = { temp_8am: l.temp_8am ?? '', temp_1pm: l.temp_1pm ?? '' }; });
+      logs.forEach(l => {
+        const temps = {};
+        Object.keys(l).forEach(k => {
+          if (k.startsWith('temp_') && k !== 'temp_logs') {
+            const slot = k.replace('temp_', '').replace(/(\d{2})(\d{2})/, '$1:$2');
+            temps[slot] = l[k];
+          }
+        });
+        r[l.unit_id] = temps;
+      });
       setReadings(r);
     } catch {}
   };
 
-  const updateReading = (unitId, field, val) => {
-    setReadings(prev => ({ ...prev, [unitId]: { ...prev[unitId], [field]: val } }));
+  const updateReading = (unitId, slot, val) => {
+    setReadings(prev => ({ ...prev, [unitId]: { ...prev[unitId], [slot]: val } }));
   };
 
   const handleSave = async () => {
     if (!selectedLocation) return;
     setSaving(true); setSuccessMsg('');
     try {
-      const readingsList = units.map(u => ({
-        unit_id: u.id,
-        temp_8am: readings[u.id]?.temp_8am !== '' ? parseFloat(readings[u.id]?.temp_8am) : null,
-        temp_1pm: readings[u.id]?.temp_1pm !== '' ? parseFloat(readings[u.id]?.temp_1pm) : null,
-      })).filter(r => r.temp_8am !== null || r.temp_1pm !== null);
+      const readingsList = units.map(u => {
+        const temps = {};
+        timeSlots.forEach(slot => {
+          const val = readings[u.id]?.[slot];
+          if (val !== undefined && val !== '') temps[slot] = parseFloat(val);
+        });
+        return { unit_id: u.id, temps };
+      }).filter(r => Object.keys(r.temps).length > 0);
       if (readingsList.length === 0) { alert('Enter at least one temperature'); setSaving(false); return; }
       await api.adminSubmitTempLog({ location_id: selectedLocation, date: entryDate, readings: readingsList });
       setSuccessMsg('Temperatures saved!');
@@ -107,9 +129,9 @@ const AdminTempMonitor = () => {
   const handleAddUnit = async () => {
     if (!newUnitName || !selectedLocation) return;
     try {
-      await api.adminCreateTempUnit({ name: newUnitName, unit_type: newUnitType, location_id: selectedLocation });
+      await api.adminCreateTempUnit({ name: newUnitName, unit_type: newUnitType, location_id: selectedLocation, time_slots: timeSlots });
       setNewUnitName(''); setShowAddUnit(false); fetchUnits();
-    } catch (err) { alert('Failed: ' + err.message); }
+    } catch (err) { alert(err.message); }
   };
 
   const handleDeleteUnit = async (id) => {
@@ -117,15 +139,24 @@ const AdminTempMonitor = () => {
     try { await api.adminDeleteTempUnit(id); fetchUnits(); } catch (err) { alert(err.message); }
   };
 
+  const handleSaveTimeSlots = async () => {
+    try {
+      await api.adminUpdateTempTimeSlots(selectedLocation, editTimeSlots.filter(s => s));
+      setTimeSlots(editTimeSlots.filter(s => s));
+      setShowTimeSettings(false);
+    } catch (err) { alert(err.message); }
+  };
+
   const exportMonthly = () => {
     if (!monthlyLogs.length) return;
     const loc = locations.find(l => l.id === selectedLocation)?.name || selectedLocation;
     const monthLabel = new Date(viewMonth + '-01').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
-    const rows = monthlyLogs.map(l => ({
-      'Date': l.date, 'Unit': l.unit_name, 'Type': l.unit_type,
-      'Temp 8am (°C)': l.temp_8am ?? '', 'Temp 1pm (°C)': l.temp_1pm ?? '',
-      'Recorded By': l.updated_by_name || l.created_by_name || '',
-    }));
+    const rows = monthlyLogs.map(l => {
+      const row = { 'Date': l.date, 'Unit': l.unit_name, 'Type': l.unit_type };
+      timeSlots.forEach(slot => { row[slot] = l[`temp_${slot.replace(':', '')}`] ?? ''; });
+      row['Recorded By'] = l.updated_by_name || l.created_by_name || '';
+      return row;
+    });
     rows.push({});
     rows.push({ 'Date': `Location: ${loc}`, 'Unit': `Month: ${monthLabel}` });
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -133,8 +164,6 @@ const AdminTempMonitor = () => {
     XLSX.utils.book_append_sheet(wb, ws, 'Temp Log');
     XLSX.writeFile(wb, `Jollys-TempLog-${loc.replace(/\s/g, '_')}-${viewMonth}.xlsx`);
   };
-
-  const getLocationName = (locId) => locations.find(l => l.id === locId)?.name || locId;
 
   if (authLoading) return <div className="flex items-center justify-center h-64"><div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" /></div>;
 
@@ -149,7 +178,6 @@ const AdminTempMonitor = () => {
         <p className="text-xs sm:text-sm mt-1" style={{ color: '#86868B' }}>Fridge, Freezer & Chiller daily checks</p>
       </div>
 
-      {/* Location selector */}
       <div className="mb-4">
         <select data-testid="temp-location" value={selectedLocation} onChange={e => setSelectedLocation(e.target.value)}
           className={inputBase} style={{ ...inputStyle, background: '#FFFFFF' }}>
@@ -160,7 +188,6 @@ const AdminTempMonitor = () => {
 
       {selectedLocation && (
         <>
-          {/* Tabs */}
           {isAdmin && (
             <div className="flex gap-1 mb-5 p-1 rounded-xl" style={{ background: '#E8E8ED' }}>
               {['record', 'monthly'].map(tab => (
@@ -180,62 +207,88 @@ const AdminTempMonitor = () => {
                 <div className="p-3 rounded-xl text-sm font-medium mb-4" style={{ background: 'rgba(52,199,89,0.1)', color: '#34C759', ...font }}>{successMsg}</div>
               )}
 
-              {/* Date */}
-              <div className="mb-4 w-1/2">
-                <label className="block text-xs font-medium mb-1" style={{ color: '#86868B', ...font }}>Date</label>
-                <input type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)} className={inputBase} style={{ ...inputStyle, background: '#FFFFFF' }} />
+              <div className="flex gap-3 mb-4 items-end">
+                <div className="w-1/2">
+                  <label className="block text-xs font-medium mb-1" style={{ color: '#86868B', ...font }}>Date</label>
+                  <input type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)} className={inputBase} style={{ ...inputStyle, background: '#FFFFFF' }} />
+                </div>
+                {isAdmin && (
+                  <button onClick={() => { setEditTimeSlots([...timeSlots]); setShowTimeSettings(!showTimeSettings); }}
+                    className="flex items-center gap-1.5 px-3 py-3 rounded-xl text-xs font-medium active:scale-95 transition-all"
+                    style={{ background: '#F5F5F7', color: '#007AFF', ...font }}>
+                    <Clock size={14} /> Times
+                  </button>
+                )}
               </div>
 
-              {/* Info banner */}
+              {/* Time slots settings */}
+              {showTimeSettings && isAdmin && (
+                <div className="p-4 rounded-2xl mb-4 space-y-3" style={{ background: '#FFFFFF', border: '2px solid #007AFF' }}>
+                  <p className="text-xs font-semibold" style={{ color: '#1D1D1F', ...font }}>Recording Times for {locations.find(l => l.id === selectedLocation)?.name}</p>
+                  <div className="space-y-2">
+                    {editTimeSlots.map((slot, i) => (
+                      <div key={i} className="flex gap-2 items-center">
+                        <input type="time" value={slot} onChange={e => { const s = [...editTimeSlots]; s[i] = e.target.value; setEditTimeSlots(s); }}
+                          className="flex-1 px-3 py-2.5 rounded-xl text-sm border-0 outline-none" style={inputStyle} />
+                        {editTimeSlots.length > 1 && (
+                          <button onClick={() => setEditTimeSlots(editTimeSlots.filter((_, j) => j !== i))} className="p-2 rounded-lg" style={{ color: '#FF3B30' }}><Trash2 size={14} /></button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => setEditTimeSlots([...editTimeSlots, ''])} className="flex items-center gap-1 text-xs font-medium" style={{ color: '#007AFF' }}><Plus size={13} /> Add Time</button>
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={handleSaveTimeSlots} className="flex-1 py-2.5 rounded-xl text-sm font-medium" style={{ background: '#34C759', color: '#FFFFFF', ...font }}><Check size={14} className="inline mr-1" />Save</button>
+                    <button onClick={() => setShowTimeSettings(false)} className="px-4 py-2.5 rounded-xl text-sm font-medium" style={{ background: '#F5F5F7', color: '#1D1D1F', ...font }}>Cancel</button>
+                  </div>
+                </div>
+              )}
+
               <div className="p-3 rounded-xl mb-4 text-xs" style={{ background: 'rgba(0,122,255,0.06)', color: '#007AFF', ...font }}>
                 <strong>Fridge/Chiller:</strong> below 8°C &nbsp;|&nbsp; <strong>Freezer:</strong> -18°C or colder
               </div>
 
-              {/* Units grid */}
               {units.length === 0 ? (
                 <div className="text-center py-12 rounded-2xl" style={{ background: '#FFFFFF' }}>
                   <Thermometer size={32} className="mx-auto mb-3" style={{ color: '#C7C7CC' }} />
-                  <p className="text-sm" style={{ color: '#86868B', ...font }}>No units configured for this location.</p>
+                  <p className="text-sm" style={{ color: '#86868B', ...font }}>No units configured.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {units.map(u => {
                     const r = readings[u.id] || {};
                     const limit = TEMP_LIMITS[u.unit_type] || TEMP_LIMITS.fridge;
-                    const am_bad = isOutOfRange(r.temp_8am, u.unit_type);
-                    const pm_bad = isOutOfRange(r.temp_1pm, u.unit_type);
+                    const anyBad = timeSlots.some(slot => isOutOfRange(r[slot], u.unit_type));
                     return (
-                      <div key={u.id} className="p-4 rounded-2xl" style={{ background: '#FFFFFF', border: (am_bad || pm_bad) ? '2px solid #FF3B30' : '1px solid rgba(0,0,0,0.04)' }}>
+                      <div key={u.id} className="p-4 rounded-2xl" style={{ background: '#FFFFFF', border: anyBad ? '2px solid #FF3B30' : '1px solid rgba(0,0,0,0.04)' }}>
                         <div className="flex items-center justify-between mb-3">
                           <div>
                             <p className="text-sm font-semibold" style={{ color: '#1D1D1F', ...font }}>{u.name}</p>
                             <p className="text-[11px]" style={{ color: '#86868B' }}>{u.unit_type.charAt(0).toUpperCase() + u.unit_type.slice(1)} · {limit.label}</p>
                           </div>
-                          <Thermometer size={18} style={{ color: (am_bad || pm_bad) ? '#FF3B30' : '#86868B' }} />
+                          <div className="flex items-center gap-2">
+                            {isAdmin && <button onClick={() => handleDeleteUnit(u.id)} className="p-1.5 rounded-lg" style={{ color: '#C7C7CC' }}><Trash2 size={13} /></button>}
+                            <Thermometer size={18} style={{ color: anyBad ? '#FF3B30' : '#86868B' }} />
+                          </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[11px] font-medium mb-1" style={{ color: '#86868B' }}>8:00 AM</label>
-                            <input
-                              data-testid={`temp-8am-${u.id}`}
-                              type="number" step="0.1" inputMode="decimal" placeholder="°C"
-                              value={r.temp_8am ?? ''}
-                              onChange={e => updateReading(u.id, 'temp_8am', e.target.value)}
-                              className={inputBase}
-                              style={{ ...inputStyle, background: am_bad ? 'rgba(255,59,48,0.06)' : '#F5F5F7', color: am_bad ? '#FF3B30' : '#1D1D1F' }}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-medium mb-1" style={{ color: '#86868B' }}>1:00 PM</label>
-                            <input
-                              data-testid={`temp-1pm-${u.id}`}
-                              type="number" step="0.1" inputMode="decimal" placeholder="°C"
-                              value={r.temp_1pm ?? ''}
-                              onChange={e => updateReading(u.id, 'temp_1pm', e.target.value)}
-                              className={inputBase}
-                              style={{ ...inputStyle, background: pm_bad ? 'rgba(255,59,48,0.06)' : '#F5F5F7', color: pm_bad ? '#FF3B30' : '#1D1D1F' }}
-                            />
-                          </div>
+                        <div className={`grid gap-3`} style={{ gridTemplateColumns: `repeat(${timeSlots.length}, 1fr)` }}>
+                          {timeSlots.map(slot => {
+                            const val = r[slot] ?? '';
+                            const bad = isOutOfRange(val, u.unit_type);
+                            return (
+                              <div key={slot}>
+                                <label className="block text-[11px] font-medium mb-1" style={{ color: '#86868B' }}>{slot}</label>
+                                <input
+                                  data-testid={`temp-${slot.replace(':', '')}-${u.id}`}
+                                  type="number" step="0.1" inputMode="decimal" placeholder="°C"
+                                  value={val}
+                                  onChange={e => updateReading(u.id, slot, e.target.value)}
+                                  className={inputBase}
+                                  style={{ ...inputStyle, background: bad ? 'rgba(255,59,48,0.06)' : '#F5F5F7', color: bad ? '#FF3B30' : '#1D1D1F' }}
+                                />
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
@@ -243,7 +296,6 @@ const AdminTempMonitor = () => {
                 </div>
               )}
 
-              {/* Add unit button (admin) */}
               {isAdmin && (
                 <div className="mt-4">
                   {showAddUnit ? (
@@ -260,14 +312,11 @@ const AdminTempMonitor = () => {
                       </div>
                     </div>
                   ) : (
-                    <button onClick={() => setShowAddUnit(true)} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: '#007AFF', ...font }}>
-                      <Plus size={14} /> Add Unit
-                    </button>
+                    <button onClick={() => setShowAddUnit(true)} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: '#007AFF', ...font }}><Plus size={14} /> Add Unit</button>
                   )}
                 </div>
               )}
 
-              {/* Save */}
               {units.length > 0 && (
                 <button data-testid="save-temps-btn" onClick={handleSave} disabled={saving}
                   className="w-full mt-5 py-3.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 active:scale-[0.98]"
@@ -281,7 +330,6 @@ const AdminTempMonitor = () => {
           {/* ========= MONTHLY VIEW TAB ========= */}
           {activeTab === 'monthly' && isAdmin && (
             <div>
-              {/* Month nav */}
               <div className="flex items-center gap-3 mb-5">
                 <button onClick={() => {
                   const [y, m] = viewMonth.split('-').map(Number);
@@ -314,29 +362,30 @@ const AdminTempMonitor = () => {
                         <tr style={{ background: '#F5F5F7' }}>
                           <th className="px-3 py-2.5 text-left font-semibold" style={{ color: '#86868B' }}>Date</th>
                           <th className="px-3 py-2.5 text-left font-semibold" style={{ color: '#86868B' }}>Unit</th>
-                          <th className="px-3 py-2.5 text-center font-semibold" style={{ color: '#86868B' }}>8am</th>
-                          <th className="px-3 py-2.5 text-center font-semibold" style={{ color: '#86868B' }}>1pm</th>
+                          {timeSlots.map(slot => (
+                            <th key={slot} className="px-3 py-2.5 text-center font-semibold" style={{ color: '#86868B' }}>{slot}</th>
+                          ))}
                           <th className="px-3 py-2.5 text-left font-semibold" style={{ color: '#86868B' }}>By</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {monthlyLogs.map((l, i) => {
-                          const am_bad = isOutOfRange(l.temp_8am, l.unit_type);
-                          const pm_bad = isOutOfRange(l.temp_1pm, l.unit_type);
-                          return (
-                            <tr key={l.id || i} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
-                              <td className="px-3 py-2.5 font-medium" style={{ color: '#1D1D1F' }}>{l.date?.substring(5)}</td>
-                              <td className="px-3 py-2.5" style={{ color: '#3A3A3C' }}>{l.unit_name}</td>
-                              <td className="px-3 py-2.5 text-center font-semibold" style={{ color: am_bad ? '#FF3B30' : '#1D1D1F' }}>
-                                {l.temp_8am != null ? `${l.temp_8am}°` : '—'}
-                              </td>
-                              <td className="px-3 py-2.5 text-center font-semibold" style={{ color: pm_bad ? '#FF3B30' : '#1D1D1F' }}>
-                                {l.temp_1pm != null ? `${l.temp_1pm}°` : '—'}
-                              </td>
-                              <td className="px-3 py-2.5" style={{ color: '#86868B' }}>{l.updated_by_name || l.created_by_name || ''}</td>
-                            </tr>
-                          );
-                        })}
+                        {monthlyLogs.map((l, i) => (
+                          <tr key={l.id || i} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+                            <td className="px-3 py-2.5 font-medium" style={{ color: '#1D1D1F' }}>{l.date?.substring(5)}</td>
+                            <td className="px-3 py-2.5" style={{ color: '#3A3A3C' }}>{l.unit_name}</td>
+                            {timeSlots.map(slot => {
+                              const key = `temp_${slot.replace(':', '')}`;
+                              const val = l[key];
+                              const bad = isOutOfRange(val, l.unit_type);
+                              return (
+                                <td key={slot} className="px-3 py-2.5 text-center font-semibold" style={{ color: bad ? '#FF3B30' : '#1D1D1F' }}>
+                                  {val != null ? `${val}°` : '—'}
+                                </td>
+                              );
+                            })}
+                            <td className="px-3 py-2.5" style={{ color: '#86868B' }}>{l.updated_by_name || l.created_by_name || ''}</td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>

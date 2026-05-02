@@ -628,6 +628,14 @@ class ApiService {
   async adminSeedTempDefaults() {
     return this.fetch('/api/admin/temp/seed-defaults', { method: 'POST' });
   }
+
+  async adminGetTempTimeSlots(locationId) {
+    return this.fetch(`/api/admin/temp/time-slots/${locationId}`);
+  }
+
+  async adminUpdateTempTimeSlots(locationId, timeSlots) {
+    return this.fetch('/api/admin/temp/time-slots', { method: 'PUT', body: JSON.stringify({ location_id: locationId, time_slots: timeSlots }) });
+  }
 }
 
 export const api = new ApiService();

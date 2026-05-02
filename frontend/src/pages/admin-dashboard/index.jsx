@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { UtensilsCrossed, ClipboardList, Users, Store, Plus, UserPlus, Settings, ArrowUpRight } from 'lucide-react';
+import { UtensilsCrossed, ClipboardList, Users, Store, Plus, UserPlus, Settings, ArrowUpRight, Thermometer, DollarSign } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -79,6 +79,28 @@ const AdminDashboard = () => {
         <StatCard icon={ClipboardList} label="Total Orders" value={stats.orders} color="#007AFF" to="/admin/orders" />
         <StatCard icon={Users} label="Residents" value={stats.residents} color="#34C759" to="/admin/residents" />
         <StatCard icon={Store} label="Sites Open" value={`${stats.openSites}/${locations.length}`} color="#FF9500" to="/admin/site-settings" />
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 gap-4">
+        <Link to="/admin/daily-sales" data-testid="quick-daily-sales" className="group flex items-center gap-4 p-5 rounded-2xl transition-all duration-200 hover:-translate-y-0.5" style={{ background: '#FFFFFF' }}>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#34C759' }}>
+            <DollarSign size={22} color="white" strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Daily Sales</p>
+            <p className="text-xs" style={{ color: '#86868B' }}>Record today's sales</p>
+          </div>
+        </Link>
+        <Link to="/admin/temp-monitor" data-testid="quick-temp-log" className="group flex items-center gap-4 p-5 rounded-2xl transition-all duration-200 hover:-translate-y-0.5" style={{ background: '#FFFFFF' }}>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#007AFF' }}>
+            <Thermometer size={22} color="white" strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Temp Log</p>
+            <p className="text-xs" style={{ color: '#86868B' }}>Record temperatures</p>
+          </div>
+        </Link>
       </div>
 
       {/* Recent Orders */}
