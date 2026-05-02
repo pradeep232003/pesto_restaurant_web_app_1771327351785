@@ -88,6 +88,7 @@ from routes.delivery_records import router as delivery_records_router
 from routes.probe_calibration import router as probe_calibration_router
 from routes.legionella import router as legionella_router
 from routes.cleaning_schedules import daily_cleaning_router, weekly_cleaning_router, seed_cleaning_schedules
+from routes.compliance import router as compliance_router
 
 app.include_router(auth_router)
 app.include_router(locations_router)
@@ -110,6 +111,7 @@ app.include_router(probe_calibration_router)
 app.include_router(legionella_router)
 app.include_router(daily_cleaning_router)
 app.include_router(weekly_cleaning_router)
+app.include_router(compliance_router)
 
 # ============== PUBLIC ENDPOINTS ==============
 

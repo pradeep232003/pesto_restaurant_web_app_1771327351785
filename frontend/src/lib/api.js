@@ -787,6 +787,17 @@ class ApiService {
     if (filters.end_date) p.append('end_date', filters.end_date);
     return this.fetch(`/api/admin/${kind}/history?${p}`);
   }
+
+  // ============== COMPLIANCE (EHO Dashboard) ==============
+  async adminGetCompliance({ start_date, end_date, location_id }) {
+    const p = new URLSearchParams({ start_date, end_date });
+    if (location_id) p.append('location_id', location_id);
+    return this.fetch(`/api/admin/compliance?${p}`);
+  }
+  async adminGetComplianceDetail({ location_id, check_key, start_date, end_date }) {
+    const p = new URLSearchParams({ location_id, check_key, start_date, end_date });
+    return this.fetch(`/api/admin/compliance/detail?${p}`);
+  }
 }
 
 export const api = new ApiService();

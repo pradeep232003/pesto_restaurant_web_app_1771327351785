@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { UtensilsCrossed, ClipboardList, ClipboardCheck, Users, Store, Plus, UserPlus, Settings, ArrowUpRight, Thermometer, DollarSign, Power, Flame, Truck, Gauge, Droplet, Sparkles } from 'lucide-react';
+import { UtensilsCrossed, ClipboardList, ClipboardCheck, Users, Store, Plus, UserPlus, Settings, ArrowUpRight, Thermometer, DollarSign, Power, Flame, Truck, Gauge, Droplet, Sparkles, Shield } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -29,11 +29,12 @@ const StatCard = ({ icon: IconComp, label, value, color, to }) => (
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, isStaff, loading: authLoading } = useAuth();
+  const { isAuthenticated, isStaff, isAdmin, loading: authLoading } = useAuth();
   const { locations } = useLocation2();
   const [stats, setStats] = useState({ menuItems: 0, orders: 0, residents: 0, openSites: 0 });
   const [recentOrders, setRecentOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [compliance, setCompliance] = useState(null);
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !isStaff)) navigate('/admin-login');
@@ -54,6 +55,16 @@ const AdminDashboard = () => {
     };
     if (isAuthenticated && isStaff) fetchStats();
   }, [isAuthenticated, isStaff]);
+
+  useEffect(() => {
+    const fetchCompliance = async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const weekAgo = new Date(Date.now() - 6 * 864e5).toISOString().split('T')[0];
+      try { setCompliance(await api.adminGetCompliance({ start_date: weekAgo, end_date: today })); }
+      catch {}
+    };
+    if (isAdmin) fetchCompliance();
+  }, [isAdmin]);
 
   if (authLoading || loading) return (
     <div className="p-6 lg:p-8 space-y-6">
@@ -80,6 +91,35 @@ const AdminDashboard = () => {
         <StatCard icon={Users} label="Residents" value={stats.residents} color="#34C759" to="/admin/residents" />
         <StatCard icon={Store} label="Sites Open" value={`${stats.openSites}/${locations.length}`} color="#FF9500" to="/admin/site-settings" />
       </div>
+
+      {/* Compliance widget (admin+ only) */}
+      {isAdmin && compliance && (
+        <Link to="/admin/compliance" data-testid="compliance-widget" className="block p-5 rounded-2xl transition-all hover:-translate-y-0.5" style={{ background: '#FFFFFF' }}>
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#1D1D1F' }}>
+                <Shield size={18} color="white" strokeWidth={1.8} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Food Safety Compliance</p>
+                <p className="text-[11px]" style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}>Last 7 days · EHO-ready</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-3xl font-semibold" data-testid="compliance-widget-pct" style={{ color: compliance.overall_pct >= 90 ? '#34C759' : compliance.overall_pct >= 60 ? '#FF9500' : '#FF3B30', fontFamily: 'Outfit, sans-serif' }}>{compliance.overall_pct}%</p>
+              <p className="text-[11px]" style={{ color: '#86868B' }}>Overall</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            {compliance.sites.slice(0, 5).map(s => (
+              <div key={s.location_id} className="px-3 py-2 rounded-lg flex items-center justify-between" style={{ background: '#F5F5F7' }}>
+                <span className="text-[11px] font-medium truncate mr-2" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>{s.location_name}</span>
+                <span className="text-[11px] font-semibold shrink-0" style={{ color: s.compliance_pct >= 90 ? '#34C759' : s.compliance_pct >= 60 ? '#FF9500' : '#FF3B30', fontFamily: 'Outfit, sans-serif' }}>{s.compliance_pct}%</span>
+              </div>
+            ))}
+          </div>
+        </Link>
+      )}
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, UtensilsCrossed, ClipboardList, ClipboardCheck, Settings, Wallet, Receipt, LogOut, Menu, X, ChefHat, User, Users, DollarSign, BarChart3, TrendingUp, TrendingDown, FileText, ScanLine, Gift, Thermometer, Power, Flame, Truck, Gauge, Droplet, Sparkles } from 'lucide-react';
+import { LayoutDashboard, UtensilsCrossed, ClipboardList, ClipboardCheck, Settings, Wallet, Receipt, LogOut, Menu, X, ChefHat, User, Users, DollarSign, BarChart3, TrendingUp, TrendingDown, FileText, ScanLine, Gift, Thermometer, Power, Flame, Truck, Gauge, Droplet, Sparkles, Shield } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCustomer } from '../contexts/CustomerContext';
 
@@ -29,6 +29,9 @@ const getNavItems = (role) => {
     { path: '/admin/daily-cleaning', label: 'Daily Clean', icon: Sparkles },
     { path: '/admin/weekly-cleaning', label: 'Weekly Deep', icon: Sparkles },
   ];
+  if (role === 'admin' || role === 'super_admin') {
+    items.push({ path: '/admin/compliance', label: 'Compliance', icon: Shield });
+  }
   if (role === 'super_admin') {
     items.push({ path: '/admin/users', label: 'Users', icon: Users });
   }
