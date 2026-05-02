@@ -798,6 +798,12 @@ class ApiService {
     const p = new URLSearchParams({ location_id, check_key, start_date, end_date });
     return this.fetch(`/api/admin/compliance/detail?${p}`);
   }
+  async adminSendComplianceDigestNow() {
+    return this.fetch('/api/admin/compliance-digest/send-now', { method: 'POST' });
+  }
+  async adminGetComplianceDigestRecipients() {
+    return this.fetch('/api/admin/compliance-digest/recipients');
+  }
 }
 
 export const api = new ApiService();

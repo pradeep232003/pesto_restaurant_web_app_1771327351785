@@ -1,0 +1,44 @@
+{
+  "summary": "Weekly Compliance Digest feature tested end-to-end. Backend: 9/9 pytest passed covering recipients/preview-pdf/send-now auth gates, PDF validity+content (extracted via pypdf: title 'Food Safety Compliance', 'Weekly Digest', period dates, overall compliance, per-site pages), live SMTP send (sent:true, admin@jollys.com, pdf_size 9881), scheduler log line present, run_weekly_digest_job + _admin_recipients importable & callable, and /api/admin/compliance regression. Frontend: Preview PDF + Email Digest Now buttons present with correct data-testids, 'Auto-sent every Monday 07:00 UK' label shown, Email Digest flow works (confirm prompt -> success alert listing admin@jollys.com). CRITICAL FRONTEND BUG: Preview PDF button throws 'process is not defined' in Vite runtime because handlePreviewPDF uses process.env.REACT_APP_BACKEND_URL (a CRA-style access) instead of import.meta.env. Button click is effectively broken in-browser despite backend endpoint being healthy.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "AdminCompliance.handlePreviewPDF (/app/frontend/src/pages/admin-compliance/index.jsx line 67)",
+        "issue": "ReferenceError 'process is not defined' on click. Frontend is built with Vite (see /app/frontend/src/lib/api.js using import.meta.env.VITE_API_URL) so process.env.REACT_APP_BACKEND_URL is undefined at runtime. Preview PDF fails to open the PDF blob — no new tab, network request for /preview-pdf is never made. Two PAGEERROR events captured in browser console.",
+        "selector": "[data-testid='preview-pdf-btn']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Preview PDF (admin/compliance)",
+        "issue": "Broken — pageerror thrown; fetch call never fires. Suggested fix: replace `${process.env.REACT_APP_BACKEND_URL}` with `${import.meta.env.VITE_API_URL || ''}` (matching the pattern in lib/api.js), OR simply use a same-origin relative path: `/api/admin/compliance-digest/preview-pdf` since the api service already does same-origin fetches in preview env.",
+        "affected_selectors": ["[data-testid='preview-pdf-btn']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_compliance_digest.py",
+    "/app/test_reports/pytest/pytest_compliance_digest.xml"
+  ],
+  "action_items": [
+    "Fix Preview PDF button: replace process.env.REACT_APP_BACKEND_URL in handlePreviewPDF with import.meta.env.VITE_API_URL (empty-string fallback) OR use relative path '/api/admin/compliance-digest/preview-pdf'. The Authorization header flow with fetch+blob+window.open is otherwise correct."
+  ],
+  "critical_code_review_comments": [
+    "handlePreviewPDF uses CRA-style process.env.REACT_APP_BACKEND_URL but the app is Vite; only import.meta.env.* is replaced at build time. This yields a runtime ReferenceError.",
+    "run_weekly_digest_job returns None implicitly after _send_digest; consider returning the dict so scheduled-run results can be logged/monitored.",
+    "_admin_recipients queries users_collection AND customers_collection (good union); however customers_collection.find filter `email: {$ne: null}` will miss docs where email field is absent — consider `$exists: true, $ne: null, $ne: ''` to also skip empty strings.",
+    "send-now raises 400 on SMTP failure/missing — consider 503 for transient SMTP issues vs 500 for config.",
+    "PDF build rebuilds matrix every preview/send; fine for weekly cadence, but could be memoised per (start,end) for back-to-back admin clicks."
+  ],
+  "updated_files": ["/app/backend/tests/test_compliance_digest.py"],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "80% (Email Digest Now works; Preview PDF broken at runtime)"},
+  "test_credentials": "admin@jollys.com / Admin123! (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend endpoints (/api/admin/compliance-digest/{send-now,recipients,preview-pdf}) fully green. Real SMTP send verified twice (pytest + playwright) — avoid calling send-now more than once per session to not flood. Scheduler log line confirmed in /var/log/supervisor/backend.out.log. The only remaining defect is a Vite/CRA env-var mismatch in handlePreviewPDF — main agent can self-verify by fixing the single URL line, reloading /admin/compliance and clicking Preview PDF (no console error, new tab opens with PDF).",
+  "rca of the issue": "Root cause: admin-compliance/index.jsx line 67 calls `process.env.REACT_APP_BACKEND_URL`. The Jolly's Kafe frontend is a Vite project (package.json / lib/api.js confirms via `import.meta.env.VITE_API_URL`). Vite does NOT polyfill `process` in the browser bundle by default, so the identifier is undefined and accessing .env throws ReferenceError: process is not defined. Reproduction: login as admin, visit /admin/compliance, click Preview PDF → browser throws pageerror, no network request to /preview-pdf, no new tab. Mitigation: change to `${import.meta.env.VITE_API_URL || ''}/api/admin/compliance-digest/preview-pdf` (same pattern as api.js) or just `/api/admin/compliance-digest/preview-pdf` since preview/prod both serve the API same-origin."
+}

@@ -89,6 +89,7 @@ from routes.probe_calibration import router as probe_calibration_router
 from routes.legionella import router as legionella_router
 from routes.cleaning_schedules import daily_cleaning_router, weekly_cleaning_router, seed_cleaning_schedules
 from routes.compliance import router as compliance_router
+from routes.compliance_digest import router as compliance_digest_router, run_weekly_digest_job
 
 app.include_router(auth_router)
 app.include_router(locations_router)
@@ -112,6 +113,7 @@ app.include_router(legionella_router)
 app.include_router(daily_cleaning_router)
 app.include_router(weekly_cleaning_router)
 app.include_router(compliance_router)
+app.include_router(compliance_digest_router)
 
 # ============== PUBLIC ENDPOINTS ==============
 
@@ -154,6 +156,19 @@ async def startup_event():
 
     # Seed daily + weekly cleaning schedule items on first boot
     seed_cleaning_schedules()
+
+    # Start APScheduler for weekly compliance digest (Mondays 07:00 Europe/London)
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from apscheduler.triggers.cron import CronTrigger
+        scheduler = BackgroundScheduler(timezone="Europe/London")
+        scheduler.add_job(run_weekly_digest_job, CronTrigger(day_of_week="mon", hour=7, minute=0),
+                          id="weekly_compliance_digest", replace_existing=True, misfire_grace_time=3600)
+        scheduler.start()
+        app.state.scheduler = scheduler
+        print("[scheduler] Weekly compliance digest scheduled for Mondays 07:00 Europe/London")
+    except Exception as e:
+        print(f"[scheduler] Failed to start: {e}")
 
     # Migration: ensure all locations have new fields
     locations_collection.update_many({"wallet_enabled": {"$exists": False}}, {"$set": {"wallet_enabled": False}})

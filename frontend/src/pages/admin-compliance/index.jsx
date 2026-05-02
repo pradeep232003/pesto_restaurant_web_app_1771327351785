@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Shield, ArrowLeft, Printer, Check, X, AlertTriangle, Clock, Filter } from 'lucide-react';
+import { Shield, ArrowLeft, Printer, Check, X, AlertTriangle, Clock, Filter, Mail, FileDown } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -63,6 +63,27 @@ const AdminCompliance = () => {
 
   const handlePrint = () => window.print();
 
+  const handlePreviewPDF = () => {
+    const url = `${process.env.REACT_APP_BACKEND_URL}/api/admin/compliance-digest/preview-pdf`;
+    const token = localStorage.getItem('access_token');
+    // Fetch with auth then open blob URL (direct GET can't include bearer header)
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.blob())
+      .then(b => window.open(URL.createObjectURL(b), '_blank'))
+      .catch(err => alert('Preview failed: ' + err.message));
+  };
+
+  const [sending, setSending] = useState(false);
+  const handleSendDigest = async () => {
+    if (!window.confirm('Send the weekly compliance digest to all admins now?')) return;
+    setSending(true);
+    try {
+      const res = await api.adminSendComplianceDigestNow();
+      alert(`Sent to ${res.recipients.length} admin${res.recipients.length === 1 ? '' : 's'}:\n${res.recipients.join('\n')}`);
+    } catch (err) { alert('Failed: ' + err.message); }
+    finally { setSending(false); }
+  };
+
   if (authLoading) return <div className="flex items-center justify-center h-64"><div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" /></div>;
 
   const font = { fontFamily: 'Outfit, sans-serif' };
@@ -101,6 +122,20 @@ const AdminCompliance = () => {
             style={{ background: '#1D1D1F', color: '#FFFFFF', ...font }}>
             <Printer size={14} /> Print Report
           </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 mb-5 print:hidden">
+          <button data-testid="preview-pdf-btn" onClick={handlePreviewPDF}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold active:scale-95"
+            style={{ background: '#F5F5F7', color: '#1D1D1F', ...font }}>
+            <FileDown size={12} /> Preview PDF
+          </button>
+          <button data-testid="send-digest-btn" disabled={sending} onClick={handleSendDigest}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50 active:scale-95"
+            style={{ background: '#007AFF', color: '#FFFFFF', ...font }}>
+            <Mail size={12} /> {sending ? 'Sending...' : 'Email Digest Now'}
+          </button>
+          <span className="text-[11px]" style={{ color: '#86868B', ...font }}>Auto-sent every Monday 07:00 UK</span>
         </div>
 
         {/* Filters */}

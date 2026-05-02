@@ -1,0 +1,250 @@
+"""
+Weekly compliance digest — generates PDF of last-7-day compliance matrix
+and emails it to every admin / super_admin every Monday 07:00 Europe/London.
+"""
+import os
+import io
+import smtplib
+from datetime import date, timedelta, datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+
+from db import customers_collection, users_collection
+from auth import get_admin_user
+from routes.compliance import CHECK_CONFIG, _assess_check, locations_collection
+
+SMTP_HOST = os.environ.get("SMTP_HOST", "")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_EMAIL = os.environ.get("SMTP_EMAIL", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+
+router = APIRouter(prefix="/api/admin/compliance-digest", tags=["compliance-digest"])
+
+STATUS_COLOURS = {
+    "complete": colors.HexColor("#34C759"),
+    "partial": colors.HexColor("#FF9500"),
+    "overdue": colors.HexColor("#FF3B30"),
+    "missing": colors.HexColor("#9E9E9E"),
+}
+STATUS_LABELS = {"complete": "Complete", "partial": "Partial", "overdue": "Overdue", "missing": "Missing"}
+
+
+def _collect_matrix(start_date: str, end_date: str) -> dict:
+    locs = list(locations_collection.find({"is_active": True}, {"_id": 0}).sort("name", 1))
+    status_weight = {"complete": 1, "partial": 0.5, "overdue": 0, "missing": 0}
+    site_rows = []
+    for loc in locs:
+        checks = {}
+        scores = []
+        for key, cfg in CHECK_CONFIG.items():
+            r = _assess_check(loc["id"], cfg, start_date, end_date)
+            r["label"] = cfg["label"]
+            checks[key] = r
+            scores.append(status_weight.get(r["status"], 0))
+        pct = round(100 * sum(scores) / len(scores)) if scores else 0
+        site_rows.append({"location_name": loc["name"], "compliance_pct": pct, "checks": checks})
+    overall = round(sum(r["compliance_pct"] for r in site_rows) / len(site_rows)) if site_rows else 0
+    return {"start_date": start_date, "end_date": end_date, "overall_pct": overall, "sites": site_rows,
+            "check_types": [{"key": k, "label": v["label"]} for k, v in CHECK_CONFIG.items()]}
+
+
+def _build_pdf(matrix: dict) -> bytes:
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=15*mm, rightMargin=15*mm, topMargin=15*mm, bottomMargin=15*mm)
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("<b>Food Safety Compliance — Weekly Digest</b>", styles["Title"]))
+    story.append(Paragraph(f"Jolly's Kafe &middot; Period: {matrix['start_date']} to {matrix['end_date']}", styles["Normal"]))
+    story.append(Paragraph(f"Generated: {datetime.now().strftime('%d %b %Y %H:%M')}", styles["Normal"]))
+    story.append(Spacer(1, 8))
+    pct = matrix["overall_pct"]
+    colour = "#34C759" if pct >= 90 else "#FF9500" if pct >= 60 else "#FF3B30"
+    story.append(Paragraph(f"<font size=18 color='{colour}'><b>Overall Compliance: {pct}%</b></font>", styles["Normal"]))
+    story.append(Spacer(1, 10))
+
+    # Matrix table: site × 9 checks
+    check_types = matrix["check_types"]
+    header = ["Site", "Score"] + [c["label"] for c in check_types]
+    rows = [header]
+    for s in matrix["sites"]:
+        row = [s["location_name"], f"{s['compliance_pct']}%"]
+        for c in check_types:
+            ch = s["checks"][c["key"]]
+            row.append(f"{STATUS_LABELS.get(ch['status'], ch['status'])}\n{ch['actual_periods']}/{ch['expected']}")
+        rows.append(row)
+
+    # Compute column widths
+    available = landscape(A4)[0] - 30*mm
+    col_widths = [38*mm, 14*mm] + [(available - 52*mm) / len(check_types)] * len(check_types)
+    tbl = Table(rows, colWidths=col_widths, repeatRows=1)
+    style = TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1D1D1F")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+        ("ALIGN", (0, 0), (0, -1), "LEFT"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#E8E8ED")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ])
+    # Colour status cells
+    for r_idx, s in enumerate(matrix["sites"], start=1):
+        for c_idx, c in enumerate(check_types):
+            ch = s["checks"][c["key"]]
+            bg = STATUS_COLOURS.get(ch["status"], colors.HexColor("#E8E8ED"))
+            style.add("BACKGROUND", (c_idx + 2, r_idx), (c_idx + 2, r_idx), bg)
+            style.add("TEXTCOLOR", (c_idx + 2, r_idx), (c_idx + 2, r_idx), colors.white if ch["status"] != "missing" else colors.HexColor("#1D1D1F"))
+    tbl.setStyle(style)
+    story.append(tbl)
+
+    # Per-site detailed breakdown (new page)
+    for s in matrix["sites"]:
+        story.append(PageBreak())
+        story.append(Paragraph(f"<b>{s['location_name']}</b> — {s['compliance_pct']}%", styles["Heading2"]))
+        story.append(Spacer(1, 4))
+        detail_rows = [["Check", "Status", "Coverage", "Last Record", "Completed By"]]
+        for c in check_types:
+            ch = s["checks"][c["key"]]
+            detail_rows.append([
+                c["label"],
+                STATUS_LABELS.get(ch["status"], ch["status"]),
+                f"{ch['actual_periods']}/{ch['expected']} ({ch['pct']}%)",
+                ch.get("last_date") or "—",
+                ch.get("last_by") or "—",
+            ])
+        det = Table(detail_rows, colWidths=[55*mm, 25*mm, 35*mm, 35*mm, 50*mm], repeatRows=1)
+        det.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1D1D1F")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#E8E8ED")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        for r_idx, c in enumerate(check_types, start=1):
+            ch = s["checks"][c["key"]]
+            bg = STATUS_COLOURS.get(ch["status"], colors.HexColor("#E8E8ED"))
+            det.setStyle(TableStyle([("TEXTCOLOR", (1, r_idx), (1, r_idx), bg), ("FONTNAME", (1, r_idx), (1, r_idx), "Helvetica-Bold")]))
+        story.append(det)
+
+    doc.build(story)
+    return buf.getvalue()
+
+
+def _admin_recipients() -> List[str]:
+    """All admins + super_admins who have an email (from both users and customers collections)."""
+    emails = set()
+    for coll in (users_collection, customers_collection):
+        for u in coll.find({"role": {"$in": ["admin", "super_admin"]}, "email": {"$ne": None}}, {"_id": 0, "email": 1}):
+            if u.get("email"):
+                emails.add(u["email"])
+    return sorted(emails)
+
+
+def _send_digest(start_date: str, end_date: str, recipients: List[str]) -> dict:
+    if not all([SMTP_HOST, SMTP_EMAIL, SMTP_PASSWORD]):
+        return {"sent": False, "reason": "SMTP not configured"}
+    if not recipients:
+        return {"sent": False, "reason": "No admin recipients"}
+
+    matrix = _collect_matrix(start_date, end_date)
+    pdf_bytes = _build_pdf(matrix)
+
+    msg = MIMEMultipart()
+    msg["From"] = f"Jolly's Kafe Compliance <{SMTP_EMAIL}>"
+    msg["To"] = ", ".join(recipients)
+    msg["Subject"] = f"Weekly Compliance Digest — {matrix['overall_pct']}% ({start_date} to {end_date})"
+
+    body = f"""Hi team,
+
+Your weekly Food Safety Compliance digest is attached.
+
+Overall compliance this week: {matrix['overall_pct']}%
+Sites covered: {len(matrix['sites'])}
+Period: {start_date} — {end_date}
+
+The PDF includes:
+  • Site × 9-check compliance matrix
+  • Per-site detailed breakdown (Check / Status / Coverage / Last Record / Completed By)
+  • Suitable for EHO audit inspections
+
+View live matrix: https://jollyskafe.com/admin/compliance
+
+—
+Automated weekly digest · Jolly's Kafe
+"""
+    msg.attach(MIMEText(body, "plain"))
+
+    attach = MIMEApplication(pdf_bytes, _subtype="pdf")
+    attach.add_header("Content-Disposition", "attachment", filename=f"compliance-digest_{start_date}_to_{end_date}.pdf")
+    msg.attach(attach)
+
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_EMAIL, SMTP_PASSWORD)
+            server.send_message(msg)
+        print(f"[compliance-digest] Sent to {len(recipients)} admins · overall={matrix['overall_pct']}%")
+        return {"sent": True, "recipients": recipients, "overall_pct": matrix["overall_pct"], "pdf_size": len(pdf_bytes)}
+    except Exception as e:
+        print(f"[compliance-digest] Send failed: {e}")
+        return {"sent": False, "reason": str(e)}
+
+
+def run_weekly_digest_job():
+    """Scheduled job — runs every Monday 07:00 London. Covers previous Mon-Sun."""
+    today = date.today()
+    # End date = yesterday (Sunday if today is Mon), start = 6 days prior
+    end = today - timedelta(days=1)
+    start = end - timedelta(days=6)
+    recipients = _admin_recipients()
+    _send_digest(start.isoformat(), end.isoformat(), recipients)
+
+
+# ---------- Manual trigger (admin only) ----------
+@router.post("/send-now")
+async def send_digest_now(user: dict = Depends(get_admin_user)):
+    """Manually trigger the digest (useful for admins to preview or resend)."""
+    today = date.today()
+    end = today - timedelta(days=1)
+    start = end - timedelta(days=6)
+    recipients = _admin_recipients()
+    result = _send_digest(start.isoformat(), end.isoformat(), recipients)
+    if not result.get("sent"):
+        raise HTTPException(status_code=400, detail=result.get("reason", "Send failed"))
+    return result
+
+
+@router.get("/recipients")
+async def get_recipients(user: dict = Depends(get_admin_user)):
+    return {"recipients": _admin_recipients()}
+
+
+@router.get("/preview-pdf")
+async def preview_pdf(user: dict = Depends(get_admin_user)):
+    """Return the PDF inline for preview (without emailing)."""
+    from fastapi.responses import Response
+    today = date.today()
+    end = today - timedelta(days=1)
+    start = end - timedelta(days=6)
+    matrix = _collect_matrix(start.isoformat(), end.isoformat())
+    pdf = _build_pdf(matrix)
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f"inline; filename=compliance-digest_{start}_to_{end}.pdf"})
