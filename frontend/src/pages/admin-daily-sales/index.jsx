@@ -209,8 +209,8 @@ const AdminDailySales = () => {
     const rangeStart = filterStartDate || (history[history.length - 1]?.date || '');
     const rangeEnd = filterEndDate || (history[0]?.date || '');
 
-    // Sheet 1: Daily summary (one row per entry)
-    const summaryRows = history.map(e => {
+    // Per-entry summary row builder (reused for combined + per-location sheets)
+    const buildRow = (e) => {
       const totalStaffHours = (e.staff_hours || []).reduce(
         (sum, sh) => sum + computeHours(sh.start_time, sh.end_time), 0,
       );
@@ -225,9 +225,12 @@ const AdminDailySales = () => {
         'Total Staff Hours': Math.round(totalStaffHours * 100) / 100,
         'Updated By': e.updated_by || e.created_by || '',
       };
-    });
+    };
 
-    // Sheet 2: Staff hours breakdown (one row per staff shift)
+    // Sheet 1: Daily Sales — combined across all locations
+    const summaryRows = history.map(buildRow);
+
+    // Sheet 2: Staff Hours — combined across all locations
     const staffRows = [];
     history.forEach(e => {
       (e.staff_hours || []).forEach(sh => {
@@ -243,11 +246,41 @@ const AdminDailySales = () => {
       });
     });
 
+    // Group history by location for per-location sheets
+    const byLocation = {};
+    history.forEach(e => {
+      const lname = getLocationName(e.location_id);
+      if (!byLocation[lname]) byLocation[lname] = [];
+      byLocation[lname].push(e);
+    });
+
+    // Excel sheet names: max 31 chars, cannot contain : \ / ? * [ ]
+    const usedSheetNames = new Set(['Daily Sales', 'Staff Hours']);
+    const sanitizeSheetName = (raw, prefix = '') => {
+      const cleaned = (prefix + raw).replace(/[:\\/?*[\]]/g, '-').slice(0, 31).trim() || 'Sheet';
+      let name = cleaned;
+      let i = 2;
+      while (usedSheetNames.has(name)) {
+        const suffix = ` (${i})`;
+        name = (cleaned.slice(0, 31 - suffix.length)) + suffix;
+        i += 1;
+      }
+      usedSheetNames.add(name);
+      return name;
+    };
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), 'Daily Sales');
     if (staffRows.length) {
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(staffRows), 'Staff Hours');
     }
+    // Per-location Daily Sales sheets (sorted by location name)
+    Object.keys(byLocation).sort().forEach(lname => {
+      const rows = byLocation[lname].map(buildRow);
+      const sheet = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, sheet, sanitizeSheetName(lname));
+    });
+
     const fname = `daily-sales_${locName}_${rangeStart || 'start'}_to_${rangeEnd || 'end'}.xlsx`
       .replace(/\s+/g, '-');
     XLSX.writeFile(wb, fname);
