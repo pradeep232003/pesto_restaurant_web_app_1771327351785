@@ -61,7 +61,49 @@ const AdminCompliance = () => {
     finally { setDetailLoading(false); }
   };
 
-  const handlePrint = () => window.print();
+  const [printing, setPrinting] = useState(false);
+  const handlePrint = async () => {
+    // Print uses the SAME PDF as Preview so output (running header + page numbers
+    // + landscape layout) is identical. We load the PDF into a hidden iframe and
+    // trigger its print dialog.
+    setPrinting(true);
+    try {
+      const token = localStorage.getItem('access_token');
+      const qs = new URLSearchParams({ start_date: startDate, end_date: endDate }).toString();
+      const resp = await fetch(`${API_BASE_URL}/api/admin/compliance-digest/preview-pdf?${qs}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      // Hidden iframe for silent print
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.src = blobUrl;
+      document.body.appendChild(iframe);
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch (e) {
+          // Fallback: open PDF in new tab so user can print from PDF viewer
+          window.open(blobUrl, '_blank', 'noopener,noreferrer');
+        }
+      };
+      // Cleanup after 60s — keeps iframe alive long enough for the print dialog
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+        URL.revokeObjectURL(blobUrl);
+      }, 60000);
+    } catch (err) { alert('Print failed: ' + err.message); }
+    finally { setPrinting(false); }
+  };
 
   const [pdfLoading, setPdfLoading] = useState(false);
   const handlePreviewPDF = async () => {
@@ -132,10 +174,10 @@ const AdminCompliance = () => {
               <p className="text-xs sm:text-sm" style={{ color: '#86868B' }}>EHO-ready compliance matrix across all sites</p>
             </div>
           </div>
-          <button data-testid="print-report-btn" onClick={handlePrint}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold active:scale-95"
+          <button data-testid="print-report-btn" disabled={printing} onClick={handlePrint}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 active:scale-95"
             style={{ background: '#1D1D1F', color: '#FFFFFF', ...font }}>
-            <Printer size={14} /> Print Report
+            <Printer size={14} /> {printing ? 'Preparing…' : 'Print Report'}
           </button>
         </div>
 
@@ -202,7 +244,7 @@ const AdminCompliance = () => {
       </div>
 
       {/* Print header */}
-      <div className="hidden print:block mb-6">
+      <div className="hidden">
         <h1 className="text-2xl font-bold" style={font}>Food Safety Compliance Report</h1>
         <p className="text-sm" style={font}>Jolly's Kafe · Generated {new Date().toLocaleString('en-GB')}</p>
         <p className="text-sm" style={font}>Period: {startDate} to {endDate}</p>
@@ -291,15 +333,15 @@ const AdminCompliance = () => {
             </div>
           </div>
 
-          {/* Print detail tables — full per-site breakdown, one location per page */}
-          <div className="hidden print:block">
+          {/* Per-site detail tables (kept for in-app screen reference; not used for print since print now uses PDF) */}
+          <div className="hidden">
             {data.sites.map(site => (
               <div key={site.location_id} className="print-site-page" style={{ breakInside: 'avoid' }}>
                 <h2 className="text-lg font-bold mt-6" style={font}>{site.location_name} — {site.compliance_pct}%</h2>
                 <p className="text-xs mb-2" style={{ color: '#86868B', ...font }}>Period: {startDate} to {endDate}</p>
                 <table className="w-full text-xs mt-2" style={{ borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr><th className="border p-1 text-left">Check</th><th className="border p-1 text-left">Status</th><th className="border p-1 text-left">Coverage</th><th className="border p-1 text-left">Last Record</th><th className="border p-1 text-left">Completed By</th></tr>
+                    <tr><th className="border p-1 text-left">Check</th><th className="border p-1 text-left">Status</th><th className="border p-1 text-left">Coverage</th></tr>
                   </thead>
                   <tbody>
                     {data.check_types.map(c => {
@@ -309,8 +351,6 @@ const AdminCompliance = () => {
                           <td className="border p-1">{c.label}</td>
                           <td className="border p-1">{STATUS_META[ch.status].label}</td>
                           <td className="border p-1">{ch.actual_periods}/{ch.expected} ({ch.pct}%)</td>
-                          <td className="border p-1">{fmtDate(ch.last_date)}</td>
-                          <td className="border p-1">{ch.last_by || '—'}</td>
                         </tr>
                       );
                     })}
