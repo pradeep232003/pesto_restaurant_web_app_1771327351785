@@ -246,6 +246,26 @@ const AdminDailySales = () => {
       });
     });
 
+    // Sheet 3: Staff Total Hours by Location — aggregated for the filtered range
+    // Key = `${location}||${staff_name}` → { hours, shifts }
+    const totalsMap = {};
+    history.forEach(e => {
+      const lname = getLocationName(e.location_id);
+      (e.staff_hours || []).forEach(sh => {
+        const name = (sh.name || '').trim();
+        if (!name) return;
+        const hrs = computeHours(sh.start_time, sh.end_time);
+        const key = `${lname}||${name}`;
+        if (!totalsMap[key]) totalsMap[key] = { Location: lname, 'Staff Name': name, 'Total Hours': 0, Shifts: 0 };
+        totalsMap[key]['Total Hours'] = Math.round((totalsMap[key]['Total Hours'] + hrs) * 100) / 100;
+        totalsMap[key].Shifts += 1;
+      });
+    });
+    const totalsRows = Object.values(totalsMap).sort((a, b) => {
+      if (a.Location !== b.Location) return a.Location.localeCompare(b.Location);
+      return b['Total Hours'] - a['Total Hours'];
+    });
+
     // Group history by location for per-location sheets
     const byLocation = {};
     history.forEach(e => {
@@ -255,7 +275,7 @@ const AdminDailySales = () => {
     });
 
     // Excel sheet names: max 31 chars, cannot contain : \ / ? * [ ]
-    const usedSheetNames = new Set(['Daily Sales', 'Staff Hours']);
+    const usedSheetNames = new Set(['Daily Sales', 'Staff Hours', 'Staff Totals by Location']);
     const sanitizeSheetName = (raw, prefix = '') => {
       const cleaned = (prefix + raw).replace(/[:\\/?*[\]]/g, '-').slice(0, 31).trim() || 'Sheet';
       let name = cleaned;
@@ -273,6 +293,9 @@ const AdminDailySales = () => {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), 'Daily Sales');
     if (staffRows.length) {
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(staffRows), 'Staff Hours');
+    }
+    if (totalsRows.length) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(totalsRows), 'Staff Totals by Location');
     }
     // Per-location Daily Sales sheets (sorted by location name)
     Object.keys(byLocation).sort().forEach(lname => {
