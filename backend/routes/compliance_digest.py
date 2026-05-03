@@ -59,7 +59,7 @@ def _collect_matrix(start_date: str, end_date: str) -> dict:
 
 def _build_pdf(matrix: dict) -> bytes:
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=15*mm, rightMargin=15*mm, topMargin=28*mm, bottomMargin=18*mm)
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=15*mm, rightMargin=15*mm, topMargin=32*mm, bottomMargin=18*mm)
     styles = getSampleStyleSheet()
     story = []
 
@@ -156,14 +156,15 @@ def _build_pdf(matrix: dict) -> bytes:
     page_w, page_h = landscape(A4)
     logo_path = os.path.join(os.path.dirname(__file__), "..", "assets", "jollys_logo.png")
     logo_path = os.path.normpath(logo_path)
-    logo_size_mm = 14  # roughly the height of two header text lines
+    logo_size_mm = 14  # logo edge length
+    logo_top_offset_mm = 8  # gap from page top to top of logo (safe print margin)
 
     def _on_page(canv, _doc):
         canv.saveState()
-        # Logo (top-left) — square 14mm
+        # Logo (top-left) — square 14mm, with ~8mm safe margin from page edge
         if os.path.exists(logo_path):
             try:
-                canv.drawImage(logo_path, 15*mm, page_h - (logo_size_mm + 4)*mm,
+                canv.drawImage(logo_path, 15*mm, page_h - (logo_size_mm + logo_top_offset_mm)*mm,
                                width=logo_size_mm*mm, height=logo_size_mm*mm,
                                mask='auto', preserveAspectRatio=True)
             except Exception as logo_err:
@@ -172,19 +173,23 @@ def _build_pdf(matrix: dict) -> bytes:
                 logging.getLogger(__name__).warning(
                     "Compliance PDF logo render failed: %s", logo_err,
                 )
-        # Header text shifted right of the logo
-        text_x = (15 + logo_size_mm + 3) * mm
-        canv.setFont("Helvetica-Bold", 11)
+        # Header text vertically centered next to the logo
+        text_x = (15 + logo_size_mm + 4) * mm
+        title_y = page_h - (logo_top_offset_mm + 6) * mm   # ~14mm from top
+        subtitle_y = title_y - 4.5 * mm
+        canv.setFont("Helvetica-Bold", 12)
         canv.setFillColor(colors.HexColor("#1D1D1F"))
-        canv.drawString(text_x, page_h - 10*mm, "Food Safety Compliance Report")
+        canv.drawString(text_x, title_y, "Food Safety Compliance Report")
         canv.setFont("Helvetica", 8)
         canv.setFillColor(colors.HexColor("#86868B"))
-        canv.drawString(text_x, page_h - 14*mm, "Jolly's Kafe")
-        canv.drawRightString(page_w - 15*mm, page_h - 10*mm,
+        canv.drawString(text_x, subtitle_y, "Jolly's Kafe")
+        canv.drawRightString(page_w - 15*mm, title_y,
                              f"{matrix['start_date']} to {matrix['end_date']}")
         canv.setStrokeColor(colors.HexColor("#E8E8ED"))
         canv.setLineWidth(0.4)
-        canv.line(15*mm, page_h - (logo_size_mm + 6)*mm, page_w - 15*mm, page_h - (logo_size_mm + 6)*mm)
+        # Divider line below the logo
+        canv.line(15*mm, page_h - (logo_size_mm + logo_top_offset_mm + 2)*mm,
+                  page_w - 15*mm, page_h - (logo_size_mm + logo_top_offset_mm + 2)*mm)
         canv.restoreState()
 
     from reportlab.pdfgen import canvas as _pdfcanvas

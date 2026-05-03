@@ -63,23 +63,11 @@ const AdminCompliance = () => {
 
   const [printing, setPrinting] = useState(false);
   const handlePrint = async () => {
-    // Open a new window SYNCHRONOUSLY first so pop-up blockers allow it.
-    // Then fetch the PDF and embed it in an iframe inside that window so we
-    // can trigger the browser's native PDF print dialog (with printer picker)
-    // while preserving landscape orientation.
-    const w = window.open('', '_blank');
-    if (!w) {
-      alert('Please allow pop-ups for this site to print the report.');
-      return;
-    }
-    w.document.write(
-      '<!DOCTYPE html><html><head><title>Compliance Report</title>' +
-      '<style>html,body{margin:0;padding:0;height:100%;background:#525659;font-family:system-ui,sans-serif}' +
-      '#status{color:#fff;padding:24px;text-align:center}</style></head>' +
-      '<body><div id="status">Generating report…</div></body></html>',
-    );
-    w.document.close();
-
+    // Open the PDF in a new tab. The browser's built-in PDF viewer correctly
+    // reads landscape orientation from the PDF and exposes a Print icon
+    // (top-right) that launches the standard print dialog with printer picker,
+    // copies, paper size, etc. Auto-triggering print() programmatically caused
+    // Chrome to use HTML-print mode which forced portrait + cropped the logo.
     setPrinting(true);
     try {
       const token = localStorage.getItem('access_token');
@@ -90,43 +78,16 @@ const AdminCompliance = () => {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const blob = await resp.blob();
       const blobUrl = URL.createObjectURL(blob);
-
-      // Replace the loading content with a full-window PDF iframe
-      w.document.open();
-      w.document.write(
-        '<!DOCTYPE html><html><head><title>Compliance Report</title>' +
-        '<style>html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#525659}' +
-        '#pdf{position:fixed;inset:0;width:100%;height:100%;border:0}</style></head>' +
-        `<body><iframe id="pdf" src="${blobUrl}"></iframe></body></html>`,
-      );
-      w.document.close();
-
-      const triggerPrint = () => {
-        const ifr = w.document && w.document.getElementById('pdf');
-        if (!ifr) return;
-        try {
-          ifr.contentWindow.focus();
-          ifr.contentWindow.print();
-        } catch (_e) {
-          // Cross-origin shouldn't happen for blob URLs, but fall back:
-          try { w.print(); } catch (_e2) { /* user can still print manually */ }
-        }
-      };
-
-      const iframe = w.document.getElementById('pdf');
-      if (iframe) {
-        iframe.addEventListener('load', () => setTimeout(triggerPrint, 600));
-      }
-      // Safety net if load already fired before listener attached
-      setTimeout(triggerPrint, 2500);
-
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
-    } catch (err) {
-      try {
-        w.document.body.innerHTML = `<p style="color:#ff6b6b;padding:24px;font-family:system-ui">Print failed: ${err.message}</p>`;
-      } catch { /* noop */ }
-      alert('Print failed: ' + err.message);
-    } finally { setPrinting(false); }
+    } catch (err) { alert('Print failed: ' + err.message); }
+    finally { setPrinting(false); }
   };
 
   const [pdfLoading, setPdfLoading] = useState(false);
