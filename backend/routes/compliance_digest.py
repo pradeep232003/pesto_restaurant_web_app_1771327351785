@@ -166,8 +166,12 @@ def _build_pdf(matrix: dict) -> bytes:
                 canv.drawImage(logo_path, 15*mm, page_h - (logo_size_mm + 4)*mm,
                                width=logo_size_mm*mm, height=logo_size_mm*mm,
                                mask='auto', preserveAspectRatio=True)
-            except Exception:
-                pass
+            except Exception as logo_err:
+                # Surface the failure in logs so it's debuggable in prod
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Compliance PDF logo render failed: %s", logo_err,
+                )
         # Header text shifted right of the logo
         text_x = (15 + logo_size_mm + 3) * mm
         canv.setFont("Helvetica-Bold", 11)
