@@ -74,7 +74,15 @@ def _build_pdf(matrix: dict) -> bytes:
 
     # Matrix table: site × 9 checks
     check_types = matrix["check_types"]
-    header = ["Site", "Score"] + [c["label"] for c in check_types]
+    # Wrap header labels in Paragraphs so long names (e.g. "Cooked/Reheated Temperature",
+    # "Weekly Deep Cleaning") word-wrap within their column instead of overflowing.
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    hdr_style = ParagraphStyle(name="hdr", parent=styles["Normal"], fontName="Helvetica-Bold",
+                               fontSize=7, textColor=colors.white, alignment=TA_CENTER, leading=8)
+    hdr_left = ParagraphStyle(name="hdrL", parent=hdr_style, alignment=TA_LEFT)
+    header = [Paragraph("Site", hdr_left), Paragraph("Score", hdr_style)] + \
+             [Paragraph(c["label"], hdr_style) for c in check_types]
     rows = [header]
     for s in matrix["sites"]:
         row = [s["location_name"], f"{s['compliance_pct']}%"]
