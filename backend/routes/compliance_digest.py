@@ -151,12 +151,12 @@ def _build_pdf(matrix: dict) -> bytes:
             det.setStyle(TableStyle([("TEXTCOLOR", (1, r_idx), (1, r_idx), bg), ("FONTNAME", (1, r_idx), (1, r_idx), "Helvetica-Bold")]))
         story.append(det)
 
-    # Running header "Food Safety Compliance Report" + page number on every page.
+    # Running header "Food Safety Compliance Report" on every page.
+    # Page number ("Page X of Y") is drawn by NumberedCanvas in a 2-pass build.
     page_w, page_h = landscape(A4)
 
     def _on_page(canv, _doc):
         canv.saveState()
-        # Top header
         canv.setFont("Helvetica-Bold", 9)
         canv.setFillColor(colors.HexColor("#1D1D1F"))
         canv.drawString(15*mm, page_h - 10*mm, "Food Safety Compliance Report")
@@ -167,13 +167,36 @@ def _build_pdf(matrix: dict) -> bytes:
         canv.setStrokeColor(colors.HexColor("#E8E8ED"))
         canv.setLineWidth(0.4)
         canv.line(15*mm, page_h - 12*mm, page_w - 15*mm, page_h - 12*mm)
-        # Footer page number
-        canv.setFont("Helvetica", 8)
-        canv.setFillColor(colors.HexColor("#86868B"))
-        canv.drawCentredString(page_w / 2, 10*mm, f"Page {canv.getPageNumber()}")
         canv.restoreState()
 
-    doc.build(story, onFirstPage=_on_page, onLaterPages=_on_page)
+    from reportlab.pdfgen import canvas as _pdfcanvas
+
+    class NumberedCanvas(_pdfcanvas.Canvas):
+        """Captures every page state so on save() we can stamp 'Page X of Y'."""
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._saved_pages = []
+
+        def showPage(self):
+            self._saved_pages.append(dict(self.__dict__))
+            self._startPage()
+
+        def save(self):
+            total = len(self._saved_pages)
+            for state in self._saved_pages:
+                self.__dict__.update(state)
+                self._draw_page_number(total)
+                super().showPage()
+            super().save()
+
+        def _draw_page_number(self, total):
+            self.saveState()
+            self.setFont("Helvetica-Bold", 10)
+            self.setFillColor(colors.HexColor("#1D1D1F"))
+            self.drawCentredString(page_w / 2, 8*mm, f"Page {self._pageNumber} of {total}")
+            self.restoreState()
+
+    doc.build(story, onFirstPage=_on_page, onLaterPages=_on_page, canvasmaker=NumberedCanvas)
     return buf.getvalue()
 
 

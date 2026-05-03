@@ -67,6 +67,15 @@ const AdminCompliance = () => {
     // + landscape layout) is identical. We load the PDF into a hidden iframe and
     // trigger its print dialog.
     setPrinting(true);
+    // Remove any leftover print iframe from a previous click so the new print
+    // dialog is not blocked by a stale focus / unfired onload.
+    document.querySelectorAll('iframe[data-print-iframe="1"]').forEach(el => {
+      try {
+        const u = el.getAttribute('data-blob-url');
+        if (u) URL.revokeObjectURL(u);
+      } catch { /* noop */ }
+      el.remove();
+    });
     try {
       const token = localStorage.getItem('access_token');
       const qs = new URLSearchParams({ start_date: startDate, end_date: endDate }).toString();
@@ -77,30 +86,33 @@ const AdminCompliance = () => {
       const blob = await resp.blob();
       const blobUrl = URL.createObjectURL(blob);
 
-      // Hidden iframe for silent print
       const iframe = document.createElement('iframe');
-      iframe.style.position = 'fixed';
-      iframe.style.right = '0';
-      iframe.style.bottom = '0';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
-      iframe.style.border = '0';
+      iframe.setAttribute('data-print-iframe', '1');
+      iframe.setAttribute('data-blob-url', blobUrl);
+      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
       iframe.src = blobUrl;
       document.body.appendChild(iframe);
+
+      const cleanup = () => {
+        try { iframe.remove(); } catch { /* noop */ }
+        try { URL.revokeObjectURL(blobUrl); } catch { /* noop */ }
+      };
+
       iframe.onload = () => {
         try {
-          iframe.contentWindow.focus();
-          iframe.contentWindow.print();
+          const win = iframe.contentWindow;
+          win.focus();
+          // Cleanup as soon as print dialog closes (Chrome/Safari fire onafterprint)
+          win.onafterprint = () => setTimeout(cleanup, 500);
+          win.print();
         } catch (e) {
           // Fallback: open PDF in new tab so user can print from PDF viewer
           window.open(blobUrl, '_blank', 'noopener,noreferrer');
+          cleanup();
         }
       };
-      // Cleanup after 60s — keeps iframe alive long enough for the print dialog
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-        URL.revokeObjectURL(blobUrl);
-      }, 60000);
+      // Safety net cleanup
+      setTimeout(cleanup, 120000);
     } catch (err) { alert('Print failed: ' + err.message); }
     finally { setPrinting(false); }
   };
