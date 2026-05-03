@@ -89,7 +89,9 @@ const AdminCompliance = () => {
       const iframe = document.createElement('iframe');
       iframe.setAttribute('data-print-iframe', '1');
       iframe.setAttribute('data-blob-url', blobUrl);
-      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+      // Real dimensions positioned off-screen so the PDF viewer actually renders
+      // its pages — width:0/height:0 makes Chrome print the blank iframe instead.
+      iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1024px;height:768px;border:0;visibility:hidden;';
       iframe.src = blobUrl;
       document.body.appendChild(iframe);
 
@@ -99,17 +101,19 @@ const AdminCompliance = () => {
       };
 
       iframe.onload = () => {
-        try {
-          const win = iframe.contentWindow;
-          win.focus();
-          // Cleanup as soon as print dialog closes (Chrome/Safari fire onafterprint)
-          win.onafterprint = () => setTimeout(cleanup, 500);
-          win.print();
-        } catch (e) {
-          // Fallback: open PDF in new tab so user can print from PDF viewer
-          window.open(blobUrl, '_blank', 'noopener,noreferrer');
-          cleanup();
-        }
+        // Give Chrome's PDF viewer a beat to fully render before triggering print
+        setTimeout(() => {
+          try {
+            const win = iframe.contentWindow;
+            win.focus();
+            win.onafterprint = () => setTimeout(cleanup, 500);
+            win.print();
+          } catch (e) {
+            // Fallback: open PDF in new tab so user can print from PDF viewer
+            window.open(blobUrl, '_blank', 'noopener,noreferrer');
+            cleanup();
+          }
+        }, 600);
       };
       // Safety net cleanup
       setTimeout(cleanup, 120000);
@@ -434,31 +438,15 @@ const AdminCompliance = () => {
         </div>
       )}
 
-      {/* Print styles */}
+      {/* Print styles — empty parent on print so any accidental window.print()
+          from the parent doc doesn't produce dashboard-chrome pages. The actual
+          print output comes from the hidden PDF iframe (handlePrint). */}
       <style>{`
         @media print {
           @page { size: A4 landscape; margin: 8mm; }
           html, body { background: white !important; }
-          body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 8px !important; }
-          .print\\:hidden { display: none !important; }
-          .print\\:block { display: block !important; }
-          .print\\:inline { display: inline !important; }
-          /* Force matrix scroll-wrapper to expand so the full table prints */
-          .overflow-x-auto { overflow: visible !important; }
-          table { width: 100% !important; page-break-inside: auto; font-size: 7.5px !important; table-layout: fixed; min-width: 0 !important; }
-          th, td { padding: 2px 3px !important; word-break: break-word; line-height: 1.15 !important; }
-          th { font-size: 7px !important; }
-          /* Compact status pills in matrix cells */
-          button { background: transparent !important; padding: 0 !important; font-size: 7px !important; }
-          tr { page-break-inside: avoid; page-break-after: auto; }
-          /* Each per-site detailed breakdown starts on its own page */
-          .print-site-page { page-break-before: always; break-before: page; }
-          .print-site-page:first-child { page-break-before: auto; break-before: auto; }
-          .print-site-page table { font-size: 9px !important; }
-          .print-site-page th, .print-site-page td { padding: 3px 4px !important; }
-          h1 { font-size: 16px !important; }
-          h2 { font-size: 12px !important; margin-top: 8px !important; }
-          h1, h2 { page-break-after: avoid; }
+          body > *:not(iframe[data-print-iframe="1"]) { display: none !important; }
+          iframe[data-print-iframe="1"] { display: block !important; visibility: visible !important; position: static !important; left: 0 !important; width: 100% !important; height: 100% !important; border: 0 !important; }
         }
       `}</style>
     </div>
