@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { DollarSign, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, FileText, Share2, X, LogOut, Pencil, Check, Grid3X3, ArrowLeft } from 'lucide-react';
+import { DollarSign, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, FileText, Share2, X, LogOut, Pencil, Check, Grid3X3, ArrowLeft, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCustomer } from '../../contexts/CustomerContext';
@@ -186,6 +187,70 @@ const AdminDailySales = () => {
       await api.adminDeleteDailySales(entryId);
       setHistory(prev => prev.filter(e => e.id !== entryId));
     } catch (err) { alert('Failed to delete: ' + err.message); }
+  };
+
+  // Compute hours from "HH:MM" → "HH:MM" (handles overnight shifts)
+  const computeHours = (start, end) => {
+    if (!start || !end) return 0;
+    try {
+      const [sh, sm] = start.split(':').map(Number);
+      const [eh, em] = end.split(':').map(Number);
+      let diff = (eh * 60 + em) - (sh * 60 + sm);
+      if (diff < 0) diff += 24 * 60; // overnight
+      return Math.round((diff / 60) * 100) / 100;
+    } catch { return 0; }
+  };
+
+  const handleDownloadHistory = () => {
+    if (!history.length) return;
+    const locName = filterLocation
+      ? (locations.find(l => l.id === filterLocation)?.name || 'location')
+      : 'all-locations';
+    const rangeStart = filterStartDate || (history[history.length - 1]?.date || '');
+    const rangeEnd = filterEndDate || (history[0]?.date || '');
+
+    // Sheet 1: Daily summary (one row per entry)
+    const summaryRows = history.map(e => {
+      const totalStaffHours = (e.staff_hours || []).reduce(
+        (sum, sh) => sum + computeHours(sh.start_time, sh.end_time), 0,
+      );
+      return {
+        Date: e.date,
+        Location: getLocationName(e.location_id),
+        Sales: e.sales ?? 0,
+        Float: e.float_amount ?? 0,
+        'Cash Taken': e.cash_taken ?? 0,
+        'Cash Taken By': e.cash_taken_by || '',
+        'Staff Count': (e.staff_hours || []).length,
+        'Total Staff Hours': Math.round(totalStaffHours * 100) / 100,
+        'Updated By': e.updated_by || e.created_by || '',
+      };
+    });
+
+    // Sheet 2: Staff hours breakdown (one row per staff shift)
+    const staffRows = [];
+    history.forEach(e => {
+      (e.staff_hours || []).forEach(sh => {
+        if (!sh.name && !sh.start_time && !sh.end_time) return;
+        staffRows.push({
+          Date: e.date,
+          Location: getLocationName(e.location_id),
+          'Staff Name': sh.name || '',
+          'Start Time': sh.start_time || '',
+          'End Time': sh.end_time || '',
+          Hours: computeHours(sh.start_time, sh.end_time),
+        });
+      });
+    });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), 'Daily Sales');
+    if (staffRows.length) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(staffRows), 'Staff Hours');
+    }
+    const fname = `daily-sales_${locName}_${rangeStart || 'start'}_to_${rangeEnd || 'end'}.xlsx`
+      .replace(/\s+/g, '-');
+    XLSX.writeFile(wb, fname);
   };
 
   const startEditStaffHours = (entry) => {
@@ -507,6 +572,12 @@ const AdminDailySales = () => {
               className="w-full sm:w-auto px-4 py-3 sm:py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
               style={{ background: '#1D1D1F', color: '#FFFFFF', ...font }}>
               <Filter size={14} /> Apply Filters
+            </button>
+            <button data-testid="download-sales-btn" onClick={handleDownloadHistory}
+              disabled={!history.length}
+              className="w-full sm:w-auto px-4 py-3 sm:py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: '#34C759', color: '#FFFFFF', ...font }}>
+              <Download size={14} /> Download Excel{history.length ? ` (${history.length})` : ''}
             </button>
           </div>
 
