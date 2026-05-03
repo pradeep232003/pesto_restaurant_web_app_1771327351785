@@ -59,11 +59,11 @@ def _collect_matrix(start_date: str, end_date: str) -> dict:
 
 def _build_pdf(matrix: dict) -> bytes:
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=15*mm, rightMargin=15*mm, topMargin=15*mm, bottomMargin=15*mm)
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=15*mm, rightMargin=15*mm, topMargin=22*mm, bottomMargin=18*mm)
     styles = getSampleStyleSheet()
     story = []
 
-    story.append(Paragraph("<b>Food Safety Compliance — Weekly Digest</b>", styles["Title"]))
+    story.append(Paragraph("<b>Food Safety Compliance Report</b>", styles["Title"]))
     story.append(Paragraph(f"Jolly's Kafe &middot; Period: {matrix['start_date']} to {matrix['end_date']}", styles["Normal"]))
     story.append(Paragraph(f"Generated: {datetime.now().strftime('%d %b %Y %H:%M')}", styles["Normal"]))
     story.append(Spacer(1, 8))
@@ -119,22 +119,21 @@ def _build_pdf(matrix: dict) -> bytes:
     tbl.setStyle(style)
     story.append(tbl)
 
-    # Per-site detailed breakdown (new page)
+    # Per-site detailed breakdown (new page) — Status & Coverage only (Last Record / Completed By removed per request)
     for s in matrix["sites"]:
         story.append(PageBreak())
         story.append(Paragraph(f"<b>{s['location_name']}</b> — {s['compliance_pct']}%", styles["Heading2"]))
+        story.append(Paragraph(f"Period: {matrix['start_date']} to {matrix['end_date']}", styles["Normal"]))
         story.append(Spacer(1, 4))
-        detail_rows = [["Check", "Status", "Coverage", "Last Record", "Completed By"]]
+        detail_rows = [["Check", "Status", "Coverage"]]
         for c in check_types:
             ch = s["checks"][c["key"]]
             detail_rows.append([
                 c["label"],
                 STATUS_LABELS.get(ch["status"], ch["status"]),
                 f"{ch['actual_periods']}/{ch['expected']} ({ch['pct']}%)",
-                ch.get("last_date") or "—",
-                ch.get("last_by") or "—",
             ])
-        det = Table(detail_rows, colWidths=[55*mm, 25*mm, 35*mm, 35*mm, 50*mm], repeatRows=1)
+        det = Table(detail_rows, colWidths=[80*mm, 40*mm, 60*mm], repeatRows=1)
         det.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1D1D1F")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
@@ -152,7 +151,29 @@ def _build_pdf(matrix: dict) -> bytes:
             det.setStyle(TableStyle([("TEXTCOLOR", (1, r_idx), (1, r_idx), bg), ("FONTNAME", (1, r_idx), (1, r_idx), "Helvetica-Bold")]))
         story.append(det)
 
-    doc.build(story)
+    # Running header "Food Safety Compliance Report" + page number on every page.
+    page_w, page_h = landscape(A4)
+
+    def _on_page(canv, _doc):
+        canv.saveState()
+        # Top header
+        canv.setFont("Helvetica-Bold", 9)
+        canv.setFillColor(colors.HexColor("#1D1D1F"))
+        canv.drawString(15*mm, page_h - 10*mm, "Food Safety Compliance Report")
+        canv.setFont("Helvetica", 8)
+        canv.setFillColor(colors.HexColor("#86868B"))
+        canv.drawRightString(page_w - 15*mm, page_h - 10*mm,
+                             f"{matrix['start_date']} to {matrix['end_date']}")
+        canv.setStrokeColor(colors.HexColor("#E8E8ED"))
+        canv.setLineWidth(0.4)
+        canv.line(15*mm, page_h - 12*mm, page_w - 15*mm, page_h - 12*mm)
+        # Footer page number
+        canv.setFont("Helvetica", 8)
+        canv.setFillColor(colors.HexColor("#86868B"))
+        canv.drawCentredString(page_w / 2, 10*mm, f"Page {canv.getPageNumber()}")
+        canv.restoreState()
+
+    doc.build(story, onFirstPage=_on_page, onLaterPages=_on_page)
     return buf.getvalue()
 
 
@@ -246,13 +267,20 @@ async def get_recipients(user: dict = Depends(get_admin_user)):
 
 
 @router.get("/preview-pdf")
-async def preview_pdf(user: dict = Depends(get_admin_user)):
-    """Return the PDF inline for preview (without emailing)."""
+async def preview_pdf(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    user: dict = Depends(get_admin_user),
+):
+    """Return the PDF inline for preview. Defaults to last 7 days when no range is supplied."""
     from fastapi.responses import Response
-    today = date.today()
-    end = today - timedelta(days=1)
-    start = end - timedelta(days=6)
-    matrix = _collect_matrix(start.isoformat(), end.isoformat())
+    if not (start_date and end_date):
+        today = date.today()
+        end_d = today - timedelta(days=1)
+        start_d = end_d - timedelta(days=6)
+        start_date = start_d.isoformat()
+        end_date = end_d.isoformat()
+    matrix = _collect_matrix(start_date, end_date)
     pdf = _build_pdf(matrix)
     return Response(content=pdf, media_type="application/pdf",
-                    headers={"Content-Disposition": f"inline; filename=compliance-digest_{start}_to_{end}.pdf"})
+                    headers={"Content-Disposition": f"inline; filename=compliance-report_{start_date}_to_{end_date}.pdf"})

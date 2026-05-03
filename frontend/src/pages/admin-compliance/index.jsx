@@ -68,7 +68,8 @@ const AdminCompliance = () => {
     setPdfLoading(true);
     try {
       const token = localStorage.getItem('access_token');
-      const resp = await fetch(`${API_BASE_URL}/api/admin/compliance-digest/preview-pdf`, {
+      const qs = new URLSearchParams({ start_date: startDate, end_date: endDate }).toString();
+      const resp = await fetch(`${API_BASE_URL}/api/admin/compliance-digest/preview-pdf?${qs}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
