@@ -59,7 +59,7 @@ def _collect_matrix(start_date: str, end_date: str) -> dict:
 
 def _build_pdf(matrix: dict) -> bytes:
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=15*mm, rightMargin=15*mm, topMargin=22*mm, bottomMargin=18*mm)
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=15*mm, rightMargin=15*mm, topMargin=28*mm, bottomMargin=18*mm)
     styles = getSampleStyleSheet()
     story = []
 
@@ -154,19 +154,33 @@ def _build_pdf(matrix: dict) -> bytes:
     # Running header "Food Safety Compliance Report" on every page.
     # Page number ("Page X of Y") is drawn by NumberedCanvas in a 2-pass build.
     page_w, page_h = landscape(A4)
+    logo_path = os.path.join(os.path.dirname(__file__), "..", "assets", "jollys_logo.png")
+    logo_path = os.path.normpath(logo_path)
+    logo_size_mm = 14  # roughly the height of two header text lines
 
     def _on_page(canv, _doc):
         canv.saveState()
-        canv.setFont("Helvetica-Bold", 9)
+        # Logo (top-left) — square 14mm
+        if os.path.exists(logo_path):
+            try:
+                canv.drawImage(logo_path, 15*mm, page_h - (logo_size_mm + 4)*mm,
+                               width=logo_size_mm*mm, height=logo_size_mm*mm,
+                               mask='auto', preserveAspectRatio=True)
+            except Exception:
+                pass
+        # Header text shifted right of the logo
+        text_x = (15 + logo_size_mm + 3) * mm
+        canv.setFont("Helvetica-Bold", 11)
         canv.setFillColor(colors.HexColor("#1D1D1F"))
-        canv.drawString(15*mm, page_h - 10*mm, "Food Safety Compliance Report")
+        canv.drawString(text_x, page_h - 10*mm, "Food Safety Compliance Report")
         canv.setFont("Helvetica", 8)
         canv.setFillColor(colors.HexColor("#86868B"))
+        canv.drawString(text_x, page_h - 14*mm, "Jolly's Kafe")
         canv.drawRightString(page_w - 15*mm, page_h - 10*mm,
                              f"{matrix['start_date']} to {matrix['end_date']}")
         canv.setStrokeColor(colors.HexColor("#E8E8ED"))
         canv.setLineWidth(0.4)
-        canv.line(15*mm, page_h - 12*mm, page_w - 15*mm, page_h - 12*mm)
+        canv.line(15*mm, page_h - (logo_size_mm + 6)*mm, page_w - 15*mm, page_h - (logo_size_mm + 6)*mm)
         canv.restoreState()
 
     from reportlab.pdfgen import canvas as _pdfcanvas
