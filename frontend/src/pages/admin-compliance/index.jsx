@@ -63,19 +63,10 @@ const AdminCompliance = () => {
 
   const [printing, setPrinting] = useState(false);
   const handlePrint = async () => {
-    // Print uses the SAME PDF as Preview so output (running header + page numbers
-    // + landscape layout) is identical. We load the PDF into a hidden iframe and
-    // trigger its print dialog.
+    // Print Report opens the PDF in a new tab — the browser's PDF viewer prints
+    // with the correct landscape orientation natively. The previous hidden-iframe
+    // approach caused Chrome to force portrait and crop content/logo.
     setPrinting(true);
-    // Remove any leftover print iframe from a previous click so the new print
-    // dialog is not blocked by a stale focus / unfired onload.
-    document.querySelectorAll('iframe[data-print-iframe="1"]').forEach(el => {
-      try {
-        const u = el.getAttribute('data-blob-url');
-        if (u) URL.revokeObjectURL(u);
-      } catch { /* noop */ }
-      el.remove();
-    });
     try {
       const token = localStorage.getItem('access_token');
       const qs = new URLSearchParams({ start_date: startDate, end_date: endDate }).toString();
@@ -85,38 +76,15 @@ const AdminCompliance = () => {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const blob = await resp.blob();
       const blobUrl = URL.createObjectURL(blob);
-
-      const iframe = document.createElement('iframe');
-      iframe.setAttribute('data-print-iframe', '1');
-      iframe.setAttribute('data-blob-url', blobUrl);
-      // Real dimensions positioned off-screen so the PDF viewer actually renders
-      // its pages — width:0/height:0 makes Chrome print the blank iframe instead.
-      iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1024px;height:768px;border:0;visibility:hidden;';
-      iframe.src = blobUrl;
-      document.body.appendChild(iframe);
-
-      const cleanup = () => {
-        try { iframe.remove(); } catch { /* noop */ }
-        try { URL.revokeObjectURL(blobUrl); } catch { /* noop */ }
-      };
-
-      iframe.onload = () => {
-        // Give Chrome's PDF viewer a beat to fully render before triggering print
-        setTimeout(() => {
-          try {
-            const win = iframe.contentWindow;
-            win.focus();
-            win.onafterprint = () => setTimeout(cleanup, 500);
-            win.print();
-          } catch (e) {
-            // Fallback: open PDF in new tab so user can print from PDF viewer
-            window.open(blobUrl, '_blank', 'noopener,noreferrer');
-            cleanup();
-          }
-        }, 600);
-      };
-      // Safety net cleanup
-      setTimeout(cleanup, 120000);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // Revoke after 60s — gives the new tab time to load the blob
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } catch (err) { alert('Print failed: ' + err.message); }
     finally { setPrinting(false); }
   };
@@ -438,17 +406,9 @@ const AdminCompliance = () => {
         </div>
       )}
 
-      {/* Print styles — empty parent on print so any accidental window.print()
-          from the parent doc doesn't produce dashboard-chrome pages. The actual
-          print output comes from the hidden PDF iframe (handlePrint). */}
-      <style>{`
-        @media print {
-          @page { size: A4 landscape; margin: 8mm; }
-          html, body { background: white !important; }
-          body > *:not(iframe[data-print-iframe="1"]) { display: none !important; }
-          iframe[data-print-iframe="1"] { display: block !important; visibility: visible !important; position: static !important; left: 0 !important; width: 100% !important; height: 100% !important; border: 0 !important; }
-        }
-      `}</style>
+      {/* Print styles intentionally removed — Print Report opens the PDF in a
+          new tab and uses the PDF viewer's native print, which preserves
+          landscape orientation. No @media print CSS needed for the dashboard. */}
     </div>
   );
 };
