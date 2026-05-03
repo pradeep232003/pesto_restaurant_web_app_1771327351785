@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY server.py db.py models.py auth.py helpers.py ./
 COPY routes/ ./routes/
+COPY assets/ ./assets/
 
 RUN mkdir -p /app/uploads/thumbnails
 
