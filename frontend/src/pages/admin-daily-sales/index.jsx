@@ -7,6 +7,99 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useCustomer } from '../../contexts/CustomerContext';
 import { useLocation2 } from '../../contexts/LocationContext';
 
+// Reusable typeahead picker — type to filter, click to select, value must
+// match a Staff Table entry. Filtering: names starting with the typed text
+// rank first, then names containing it. Case-insensitive.
+const StaffPicker = ({ value, onChange, options, testId, placeholder = 'Type to search…', required = false }) => {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value || '');
+  const wrapRef = useRef(null);
+
+  // Keep local draft in sync if parent value changes (e.g. switching dates)
+  useEffect(() => { setDraft(value || ''); }, [value]);
+
+  // Click-away closes dropdown
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const isExact = (v) => options.some(o => o.toLowerCase() === (v || '').toLowerCase());
+  const filtered = (() => {
+    const q = (draft || '').toLowerCase().trim();
+    if (!q) return options;
+    const starts = options.filter(o => o.toLowerCase().startsWith(q));
+    const contains = options.filter(o => !o.toLowerCase().startsWith(q) && o.toLowerCase().includes(q));
+    return [...starts, ...contains];
+  })();
+
+  const pick = (name) => {
+    setDraft(name);
+    onChange(name);
+    setOpen(false);
+  };
+
+  const handleBlur = () => {
+    // Defer so click on dropdown item registers first
+    setTimeout(() => {
+      // If typed text isn't an exact Staff Table match, revert to last valid value
+      if (!isExact(draft)) {
+        setDraft(value || '');
+      } else {
+        // Normalize casing to canonical Staff Table value
+        const canonical = options.find(o => o.toLowerCase() === draft.toLowerCase());
+        if (canonical && canonical !== value) onChange(canonical);
+      }
+    }, 200);
+  };
+
+  const invalid = !!draft && !isExact(draft);
+  const font = { fontFamily: 'Outfit, sans-serif' };
+  const baseStyle = { background: '#FFFFFF', color: '#1D1D1F', ...font, boxShadow: invalid ? '0 0 0 1px #FF3B30' : '0 0 0 1px rgba(0,0,0,0.06)' };
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <input
+        data-testid={testId}
+        type="text"
+        autoComplete="off"
+        required={required}
+        placeholder={placeholder}
+        value={draft}
+        onChange={e => { setDraft(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={handleBlur}
+        className="w-full px-3 py-2.5 sm:py-2.5 rounded-xl text-sm border-0 outline-none"
+        style={baseStyle}
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute left-0 right-0 top-full mt-1 rounded-xl overflow-hidden z-20" style={{ background: '#FFFFFF', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', maxHeight: '180px', overflowY: 'auto' }}>
+          {filtered.map(n => (
+            <button
+              key={n}
+              type="button"
+              onMouseDown={e => { e.preventDefault(); pick(n); }}
+              onTouchStart={e => { e.preventDefault(); pick(n); }}
+              className="w-full text-left px-3 py-2.5 text-sm transition-colors hover:bg-gray-50"
+              style={{ color: '#1D1D1F', ...font, borderBottom: '1px solid rgba(0,0,0,0.04)' }}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      )}
+      {open && filtered.length === 0 && draft && (
+        <div className="absolute left-0 right-0 top-full mt-1 rounded-xl px-3 py-2.5 text-xs z-20"
+             style={{ background: '#FFFFFF', color: '#FF3B30', ...font, boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}>
+          No match in Staff Table
+        </div>
+      )}
+    </div>
+  );
+};
+
 const AdminDailySales = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, isStaff, isAdmin, signOut, loading: authLoading } = useAuth();
@@ -489,13 +582,13 @@ const AdminDailySales = () => {
               </div>
               <div>
                 <label className={labelCls} style={labelStyle}>Cash Taken By</label>
-                <select data-testid="sales-cash-by-input" value={cashTakenBy} onChange={e => setCashTakenBy(e.target.value)} required className={inputBase} style={inputStyle}>
-                  <option value="">— Select staff —</option>
-                  {staffNames.map(n => <option key={n} value={n}>{n}</option>)}
-                  {cashTakenBy && !staffNames.includes(cashTakenBy) && (
-                    <option value={cashTakenBy}>{cashTakenBy} (not in Staff Table)</option>
-                  )}
-                </select>
+                <StaffPicker
+                  testId="sales-cash-by-input"
+                  value={cashTakenBy}
+                  onChange={setCashTakenBy}
+                  options={staffNames}
+                  required
+                />
                 {staffNames.length === 0 && (
                   <p className="text-[10px] mt-1" style={{ color: '#FF9500', ...font }}>
                     No staff in Staff Table — ask an admin to add staff first.
@@ -521,22 +614,15 @@ const AdminDailySales = () => {
             <div className="space-y-3">
               {staffHours.map((sh, i) => (
                 <div key={i} className="p-3 rounded-xl" style={{ background: '#F9F9FB', border: '1px solid rgba(0,0,0,0.04)' }}>
-                  {/* Name — restricted to Staff Table entries only */}
+                  {/* Name — typeahead picker, restricted to Staff Table */}
                   <div className="mb-2">
                     <label className="block text-[11px] font-medium mb-1" style={{ color: '#86868B' }}>Staff Name</label>
-                    <select
-                      data-testid={`staff-name-${i}`}
+                    <StaffPicker
+                      testId={`staff-name-${i}`}
                       value={sh.name || ''}
-                      onChange={e => updateStaffRow(i, 'name', e.target.value)}
-                      className={inputBase}
-                      style={{ ...inputStyle, background: '#FFFFFF' }}
-                    >
-                      <option value="">— Select staff —</option>
-                      {staffNames.map(n => <option key={n} value={n}>{n}</option>)}
-                      {sh.name && !staffNames.includes(sh.name) && (
-                        <option value={sh.name}>{sh.name} (not in Staff Table)</option>
-                      )}
-                    </select>
+                      onChange={v => updateStaffRow(i, 'name', v)}
+                      options={staffNames}
+                    />
                   </div>
                   {/* Time row — side by side even on mobile */}
                   <div className="flex gap-2 items-end">
