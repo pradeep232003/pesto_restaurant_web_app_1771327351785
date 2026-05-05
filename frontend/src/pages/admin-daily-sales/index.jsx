@@ -26,7 +26,6 @@ const AdminDailySales = () => {
   const [cashTaken, setCashTaken] = useState('');
   const [cashTakenBy, setCashTakenBy] = useState('');
   const [staffHours, setStaffHours] = useState([{ name: '', start_time: '', end_time: '' }]);
-  const [openNameDropdown, setOpenNameDropdown] = useState(null);
 
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -490,7 +489,18 @@ const AdminDailySales = () => {
               </div>
               <div>
                 <label className={labelCls} style={labelStyle}>Cash Taken By</label>
-                <input data-testid="sales-cash-by-input" type="text" placeholder="Name" value={cashTakenBy} onChange={e => setCashTakenBy(e.target.value)} required className={inputBase} style={inputStyle} />
+                <select data-testid="sales-cash-by-input" value={cashTakenBy} onChange={e => setCashTakenBy(e.target.value)} required className={inputBase} style={inputStyle}>
+                  <option value="">— Select staff —</option>
+                  {staffNames.map(n => <option key={n} value={n}>{n}</option>)}
+                  {cashTakenBy && !staffNames.includes(cashTakenBy) && (
+                    <option value={cashTakenBy}>{cashTakenBy} (not in Staff Table)</option>
+                  )}
+                </select>
+                {staffNames.length === 0 && (
+                  <p className="text-[10px] mt-1" style={{ color: '#FF9500', ...font }}>
+                    No staff in Staff Table — ask an admin to add staff first.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -511,44 +521,22 @@ const AdminDailySales = () => {
             <div className="space-y-3">
               {staffHours.map((sh, i) => (
                 <div key={i} className="p-3 rounded-xl" style={{ background: '#F9F9FB', border: '1px solid rgba(0,0,0,0.04)' }}>
-                  {/* Name — combo input with suggestions */}
-                  <div className="mb-2 relative">
+                  {/* Name — restricted to Staff Table entries only */}
+                  <div className="mb-2">
                     <label className="block text-[11px] font-medium mb-1" style={{ color: '#86868B' }}>Staff Name</label>
-                    <input
+                    <select
                       data-testid={`staff-name-${i}`}
-                      type="text"
-                      autoComplete="off"
-                      placeholder="Select or type name"
-                      value={sh.name}
+                      value={sh.name || ''}
                       onChange={e => updateStaffRow(i, 'name', e.target.value)}
-                      onFocus={() => setOpenNameDropdown(i)}
-                      onBlur={() => setTimeout(() => setOpenNameDropdown(null), 150)}
                       className={inputBase}
                       style={{ ...inputStyle, background: '#FFFFFF' }}
-                    />
-                    {openNameDropdown === i && staffNames.length > 0 && (
-                      <div className="absolute left-0 right-0 top-full mt-1 rounded-xl overflow-hidden z-10" style={{ background: '#FFFFFF', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', maxHeight: '160px', overflowY: 'auto' }}>
-                        {staffNames
-                          .filter(n => !sh.name || n.toLowerCase().includes(sh.name.toLowerCase()))
-                          .map(n => (
-                          <button
-                            key={n}
-                            type="button"
-                            onMouseDown={e => { e.preventDefault(); updateStaffRow(i, 'name', n); setOpenNameDropdown(null); }}
-                            className="w-full text-left px-3 py-2.5 text-sm transition-colors"
-                            style={{ color: '#1D1D1F', ...font, borderBottom: '1px solid rgba(0,0,0,0.04)' }}
-                            onTouchStart={e => { e.preventDefault(); updateStaffRow(i, 'name', n); setOpenNameDropdown(null); }}
-                          >
-                            {n}
-                          </button>
-                        ))}
-                        {sh.name && !staffNames.some(n => n.toLowerCase() === sh.name.toLowerCase()) && (
-                          <div className="px-3 py-2 text-xs" style={{ color: '#86868B', ...font }}>
-                            New: "{sh.name}"
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    >
+                      <option value="">— Select staff —</option>
+                      {staffNames.map(n => <option key={n} value={n}>{n}</option>)}
+                      {sh.name && !staffNames.includes(sh.name) && (
+                        <option value={sh.name}>{sh.name} (not in Staff Table)</option>
+                      )}
+                    </select>
                   </div>
                   {/* Time row — side by side even on mobile */}
                   <div className="flex gap-2 items-end">

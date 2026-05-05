@@ -106,26 +106,16 @@ async def get_sales_by_date(location_id: str, date: str = None, user: dict = Dep
 
 @router.get("/staff-names")
 async def get_staff_names(user: dict = Depends(get_staff_or_above)):
-    """Get list of staff/admin names for the staff hours dropdown"""
-    # Get from customers with staff/admin role
-    staff_customers = list(customers_collection.find(
-        {"role": {"$in": ["staff", "admin"]}},
-        {"_id": 0, "name": 1},
-    ))
-    # Get from users collection (staff, admin, super_admin only)
-    from db import users_collection
-    admin_users = list(users_collection.find(
-        {"role": {"$in": ["staff", "admin", "super_admin"]}},
-        {"_id": 0, "name": 1},
-    ))
-    names = set()
-    for c in staff_customers:
-        if c.get("name"):
-            names.add(c["name"])
-    for u in admin_users:
-        if u.get("name"):
-            names.add(u["name"])
-    return sorted(names)
+    """
+    Get list of staff names for the staff hours / cash-taken-by dropdowns.
+    Names come exclusively from the admin-managed Staff Table
+    (`staff_members` collection). Login users/customers are NOT included so
+    that only roster-listed employees can be picked.
+    """
+    from db import db as _db
+    staff_members = list(_db["staff_members"].find({}, {"_id": 0, "name": 1}))
+    names = sorted({(s.get("name") or "").strip() for s in staff_members if s.get("name")})
+    return [n for n in names if n]
 
 
 @router.delete("/{entry_id}")
