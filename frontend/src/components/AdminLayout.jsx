@@ -31,6 +31,7 @@ const getNavItems = (role) => {
   ];
   if (role === 'admin' || role === 'super_admin') {
     items.push({ path: '/admin/compliance', label: 'Compliance', icon: Shield });
+    items.push({ path: '/admin/staff', label: 'Staff', icon: Users });
   }
   if (role === 'super_admin') {
     items.push({ path: '/admin/users', label: 'Users', icon: Users });

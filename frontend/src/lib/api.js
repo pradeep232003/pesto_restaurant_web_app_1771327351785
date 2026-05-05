@@ -770,6 +770,12 @@ class ApiService {
   async adminCreateLegionella(data) { return this.fetch('/api/admin/legionella', { method: 'POST', body: JSON.stringify(data) }); }
   async adminDeleteLegionella(id) { return this.fetch(`/api/admin/legionella/${id}`, { method: 'DELETE' }); }
 
+  // ============== STAFF TABLE (admin + super_admin only) ==============
+  async adminListStaff() { return this.fetch('/api/admin/staff'); }
+  async adminCreateStaff(data) { return this.fetch('/api/admin/staff', { method: 'POST', body: JSON.stringify(data) }); }
+  async adminUpdateStaff(id, data) { return this.fetch(`/api/admin/staff/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  async adminDeleteStaff(id) { return this.fetch(`/api/admin/staff/${id}`, { method: 'DELETE' }); }
+
   // ============== CLEANING SCHEDULES (daily + weekly deep) ==============
   // kind = 'daily-cleaning' | 'weekly-cleaning'
   async adminGetCleaningItems(kind, locationId) {

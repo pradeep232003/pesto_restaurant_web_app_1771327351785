@@ -90,6 +90,7 @@ from routes.legionella import router as legionella_router
 from routes.cleaning_schedules import daily_cleaning_router, weekly_cleaning_router, seed_cleaning_schedules
 from routes.compliance import router as compliance_router
 from routes.compliance_digest import router as compliance_digest_router, run_weekly_digest_job
+from routes.staff import router as staff_router
 
 app.include_router(auth_router)
 app.include_router(locations_router)
@@ -114,6 +115,7 @@ app.include_router(daily_cleaning_router)
 app.include_router(weekly_cleaning_router)
 app.include_router(compliance_router)
 app.include_router(compliance_digest_router)
+app.include_router(staff_router)
 
 # ============== PUBLIC ENDPOINTS ==============
 
