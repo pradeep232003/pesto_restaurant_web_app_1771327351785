@@ -1,78 +1,80 @@
 import React from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Brain, ClipboardCheck, Users, Settings2, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
-// Apple-style bottom tab bar (glass blur, SF-feel)
 const TABS = [
-  { to: '/jkhive',           label: 'Intelligence', icon: Brain,          end: true },
+  { to: '/jkhive',           label: 'Intelligence', icon: Brain },
   { to: '/jkhive/routines',  label: 'Routines',     icon: ClipboardCheck },
   { to: '/jkhive/workforce', label: 'Workforce',    icon: Users },
   { to: '/jkhive/manager',   label: 'Manager',      icon: Settings2 },
 ];
 
+const FooterTab = ({ tab, isActive }) => (
+  <Link
+    to={tab.to}
+    data-testid={`jkhive-tab-${tab.label.toLowerCase()}`}
+    style={{ textDecoration: 'none' }}
+  >
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      gap: 4, padding: '8px 4px', borderRadius: 12,
+      background: isActive ? 'rgba(0,122,255,0.08)' : 'transparent',
+      transition: 'all 0.15s ease',
+    }}>
+      <tab.icon size={24} strokeWidth={isActive ? 2.4 : 1.9} style={{ color: isActive ? '#007AFF' : '#3A3A3C' }} />
+      <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '-0.01em', color: isActive ? '#007AFF' : '#3A3A3C' }}>
+        {tab.label}
+      </span>
+    </div>
+  </Link>
+);
+
 const JKHiveLayout = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isAuthenticated, loading } = useAuth();
   const initial = (user?.name || user?.email || 'U').charAt(0).toUpperCase();
+
+  const isTabActive = (to) => {
+    if (to === '/jkhive') return location.pathname === '/jkhive' || location.pathname === '/jkhive/';
+    return location.pathname === to || location.pathname.startsWith(to + '/');
+  };
 
   React.useEffect(() => {
     if (!loading && !isAuthenticated) navigate('/admin-login?return=/jkhive');
   }, [loading, isAuthenticated, navigate]);
 
   return (
-    <div className="min-h-screen" style={{ background: '#F2F2F7', fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, sans-serif' }}>
-      {/* Top bar */}
-      <header className="sticky top-0 z-30 backdrop-blur-2xl" style={{ background: 'rgba(242,242,247,0.78)', borderBottom: '0.5px solid rgba(0,0,0,0.06)' }}>
-        <div className="max-w-3xl mx-auto px-5 sm:px-6 py-4 flex items-center justify-between">
-          <button onClick={() => navigate('/admin')} className="flex items-center gap-1 -ml-1 px-2 py-1 rounded-lg text-[13px] font-medium active:scale-95" style={{ color: '#007AFF' }}>
+    <div style={{ minHeight: '100vh', background: '#F2F2F7', fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, sans-serif' }}>
+      <header style={{ position: 'sticky', top: 0, zIndex: 30, background: 'rgba(242,242,247,0.92)', backdropFilter: 'saturate(180%) blur(16px)', WebkitBackdropFilter: 'saturate(180%) blur(16px)', borderBottom: '0.5px solid rgba(0,0,0,0.08)' }}>
+        <div style={{ maxWidth: '768px', margin: '0 auto', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button onClick={() => navigate('/admin')} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 8, fontSize: 13, fontWeight: 500, color: '#007AFF', background: 'transparent', border: 0, cursor: 'pointer' }}>
             <ArrowLeft size={15} strokeWidth={2.2} /> Admin
           </button>
-          <h1 className="text-[17px] font-semibold tracking-tight" style={{ color: '#1D1D1F' }}>JKHive</h1>
-          <div data-testid="jkhive-user-avatar" className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold" style={{ background: '#1D1D1F' }}>
+          <h1 style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: '#1D1D1F', margin: 0 }}>JKHive</h1>
+          <div data-testid="jkhive-user-avatar" style={{ width: 36, height: 36, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 600, background: '#1D1D1F' }}>
             {initial}
           </div>
         </div>
       </header>
 
-      {/* Page content */}
-      <main className="max-w-3xl mx-auto px-5 sm:px-6 pt-6 pb-32">
+      <main style={{ maxWidth: '768px', margin: '0 auto', padding: '24px 20px 140px 20px' }}>
         <Outlet />
       </main>
 
-      {/* Footer tab bar — Apple iOS-style, always visible */}
       <nav
         data-testid="jkhive-footer-nav"
-        className="fixed bottom-0 inset-x-0 z-40"
         style={{
-          background: 'rgba(255,255,255,0.92)',
-          backdropFilter: 'saturate(180%) blur(20px)',
-          WebkitBackdropFilter: 'saturate(180%) blur(20px)',
-          borderTop: '0.5px solid rgba(0,0,0,0.12)',
-          boxShadow: '0 -2px 16px rgba(0,0,0,0.06)',
+          position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 9999,
+          background: '#FFFFFF',
+          borderTop: '1px solid rgba(0,0,0,0.10)',
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.08)',
         }}
       >
-        <div className="max-w-3xl mx-auto px-2 py-1.5 grid grid-cols-4">
-          {TABS.map(t => (
-            <NavLink
-              key={t.to}
-              to={t.to}
-              end={t.end}
-              data-testid={`jkhive-tab-${t.label.toLowerCase()}`}
-              className="flex flex-col items-center justify-center gap-1 py-2 rounded-2xl transition-all active:scale-90"
-            >
-              {({ isActive }) => (
-                <>
-                  <t.icon size={24} strokeWidth={isActive ? 2.4 : 1.9} style={{ color: isActive ? '#007AFF' : '#8E8E93' }} />
-                  <span className="text-[10px] font-semibold tracking-tight" style={{ color: isActive ? '#007AFF' : '#8E8E93' }}>
-                    {t.label}
-                  </span>
-                </>
-              )}
-            </NavLink>
-          ))}
+        <div style={{ maxWidth: '768px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', padding: '6px 4px', paddingBottom: 'calc(6px + env(safe-area-inset-bottom))' }}>
+          {TABS.map(t => <FooterTab key={t.to} tab={t} isActive={isTabActive(t.to)} />)}
         </div>
-        <div style={{ height: 'env(safe-area-inset-bottom)' }} />
       </nav>
     </div>
   );
