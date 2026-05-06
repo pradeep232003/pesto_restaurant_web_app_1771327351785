@@ -53,9 +53,13 @@ const JKHiveLayout = () => {
             <ArrowLeft size={15} strokeWidth={2.2} /> Admin
           </button>
           <h1 style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: '#1D1D1F', margin: 0 }}>JKHive</h1>
-          <div data-testid="jkhive-user-avatar" style={{ width: 36, height: 36, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 600, background: '#1D1D1F' }}>
+          <button
+            data-testid="jkhive-user-avatar"
+            onClick={() => navigate('/jkhive/profile')}
+            style={{ width: 36, height: 36, borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 600, background: '#1D1D1F', border: 0, cursor: 'pointer', padding: 0 }}
+          >
             {initial}
-          </div>
+          </button>
         </div>
       </header>
 
