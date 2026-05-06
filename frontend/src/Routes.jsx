@@ -37,6 +37,11 @@ import AdminDailyCleaning from './pages/admin-daily-cleaning';
 import AdminWeeklyCleaning from './pages/admin-weekly-cleaning';
 import AdminCompliance from './pages/admin-compliance';
 import AdminStaff from './pages/admin-staff';
+import JKHiveLayout from './pages/jkhive/Layout';
+import JKHiveIntelligence from './pages/jkhive/Intelligence';
+import JKHiveRoutines from './pages/jkhive/Routines';
+import JKHiveWorkforce from './pages/jkhive/Workforce';
+import JKHiveManager from './pages/jkhive/Manager';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -123,6 +128,14 @@ const AppRouter = () => {
       <Route path="/admin/weekly-cleaning" element={<AdminRoute><AdminWeeklyCleaning /></AdminRoute>} />
       <Route path="/admin/compliance" element={<AdminRoute><AdminCompliance /></AdminRoute>} />
       <Route path="/admin/staff" element={<AdminRoute><AdminStaff /></AdminRoute>} />
+
+      {/* JKHive — unified mobile-first hub (any authenticated user) */}
+      <Route path="/jkhive" element={<JKHiveLayout />}>
+        <Route index element={<JKHiveIntelligence />} />
+        <Route path="routines" element={<JKHiveRoutines />} />
+        <Route path="workforce" element={<JKHiveWorkforce />} />
+        <Route path="manager" element={<JKHiveManager />} />
+      </Route>
 
       {/* Customer loyalty card */}
       <Route path="/loyalty-card" element={<LoyaltyCard />} />

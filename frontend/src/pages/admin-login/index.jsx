@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, ArrowRight, ChefHat } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -8,6 +8,8 @@ const ease = [0.16, 1, 0.3, 1];
 
 const AdminLogin = () => {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const returnTo = params.get('return') || '/admin';
   const { signIn, isAuthenticated, isStaff, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -15,8 +17,8 @@ const AdminLogin = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!authLoading && isAuthenticated && isStaff) navigate('/admin');
-  }, [authLoading, isAuthenticated, isStaff, navigate]);
+    if (!authLoading && isAuthenticated && isStaff) navigate(returnTo);
+  }, [authLoading, isAuthenticated, isStaff, navigate, returnTo]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,7 +29,7 @@ const AdminLogin = () => {
       if (result.error) {
         setError(result.error.message || 'Invalid credentials');
       } else {
-        navigate('/admin');
+        navigate(returnTo);
       }
     } catch (err) {
       setError(err.message || 'Invalid credentials');
