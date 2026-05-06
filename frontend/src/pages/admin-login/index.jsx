@@ -9,7 +9,12 @@ const ease = [0.16, 1, 0.3, 1];
 const AdminLogin = () => {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const returnTo = params.get('return') || '/admin';
+  // Persistent home: once a user lands on JKHive, future logins go straight to
+  // their last JKHive route until they explicitly log out.
+  const lastJkhive = (() => {
+    try { return localStorage.getItem('jkhive_last_route') || ''; } catch { return ''; }
+  })();
+  const returnTo = params.get('return') || lastJkhive || '/admin';
   const { signIn, isAuthenticated, isStaff, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

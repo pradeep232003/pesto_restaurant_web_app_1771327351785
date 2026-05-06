@@ -20,6 +20,7 @@ const Profile = () => {
 
   const handleSignOut = async () => {
     if (!window.confirm('Sign out of JKHive?')) return;
+    try { localStorage.removeItem('jkhive_last_route'); } catch { /* noop */ }
     await signOut();
     navigate('/admin-login');
   };

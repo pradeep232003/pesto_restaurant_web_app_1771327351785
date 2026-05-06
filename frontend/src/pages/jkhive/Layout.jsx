@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Brain, ClipboardCheck, Users, Settings2, ArrowLeft } from 'lucide-react';
+import { Brain, ClipboardCheck, Users, Settings2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 const TABS = [
@@ -45,13 +45,17 @@ const JKHiveLayout = () => {
     if (!loading && !isAuthenticated) navigate('/admin-login?return=/jkhive');
   }, [loading, isAuthenticated, navigate]);
 
+  // Remember the user's current JKHive route so future logins resume here
+  // (cleared on explicit logout).
+  React.useEffect(() => {
+    try { localStorage.setItem('jkhive_last_route', location.pathname + location.search); } catch { /* noop */ }
+  }, [location.pathname, location.search]);
+
   return (
     <div style={{ minHeight: '100vh', background: '#F2F2F7', fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, sans-serif' }}>
       <header style={{ position: 'sticky', top: 0, zIndex: 30, background: 'rgba(242,242,247,0.92)', backdropFilter: 'saturate(180%) blur(16px)', WebkitBackdropFilter: 'saturate(180%) blur(16px)', borderBottom: '0.5px solid rgba(0,0,0,0.08)' }}>
         <div style={{ maxWidth: '768px', margin: '0 auto', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button onClick={() => navigate('/admin')} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 8, fontSize: 13, fontWeight: 500, color: '#007AFF', background: 'transparent', border: 0, cursor: 'pointer' }}>
-            <ArrowLeft size={15} strokeWidth={2.2} /> Admin
-          </button>
+          <div style={{ width: 36 }} />
           <h1 style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: '#1D1D1F', margin: 0 }}>JKHive</h1>
           <button
             data-testid="jkhive-user-avatar"
