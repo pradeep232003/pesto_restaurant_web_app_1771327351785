@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClipboardCheck, Power, Flame, Thermometer, Truck, Gauge, Droplet, Sparkles } from 'lucide-react';
+import { Sunrise, Sunset, Snowflake, ListChecks, Flame, Truck, ChefHat, MoreHorizontal } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 
 const Routines = () => {
@@ -12,21 +12,16 @@ const Routines = () => {
         Daily, weekly and ad-hoc operational checks across every site.
       </p>
 
-      <SectionLabel>Daily checks</SectionLabel>
+      <SectionLabel>Daily flow</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
-        <Tile testId="tile-daily-checks"     to="/admin/daily-checks"      icon={ClipboardCheck} color="#34C759" title="Daily Checks"     subtitle="15-item opening list" />
-        <Tile testId="tile-kitchen-closedown" to="/admin/kitchen-closedown" icon={Power}          color="#AF52DE" title="Kitchen Closedown" subtitle="End-of-day shutdown" />
-        <Tile testId="tile-temp-monitor"     to="/admin/temp-monitor"      icon={Thermometer}    color="#007AFF" title="Temperature Log"  subtitle="Fridge & freezer" />
-        <Tile testId="tile-cooked-temp"      to="/admin/cooked-temp"       icon={Flame}          color="#FF3B30" title="Cooked Temp"      subtitle="≥ 75°C compliance" />
-      </div>
-
-      <SectionLabel>Weekly & ad-hoc</SectionLabel>
-      <div className="grid grid-cols-2 gap-3">
-        <Tile testId="tile-deliveries"        to="/admin/delivery-records"  icon={Truck}      color="#5856D6" title="Deliveries"        subtitle="Goods-in records" />
-        <Tile testId="tile-probe-cal"         to="/admin/probe-calibration" icon={Gauge}      color="#FF9500" title="Probe Calibration" subtitle="Cold/hot accuracy" />
-        <Tile testId="tile-legionella"        to="/admin/legionella"        icon={Droplet}    color="#30B0C7" title="Legionella"        subtitle="Weekly water test" />
-        <Tile testId="tile-daily-cleaning"    to="/admin/daily-cleaning"    icon={Sparkles}   color="#32ADE6" title="Daily Cleaning"    subtitle="18 cleaning items" />
-        <Tile testId="tile-weekly-cleaning"   to="/admin/weekly-cleaning"   icon={Sparkles}   color="#BF5AF2" title="Weekly Deep Clean" subtitle="Deep clean roster" />
+        <Tile testId="tile-opening-routine"      to="/admin/daily-checks"      icon={Sunrise}     color="#FF9500" title="Opening Routine"     subtitle="Pre-service checks" />
+        <Tile testId="tile-closing-routine"      to="/admin/kitchen-closedown" icon={Sunset}      color="#5856D6" title="Closing Routine"     subtitle="End-of-day shutdown" />
+        <Tile testId="tile-cooking-and-cooling"  comingSoon                    icon={Snowflake}   color="#30B0C7" title="Cooking & Cooling"   subtitle="Cool-down log" />
+        <Tile testId="tile-checklists"           comingSoon                    icon={ListChecks}  color="#34C759" title="Checklists"          subtitle="Custom checklists" />
+        <Tile testId="tile-reheating"            comingSoon                    icon={Flame}       color="#FF3B30" title="Reheating"           subtitle="≥ 75°C reheat log" />
+        <Tile testId="tile-deliveries"           to="/admin/delivery-records"  icon={Truck}       color="#007AFF" title="Deliveries"          subtitle="Goods-in records" />
+        <Tile testId="tile-cooking"              to="/admin/cooked-temp"       icon={ChefHat}     color="#FF2D55" title="Cooking"             subtitle="Cooked-temp log" />
+        <Tile testId="tile-other-routines"       to="/jkhive/routines/more"    icon={MoreHorizontal} color="#8E8E93" title="Other"           subtitle="Probe, holding, more…" />
       </div>
     </div>
   );

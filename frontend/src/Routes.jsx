@@ -40,6 +40,7 @@ import AdminStaff from './pages/admin-staff';
 import JKHiveLayout from './pages/jkhive/Layout';
 import JKHiveIntelligence from './pages/jkhive/Intelligence';
 import JKHiveRoutines from './pages/jkhive/Routines';
+import JKHiveMoreRoutines from './pages/jkhive/MoreRoutines';
 import JKHiveWorkforce from './pages/jkhive/Workforce';
 import JKHiveManager from './pages/jkhive/Manager';
 import ResidentBalance from './pages/resident-balance';
@@ -133,6 +134,7 @@ const AppRouter = () => {
       <Route path="/jkhive" element={<JKHiveLayout />}>
         <Route index element={<JKHiveIntelligence />} />
         <Route path="routines" element={<JKHiveRoutines />} />
+        <Route path="routines/more" element={<JKHiveMoreRoutines />} />
         <Route path="workforce" element={<JKHiveWorkforce />} />
         <Route path="manager" element={<JKHiveManager />} />
       </Route>
