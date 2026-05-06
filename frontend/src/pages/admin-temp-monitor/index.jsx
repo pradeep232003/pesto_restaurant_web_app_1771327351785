@@ -282,7 +282,7 @@ const AdminTempMonitor = () => {
                                 <label className="block text-[11px] font-medium mb-1" style={{ color: '#86868B' }}>{slot}</label>
                                 <input
                                   data-testid={`temp-${slot.replace(':', '')}-${u.id}`}
-                                  type="number" step="0.1" inputMode="decimal" placeholder="°C"
+                                  type="number" step="0.1" inputMode="text" placeholder="°C"
                                   value={val}
                                   onChange={e => updateReading(u.id, slot, e.target.value)}
                                   className={inputBase}
