@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Package, Trash2, ChefHat, Salad, BarChart3, Sparkles, DollarSign } from 'lucide-react';
+import { Shield, Package, Trash2, ChefHat, Salad, BarChart3, Sparkles, DollarSign, UtensilsCrossed } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 import { useAuth } from '../../contexts/AuthContext';
 
