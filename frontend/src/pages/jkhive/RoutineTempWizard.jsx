@@ -21,15 +21,58 @@ const RANGES = {
   freezer: { min: -28, max: 0, default: -18, recLabel: '-18°C or lower', isOk: t => t <= -18 },
 };
 
-const Gauge = ({ value, range, ok }) => {
+const Gauge = ({ value, range, ok, onChange }) => {
   const { min, max } = range;
   const pct = Math.max(0, Math.min(1, (value - min) / (max - min)));
-  // Semicircle (180°) gauge — 0 = left (min), 1 = right (max)
   const angle = -180 + pct * 180;
   const ringColor = ok ? '#34C759' : '#FF3B30';
+  const ref = React.useRef(null);
+  const [dragging, setDragging] = React.useState(false);
+
+  const computeFromPointer = React.useCallback((clientX, clientY) => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + 110;
+    const dx = clientX - cx;
+    const dy = cy - clientY;
+    let theta = Math.atan2(dy, dx);
+    if (theta < 0) theta = 0;
+    if (theta > Math.PI) theta = Math.PI;
+    const newPct = 1 - theta / Math.PI;
+    const newValue = Math.round((min + newPct * (max - min)) * 10) / 10;
+    onChange(newValue);
+  }, [min, max, onChange]);
+
+  // Global pointer move/up while dragging — works even if pointer leaves gauge.
+  React.useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e) => computeFromPointer(e.clientX, e.clientY);
+    const onUp = () => setDragging(false);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+    return () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+    };
+  }, [dragging, computeFromPointer]);
+
+  const onPointerDown = (e) => {
+    e.preventDefault();
+    setDragging(true);
+    computeFromPointer(e.clientX, e.clientY);
+  };
+
   return (
-    <div style={{ position: 'relative', width: 220, height: 130, margin: '0 auto' }}>
-      <svg viewBox="0 0 200 110" width="220" height="130" style={{ overflow: 'visible' }}>
+    <div
+      ref={ref}
+      style={{ position: 'relative', width: 220, height: 130, margin: '0 auto', touchAction: 'none', cursor: dragging ? 'grabbing' : 'grab', userSelect: 'none' }}
+      onPointerDown={onPointerDown}
+    >
+      <svg viewBox="0 0 200 110" width="220" height="130" style={{ overflow: 'visible', pointerEvents: 'none' }}>
         <path d="M 14 100 A 86 86 0 0 1 186 100" stroke="#E8E8ED" strokeWidth="14" strokeLinecap="round" fill="none" />
         <path
           d="M 14 100 A 86 86 0 0 1 186 100"
@@ -44,16 +87,20 @@ const Gauge = ({ value, range, ok }) => {
         position: 'absolute', top: 50, left: 0, right: 0,
         textAlign: 'center', fontSize: 44, fontWeight: 700, letterSpacing: '-0.02em',
         color: '#1D1D1F', fontFamily: 'Outfit, sans-serif',
+        pointerEvents: 'none',
       }}>
         {value.toFixed(1)}°C
       </div>
-      {/* Needle position dot */}
       <div style={{
         position: 'absolute', left: '50%', top: 110,
-        width: 12, height: 12, marginLeft: -6, marginTop: -6, borderRadius: 999,
-        background: '#1D1D1F',
+        width: 26, height: 26, marginLeft: -13, marginTop: -13, borderRadius: 999,
+        background: ringColor,
+        border: '3px solid #FFFFFF',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
         transform: `rotate(${angle}deg) translateX(86px)`,
         transformOrigin: 'center',
+        pointerEvents: 'none',
+        transition: dragging ? 'none' : 'transform 0.15s ease',
       }} />
     </div>
   );
@@ -90,7 +137,10 @@ const RoutineTempWizard = ({ period, title, backTo }) => {
     setLoading(true);
     api.adminGetTempUnits(adminLocationId)
       .then(list => {
-        const fridgeFreezer = (list || []).filter(u => ['fridge', 'freezer', 'chiller'].includes(u.unit_type));
+        const fridgeFreezer = (list || []).filter(u =>
+          ['fridge', 'freezer', 'chiller'].includes(u.unit_type) &&
+          !((u.skip_periods || []).includes(period))
+        );
         setUnits(fridgeFreezer);
         // Seed readings to default per unit type
         const seed = {};
@@ -178,7 +228,7 @@ const RoutineTempWizard = ({ period, title, backTo }) => {
           <p style={{ fontSize: 18, fontWeight: 600, color: '#1D1D1F', margin: 0, textAlign: 'center' }}>{currentUnit.name}</p>
           <p style={{ fontSize: 12, color: '#86868B', margin: '4px 0 16px', textAlign: 'center', textTransform: 'capitalize' }}>{currentUnit.unit_type}</p>
 
-          <Gauge value={currentTemp} range={currentRange} ok={currentRange.isOk(currentTemp)} />
+          <Gauge value={currentTemp} range={currentRange} ok={currentRange.isOk(currentTemp)} onChange={(v) => setReadings(r => ({ ...r, [currentUnit.id]: v }))} />
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, margin: '20px 0 8px' }}>
             <button data-testid="temp-minus" onClick={() => adjust(-0.1)} style={{ width: 52, height: 52, borderRadius: 999, background: '#F2F2F7', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

@@ -782,6 +782,7 @@ class ApiService {
     const qs = new URLSearchParams(Object.entries(filters).filter(([,v]) => v != null && v !== '')).toString();
     return this.fetch(`/api/admin/routine-temps${qs ? '?' + qs : ''}`);
   }
+  async adminUpdateTempUnit(unitId, data) { return this.fetch(`/api/admin/temp/units/${unitId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
 
   // ============== CLEANING SCHEDULES (daily + weekly deep) ==============
   // kind = 'daily-cleaning' | 'weekly-cleaning'

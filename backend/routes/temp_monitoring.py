@@ -65,6 +65,28 @@ async def delete_unit(unit_id: str, user: dict = Depends(get_admin_user)):
     return {"message": "Unit removed"}
 
 
+class TempUnitUpdate(BaseModel):
+    name: Optional[str] = None
+    skip_periods: Optional[List[str]] = None  # subset of ["opening","closing"]
+
+
+@router.patch("/units/{unit_id}")
+async def update_unit(unit_id: str, body: TempUnitUpdate, user: dict = Depends(get_admin_user)):
+    """Update unit settings — currently name and skip_periods (which routine
+    periods this unit is excluded from, e.g. ['closing'] for a display chiller
+    that is turned off at closing)."""
+    update = {k: v for k, v in body.dict().items() if v is not None}
+    if not update:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    if "skip_periods" in update:
+        update["skip_periods"] = [p for p in update["skip_periods"] if p in ("opening", "closing")]
+    result = temp_units_collection.update_one({"id": unit_id, "is_active": True}, {"$set": update})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Unit not found")
+    doc = temp_units_collection.find_one({"id": unit_id}, {"_id": 0})
+    return doc
+
+
 @router.put("/time-slots")
 async def update_location_time_slots(body: LocationTimeSlotsUpdate, user: dict = Depends(get_admin_user)):
     """Update recording time slots for all units at a location"""

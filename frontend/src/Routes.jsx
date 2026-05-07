@@ -55,6 +55,7 @@ import JKHiveOpeningRoutine from './pages/jkhive/OpeningRoutine';
 import JKHiveOpeningFridgeTemp from './pages/jkhive/OpeningFridgeTemp';
 import JKHiveClosingRoutine from './pages/jkhive/ClosingRoutine';
 import JKHiveClosingFridgeTemp from './pages/jkhive/ClosingFridgeTemp';
+import JKHiveRoutineUnits from './pages/jkhive/RoutineUnits';
 import JKHiveWorkforce from './pages/jkhive/Workforce';
 import JKHiveManager from './pages/jkhive/Manager';
 import ResidentBalance from './pages/resident-balance';
@@ -165,6 +166,7 @@ const AppRouter = () => {
         <Route path="opening/fridge-temp" element={<JKHiveOpeningFridgeTemp />} />
         <Route path="closing" element={<JKHiveClosingRoutine />} />
         <Route path="closing/fridge-temp" element={<JKHiveClosingFridgeTemp />} />
+        <Route path="manager/routine-units" element={<JKHiveRoutineUnits />} />
       </Route>
 
       {/* Customer loyalty card */}
