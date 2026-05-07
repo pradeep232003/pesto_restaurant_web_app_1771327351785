@@ -144,6 +144,12 @@ Automated Monday-morning email digest of the previous week's compliance matrix t
 - **Print Report** now renders in **A4 landscape** with `@page { size: A4 landscape; margin: 12mm }` so the full 9-check compliance matrix fits on one row. Each per-site detailed breakdown table now starts on its own page (`page-break-before: always` on `.print-site-page`), giving EHO inspectors a clean, one-page-per-location printout. Color retention enforced via `-webkit-print-color-adjust: exact`.
 - **Preview PDF** button now uses `API_BASE_URL`-prefixed fetch (exported from `/app/frontend/src/lib/api.js`) instead of bare relative URL — fixes the button on www.jollyskafe.com production where frontend and backend are on different hosts. Blob is opened via an anchor-click (`target=_blank`) to bypass popup blockers; blob URL revoked after 30 s.
 
+### JKHive Mobile Hub + Routine Temp Wizard (Feb 2026) - VERIFIED
+- New mobile-first PWA hub at `/jkhive` with iOS-style aesthetic (glass footer, squircle tiles), four tabs: Intelligence, Routines, Workforce, Manager. Wrappers reuse existing admin pages; each admin page sniffs `useLocation().pathname.startsWith('/jkhive')` to hide desktop sidebar and render mobile headers.
+- **Routine Temp Wizard** (`/app/frontend/src/pages/jkhive/RoutineTempWizard.jsx`): step-per-fridge gauge wizard for opening + closing routines. Draggable semicircle SVG gauge, +/- 0.1°C pill buttons, manual numeric input (mobile keyboard supports negatives). Per-unit `skip_periods` array (set in Routine Units admin) lets specific units (e.g. Display Chiller) skip closing routine.
+- **Layout reorder (May 2026)**: +/- pill buttons + numeric input now render **above** the gauge (per user IMG_6666 spec); recommended-range hint sits below the gauge.
+- Excel exports via `xlsx` for Daily Sales (per-location sheets + staff hours + staff totals). Staff Table CRUD admin page with auto-fill `Cash Taken By` / `Staff Name` combo-boxes powered by `StaffPicker`.
+
 ## Prioritized Backlog
 
 ### P1 (High)

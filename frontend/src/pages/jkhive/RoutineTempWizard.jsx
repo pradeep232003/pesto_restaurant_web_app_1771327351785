@@ -228,9 +228,7 @@ const RoutineTempWizard = ({ period, title, backTo }) => {
           <p style={{ fontSize: 18, fontWeight: 600, color: '#1D1D1F', margin: 0, textAlign: 'center' }}>{currentUnit.name}</p>
           <p style={{ fontSize: 12, color: '#86868B', margin: '4px 0 16px', textAlign: 'center', textTransform: 'capitalize' }}>{currentUnit.unit_type}</p>
 
-          <Gauge value={currentTemp} range={currentRange} ok={currentRange.isOk(currentTemp)} onChange={(v) => setReadings(r => ({ ...r, [currentUnit.id]: v }))} />
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, margin: '20px 0 8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, margin: '4px 0 22px' }}>
             <button data-testid="temp-minus" onClick={() => adjust(-0.1)} style={{ width: 52, height: 52, borderRadius: 999, background: '#F2F2F7', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Minus size={22} strokeWidth={2.6} style={{ color: '#1D1D1F' }} />
             </button>
@@ -246,7 +244,9 @@ const RoutineTempWizard = ({ period, title, backTo }) => {
             </button>
           </div>
 
-          <p style={{ fontSize: 12, color: '#86868B', textAlign: 'center', margin: 0 }}>
+          <Gauge value={currentTemp} range={currentRange} ok={currentRange.isOk(currentTemp)} onChange={(v) => setReadings(r => ({ ...r, [currentUnit.id]: v }))} />
+
+          <p style={{ fontSize: 12, color: '#86868B', textAlign: 'center', margin: '14px 0 0' }}>
             Recommended range: <b style={{ color: '#1D1D1F' }}>{currentRange.recLabel}</b>
           </p>
           {!currentRange.isOk(currentTemp) && (
