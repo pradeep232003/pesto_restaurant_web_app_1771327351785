@@ -67,7 +67,7 @@ const JKHiveLayout = () => {
         </div>
       </header>
 
-      <main style={{ maxWidth: '768px', margin: '0 auto', padding: '24px 20px 140px 20px' }}>
+      <main style={{ maxWidth: '768px', margin: '0 auto', padding: '8px 20px 140px 20px' }}>
         <Outlet />
       </main>
 

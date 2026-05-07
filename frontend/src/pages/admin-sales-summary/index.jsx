@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { BarChart3, MapPin, Clock, Filter, PoundSterling, ChevronDown } from 'lucide-react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { BarChart3, MapPin, Clock, Filter, PoundSterling, ChevronDown, ArrowLeft } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -9,6 +9,8 @@ const AdminSalesSummary = () => {
   const navigate = useNavigate();
   const { isAuthenticated, isAdmin, loading: authLoading } = useAuth();
   const { locations } = useLocation2();
+  const routerLocation = useLocation();
+  const isJkhive = routerLocation.pathname.startsWith('/jkhive');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [expandedStaff, setExpandedStaff] = useState(null);
@@ -50,10 +52,22 @@ const AdminSalesSummary = () => {
   const cardStyle = { background: '#FFFFFF', borderRadius: '16px' };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto" data-testid="admin-sales-summary-page">
+    <div className={isJkhive ? "px-4 sm:px-6 lg:px-8 pt-2 pb-4 max-w-5xl mx-auto" : "p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto"} data-testid="admin-sales-summary-page">
       {/* Header */}
-      <div className="mb-5">
+      {isJkhive ? (
+        <Link
+          to="/jkhive/manager"
+          data-testid="back-to-jkhive"
+          className="inline-flex items-center gap-1.5 -ml-1 px-1 py-1 mb-1 rounded-lg active:scale-95"
+          style={{ color: '#1D1D1F', ...font }}
+        >
+          <ArrowLeft size={20} strokeWidth={2.4} style={{ color: '#007AFF' }} />
+          <span className="text-xl sm:text-2xl font-semibold tracking-tight">Sales Summary</span>
+        </Link>
+      ) : (
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: '#1D1D1F', ...font }}>Sales Summary</h1>
+      )}
+      <div className="mb-5">
         <p className="text-xs sm:text-sm mt-1" style={{ color: '#86868B' }}>Overview of sales, cash, and staff hours</p>
       </div>
 

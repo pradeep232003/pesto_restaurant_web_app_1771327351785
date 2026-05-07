@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import Header from '../../components/ui/Header';
 import Icon from '../../components/AppIcon';
 import api from '../../lib/api';
@@ -23,6 +24,8 @@ const AdminMenuManagement = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, isStaff, loading: authLoading, signOut } = useAuth();
   const { locations } = useLocation2();
+  const routerLocation = useLocation();
+  const isJkhive = routerLocation.pathname.startsWith('/jkhive');
   const [selectedLocationId, setSelectedLocationId] = useState('');
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -224,11 +227,23 @@ const AdminMenuManagement = () => {
     <div className="bg-background">
       <main>
         {/* Page Header */}
-        <section className="py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
+        <section className={isJkhive ? "pt-2 pb-4 px-4 sm:px-6 lg:px-8" : "py-6 lg:py-8 px-4 sm:px-6 lg:px-8"}>
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Menu</h1>
+                {isJkhive ? (
+                  <Link
+                    to="/jkhive/manager"
+                    data-testid="back-to-jkhive"
+                    className="inline-flex items-center gap-1.5 -ml-1 px-1 py-1 rounded-lg active:scale-95"
+                    style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
+                  >
+                    <ArrowLeft size={20} strokeWidth={2.4} style={{ color: '#007AFF' }} />
+                    <span className="text-2xl lg:text-3xl font-semibold tracking-tight">Menu</span>
+                  </Link>
+                ) : (
+                  <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight" style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}>Menu</h1>
+                )}
                 <p className="text-sm mt-1" style={{ color: '#86868B' }}>
                   {user?.email}
                 </p>

@@ -144,12 +144,18 @@ const AdminCompliance = () => {
   const displayedChecks = filterCheck ? data?.check_types.filter(c => c.key === filterCheck) : data?.check_types;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto" data-testid="admin-compliance-page">
+    <div className={isJkhive ? "px-4 sm:px-6 lg:px-8 pt-2 pb-4 max-w-[1400px] mx-auto" : "p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto"} data-testid="admin-compliance-page">
       {/* Non-printable header */}
       <div className="print:hidden">
         {isJkhive ? (
-          <Link to="/jkhive" data-testid="back-to-jkhive" className="inline-flex items-center justify-center w-8 h-8 rounded-full mb-3 active:scale-95" style={{ background: 'rgba(0,122,255,0.08)', color: '#007AFF' }} aria-label="Back to JKHive">
-            <ArrowLeft size={16} strokeWidth={2.4} />
+          <Link
+            to="/jkhive"
+            data-testid="back-to-jkhive"
+            className="inline-flex items-center gap-1.5 -ml-1 px-1 py-1 mb-3 rounded-lg active:scale-95"
+            style={{ color: '#1D1D1F', ...font }}
+          >
+            <ArrowLeft size={20} strokeWidth={2.4} style={{ color: '#007AFF' }} />
+            <span className="text-xl sm:text-2xl font-semibold tracking-tight">Food Safety Compliance</span>
           </Link>
         ) : (
           <Link to="/admin" data-testid="back-to-dashboard" className="inline-flex items-center gap-1.5 text-xs font-medium mb-3 active:scale-95" style={{ color: '#007AFF', ...font }}>
@@ -159,11 +165,15 @@ const AdminCompliance = () => {
 
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#1D1D1F' }}>
-              <Shield size={18} color="white" strokeWidth={1.8} />
-            </div>
+            {!isJkhive && (
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#1D1D1F' }}>
+                <Shield size={18} color="white" strokeWidth={1.8} />
+              </div>
+            )}
             <div>
-              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: '#1D1D1F', ...font }}>Food Safety Compliance</h1>
+              {!isJkhive && (
+                <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: '#1D1D1F', ...font }}>Food Safety Compliance</h1>
+              )}
               <p className="text-xs sm:text-sm" style={{ color: '#86868B' }}>EHO-ready compliance matrix across all sites</p>
             </div>
           </div>
