@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Gift, ScanLine, FileText, Calendar } from 'lucide-react';
+import { Users, Gift, ScanLine, FileText, Calendar, Clock, Wallet, MessageSquareWarning, Headphones } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -33,7 +33,11 @@ const Workforce = () => {
 
       <SectionLabel>Coming soon</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
-        <Tile testId="tile-shift-mgmt" comingSoon icon={Calendar} color="#AF52DE" title="Shift Management" subtitle="Rotas & swaps" />
+        <Tile testId="tile-shift-mgmt"   comingSoon icon={Calendar}            color="#AF52DE" title="Shift Management" subtitle="Rotas & swaps" />
+        <Tile testId="tile-clock-in-out" comingSoon icon={Clock}               color="#34C759" title="Clock In / Out"   subtitle="Time-track & alerts" />
+        <Tile testId="tile-payroll"      comingSoon icon={Wallet}              color="#007AFF" title="Payroll"          subtitle="Hours → pay reports" />
+        <Tile testId="tile-complaints"   comingSoon icon={MessageSquareWarning} color="#FF3B30" title="Complaints"       subtitle="Customer feedback log" />
+        <Tile testId="tile-hotline"      comingSoon icon={Headphones}          color="#30B0C7" title="Safety Hotline"   subtitle="24/7 expert advice" />
       </div>
     </div>
   );

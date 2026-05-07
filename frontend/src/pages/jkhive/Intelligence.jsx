@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Package, Trash2, ChefHat, Salad, BarChart3, Sparkles, DollarSign, UtensilsCrossed } from 'lucide-react';
+import { Shield, Package, Trash2, ChefHat, Salad, BarChart3, Sparkles, DollarSign, UtensilsCrossed, FileCheck, ClipboardCheck, FolderOpen, Award } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -98,16 +98,19 @@ const Intelligence = () => {
         />
       </div>
 
+      <SectionLabel>Compliance & docs</SectionLabel>
+      <div className="grid grid-cols-2 gap-3">
+        <Tile testId="tile-haccp"          comingSoon icon={FileCheck}     color="#34C759" title="HACCP Plan"     subtitle="Plans & digital signatures" />
+        <Tile testId="tile-inspection"     comingSoon icon={ClipboardCheck} color="#FF9500" title="Inspection Mode" subtitle="EHO-ready audit pack" />
+        <Tile testId="tile-documents"      comingSoon icon={FolderOpen}    color="#5856D6" title="Documents"      subtitle="Policies & manuals" />
+        <Tile testId="tile-risk-assessments" comingSoon icon={Shield}      color="#FF3B30" title="Risk Assessments" subtitle="HSE-ready records" />
+      </div>
+
       <SectionLabel>Learn</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
-        <Tile
-          testId="tile-learning"
-          comingSoon
-          icon={Sparkles}
-          color="#FFCC00"
-          title="Learning"
-          subtitle="Staff training & courses"
-        />
+        <Tile testId="tile-learning"     comingSoon icon={Sparkles}  color="#FFCC00" title="Learning"  subtitle="Staff training & courses" />
+        <Tile testId="tile-certificates" comingSoon icon={Award}     color="#AF52DE" title="Certificates" subtitle="Level 2/3 hygiene certs" />
+        <Tile testId="tile-onboarding"   comingSoon icon={ClipboardCheck} color="#30B0C7" title="Onboarding" subtitle="New starter packs" />
       </div>
     </div>
   );
