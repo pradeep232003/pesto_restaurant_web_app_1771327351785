@@ -776,6 +776,13 @@ class ApiService {
   async adminUpdateStaff(id, data) { return this.fetch(`/api/admin/staff/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async adminDeleteStaff(id) { return this.fetch(`/api/admin/staff/${id}`, { method: 'DELETE' }); }
 
+  // ============== ROUTINE TEMPS (opening / closing) ==============
+  async submitRoutineTemp(data) { return this.fetch('/api/admin/routine-temps', { method: 'POST', body: JSON.stringify(data) }); }
+  async listRoutineTemps(filters = {}) {
+    const qs = new URLSearchParams(Object.entries(filters).filter(([,v]) => v != null && v !== '')).toString();
+    return this.fetch(`/api/admin/routine-temps${qs ? '?' + qs : ''}`);
+  }
+
   // ============== CLEANING SCHEDULES (daily + weekly deep) ==============
   // kind = 'daily-cleaning' | 'weekly-cleaning'
   async adminGetCleaningItems(kind, locationId) {

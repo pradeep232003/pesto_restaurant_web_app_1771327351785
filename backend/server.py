@@ -91,6 +91,7 @@ from routes.cleaning_schedules import daily_cleaning_router, weekly_cleaning_rou
 from routes.compliance import router as compliance_router
 from routes.compliance_digest import router as compliance_digest_router, run_weekly_digest_job
 from routes.staff import router as staff_router
+from routes.routine_temps import router as routine_temps_router
 
 app.include_router(auth_router)
 app.include_router(locations_router)
@@ -116,6 +117,7 @@ app.include_router(weekly_cleaning_router)
 app.include_router(compliance_router)
 app.include_router(compliance_digest_router)
 app.include_router(staff_router)
+app.include_router(routine_temps_router)
 
 # ============== PUBLIC ENDPOINTS ==============
 
