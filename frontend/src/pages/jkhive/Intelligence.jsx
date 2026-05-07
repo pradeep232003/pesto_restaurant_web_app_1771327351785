@@ -1,5 +1,5 @@
 import React from 'react';
-import { UtensilsCrossed, Shield, Package, Trash2, ChefHat, Salad, BarChart3, Sparkles, DollarSign } from 'lucide-react';
+import { Shield, Package, Trash2, ChefHat, Salad, BarChart3, Sparkles, DollarSign } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -28,14 +28,6 @@ const Intelligence = () => {
 
       <SectionLabel>Operate</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
-        <Tile
-          testId="tile-menu-management"
-          to="/admin/menu"
-          icon={UtensilsCrossed}
-          color="#5856D6"
-          title="Menu Management"
-          subtitle="Items, pricing, images"
-        />
         <Tile
           testId="tile-hygiene-compliance"
           to="/jkhive/compliance"

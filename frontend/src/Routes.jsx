@@ -45,6 +45,7 @@ import JKHiveProfile from './pages/jkhive/Profile';
 import JKHiveDailySales from './pages/jkhive-daily-sales';
 import JKHiveSalesSummary from './pages/jkhive-sales-summary';
 import JKHiveCompliance from './pages/jkhive-compliance';
+import JKHiveMenu from './pages/jkhive-menu';
 import JKHiveWorkforce from './pages/jkhive/Workforce';
 import JKHiveManager from './pages/jkhive/Manager';
 import ResidentBalance from './pages/resident-balance';
@@ -145,6 +146,7 @@ const AppRouter = () => {
         <Route path="daily-sales" element={<JKHiveDailySales />} />
         <Route path="sales-summary" element={<JKHiveSalesSummary />} />
         <Route path="compliance" element={<JKHiveCompliance />} />
+        <Route path="menu" element={<JKHiveMenu />} />
       </Route>
 
       {/* Customer loyalty card */}

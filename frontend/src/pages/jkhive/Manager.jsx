@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Settings, Wallet, Receipt, ClipboardList, TrendingUp, TrendingDown, Users, ShieldCheck, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Settings, Wallet, Receipt, ClipboardList, TrendingUp, TrendingDown, Users, ShieldCheck, BarChart3, UtensilsCrossed } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -37,13 +37,14 @@ const Manager = () => {
 
       <SectionLabel>Configuration</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
+        <Tile testId="tile-menu-management" to="/jkhive/menu" icon={UtensilsCrossed} color="#5856D6" title="Menu Management" subtitle="Items, pricing, images" />
         {isAdmin && (
           <Tile testId="tile-locations" to="/admin/site-settings" icon={Settings} color="#8E8E93" title="Locations" subtitle="5 sites · settings" />
         )}
         {isSuperAdmin && (
           <Tile testId="tile-users" to="/admin/users" icon={Users} color="#AF52DE" title="Users" subtitle="Roles & access" />
         )}
-        <Tile testId="tile-compliance-shortcut" to="/admin/compliance" icon={ShieldCheck} color="#34C759" title="Compliance" subtitle="EHO matrix" />
+        <Tile testId="tile-compliance-shortcut" to="/jkhive/compliance" icon={ShieldCheck} color="#34C759" title="Compliance" subtitle="EHO matrix" />
       </div>
     </div>
   );

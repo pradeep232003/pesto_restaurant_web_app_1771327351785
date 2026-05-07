@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { DollarSign, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, FileText, Share2, X, LogOut, Pencil, Check, Grid3X3, ArrowLeft, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../../lib/api';
@@ -105,6 +105,8 @@ const AdminDailySales = () => {
   const { user, isAuthenticated, isStaff, isAdmin, signOut, loading: authLoading } = useAuth();
   const { logout: customerLogout } = useCustomer();
   const { locations, adminLocationId: selectedLocation, setAdminLocationId: setSelectedLocation } = useLocation2();
+  const routerLocation = useLocation();
+  const isJkhive = routerLocation.pathname.startsWith('/jkhive');
   const [activeTab, setActiveTab] = useState('entry');
   const [loading, setLoading] = useState(false);
   const [staffNames, setStaffNames] = useState([]);
@@ -447,9 +449,15 @@ const AdminDailySales = () => {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto overflow-hidden" data-testid="admin-daily-sales-page">
-      <Link to="/admin" data-testid="back-to-dashboard" className="inline-flex items-center gap-1.5 text-xs font-medium mb-3 active:scale-95" style={{ color: '#007AFF', ...font }}>
-        <ArrowLeft size={13} /> Dashboard
-      </Link>
+      {isJkhive ? (
+        <Link to="/jkhive" data-testid="back-to-jkhive" className="inline-flex items-center justify-center w-8 h-8 rounded-full mb-3 active:scale-95" style={{ background: 'rgba(0,122,255,0.08)', color: '#007AFF' }} aria-label="Back to JKHive">
+          <ArrowLeft size={16} strokeWidth={2.4} />
+        </Link>
+      ) : (
+        <Link to="/admin" data-testid="back-to-dashboard" className="inline-flex items-center gap-1.5 text-xs font-medium mb-3 active:scale-95" style={{ color: '#007AFF', ...font }}>
+          <ArrowLeft size={13} /> Dashboard
+        </Link>
+      )}
       {/* Header */}
       <div className="mb-5 flex items-center justify-between">
         <div>

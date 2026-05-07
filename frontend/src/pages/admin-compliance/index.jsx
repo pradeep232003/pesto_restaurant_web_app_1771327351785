@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { Shield, ArrowLeft, Printer, Check, X, AlertTriangle, Clock, Filter, Mail, FileDown } from 'lucide-react';
 import api, { API_BASE_URL } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -22,6 +22,8 @@ const AdminCompliance = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, isAdmin, loading: authLoading } = useAuth();
   const { locations } = useLocation2();
+  const routerLocation = useLocation();
+  const isJkhive = routerLocation.pathname.startsWith('/jkhive');
 
   const today = new Date().toISOString().split('T')[0];
   const weekAgo = new Date(Date.now() - 6 * 864e5).toISOString().split('T')[0];
@@ -145,9 +147,15 @@ const AdminCompliance = () => {
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto" data-testid="admin-compliance-page">
       {/* Non-printable header */}
       <div className="print:hidden">
-        <Link to="/admin" data-testid="back-to-dashboard" className="inline-flex items-center gap-1.5 text-xs font-medium mb-3 active:scale-95" style={{ color: '#007AFF', ...font }}>
-          <ArrowLeft size={13} /> Dashboard
-        </Link>
+        {isJkhive ? (
+          <Link to="/jkhive" data-testid="back-to-jkhive" className="inline-flex items-center justify-center w-8 h-8 rounded-full mb-3 active:scale-95" style={{ background: 'rgba(0,122,255,0.08)', color: '#007AFF' }} aria-label="Back to JKHive">
+            <ArrowLeft size={16} strokeWidth={2.4} />
+          </Link>
+        ) : (
+          <Link to="/admin" data-testid="back-to-dashboard" className="inline-flex items-center gap-1.5 text-xs font-medium mb-3 active:scale-95" style={{ color: '#007AFF', ...font }}>
+            <ArrowLeft size={13} /> Dashboard
+          </Link>
+        )}
 
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="flex items-center gap-3">
