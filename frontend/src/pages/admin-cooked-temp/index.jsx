@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { Flame, Plus, Trash2, Check, X, ArrowLeft, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../../lib/api';
@@ -17,6 +17,8 @@ const AdminCookedTemp = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, isStaff, isAdmin, loading: authLoading } = useAuth();
   const { locations, adminLocationId: selectedLocation, setAdminLocationId: setSelectedLocation } = useLocation2();
+  const routerLocation = useLocation();
+  const isJkhive = routerLocation.pathname.startsWith('/jkhive');
 
   const today = new Date().toISOString().split('T')[0];
   const monthAgo = new Date(Date.now() - 29 * 864e5).toISOString().split('T')[0];
@@ -106,12 +108,21 @@ const AdminCookedTemp = () => {
   const listLoading = activeTab === 'today' ? loading : historyLoading;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto" data-testid="admin-cooked-temp-page">
-      <Link to="/admin" data-testid="back-to-dashboard" className="inline-flex items-center gap-1.5 text-xs font-medium mb-3 active:scale-95" style={{ color: '#007AFF', ...font }}>
-        <ArrowLeft size={13} /> Dashboard
-      </Link>
+    <div className={isJkhive ? "px-4 sm:px-6 lg:px-8 pt-2 pb-4 max-w-5xl mx-auto" : "p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto"} data-testid="admin-cooked-temp-page">
+      {isJkhive ? (
+        <Link to="/jkhive/routines" data-testid="back-to-jkhive" className="inline-flex items-center gap-1.5 -ml-1 px-1 py-1 mb-1 rounded-lg active:scale-95" style={{ color: '#1D1D1F', ...font }}>
+          <ArrowLeft size={20} strokeWidth={2.4} style={{ color: '#007AFF' }} />
+          <span className="text-xl sm:text-2xl font-semibold tracking-tight">Cooking</span>
+        </Link>
+      ) : (
+        <Link to="/admin" data-testid="back-to-dashboard" className="inline-flex items-center gap-1.5 text-xs font-medium mb-3 active:scale-95" style={{ color: '#007AFF', ...font }}>
+          <ArrowLeft size={13} /> Dashboard
+        </Link>
+      )}
       <div className="mb-5">
-        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: '#1D1D1F', ...font }}>Cooked &amp; Reheated Temperature</h1>
+        {!isJkhive && (
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: '#1D1D1F', ...font }}>Cooked &amp; Reheated Temperature</h1>
+        )}
         <p className="text-xs sm:text-sm mt-1" style={{ color: '#86868B' }}>Food must reach 75°C. Focus on high-risk foods.</p>
       </div>
 

@@ -46,6 +46,11 @@ import JKHiveDailySales from './pages/jkhive-daily-sales';
 import JKHiveSalesSummary from './pages/jkhive-sales-summary';
 import JKHiveCompliance from './pages/jkhive-compliance';
 import JKHiveMenu from './pages/jkhive-menu';
+import JKHiveDailyChecks from './pages/jkhive-daily-checks';
+import JKHiveKitchenClosedown from './pages/jkhive-kitchen-closedown';
+import JKHiveTempMonitor from './pages/jkhive-temp-monitor';
+import JKHiveCookedTemp from './pages/jkhive-cooked-temp';
+import JKHiveDeliveryRecords from './pages/jkhive-delivery-records';
 import JKHiveWorkforce from './pages/jkhive/Workforce';
 import JKHiveManager from './pages/jkhive/Manager';
 import ResidentBalance from './pages/resident-balance';
@@ -147,6 +152,11 @@ const AppRouter = () => {
         <Route path="sales-summary" element={<JKHiveSalesSummary />} />
         <Route path="compliance" element={<JKHiveCompliance />} />
         <Route path="menu" element={<JKHiveMenu />} />
+        <Route path="daily-checks" element={<JKHiveDailyChecks />} />
+        <Route path="kitchen-closedown" element={<JKHiveKitchenClosedown />} />
+        <Route path="temp-monitor" element={<JKHiveTempMonitor />} />
+        <Route path="cooked-temp" element={<JKHiveCookedTemp />} />
+        <Route path="delivery-records" element={<JKHiveDeliveryRecords />} />
       </Route>
 
       {/* Customer loyalty card */}
