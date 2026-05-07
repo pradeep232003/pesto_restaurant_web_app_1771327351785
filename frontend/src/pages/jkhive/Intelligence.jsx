@@ -1,5 +1,5 @@
 import React from 'react';
-import { UtensilsCrossed, Shield, Package, Trash2, ChefHat, Salad, BarChart3, Sparkles } from 'lucide-react';
+import { UtensilsCrossed, Shield, Package, Trash2, ChefHat, Salad, BarChart3, Sparkles, DollarSign } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -38,17 +38,25 @@ const Intelligence = () => {
         />
         <Tile
           testId="tile-hygiene-compliance"
-          to="/admin/compliance"
+          to="/jkhive/compliance"
           icon={Shield}
           color="#34C759"
           title="Hygiene Compliance"
           subtitle="EHO-ready compliance matrix"
         />
         <Tile
+          testId="tile-daily-sales"
+          to="/jkhive/daily-sales"
+          icon={DollarSign}
+          color="#FF9500"
+          title="Daily Sales"
+          subtitle="Record sales & staff hours"
+        />
+        <Tile
           testId="tile-inventory"
           comingSoon
           icon={Package}
-          color="#FF9500"
+          color="#FF2D55"
           title="Inventory"
           subtitle="Stock levels & reorder"
         />

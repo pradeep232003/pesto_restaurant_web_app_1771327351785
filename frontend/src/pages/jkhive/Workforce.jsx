@@ -1,5 +1,5 @@
 import React from 'react';
-import { DollarSign, Users, BarChart3, Gift, ScanLine, FileText, Calendar } from 'lucide-react';
+import { Users, Gift, ScanLine, FileText, Calendar } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -17,8 +17,6 @@ const Workforce = () => {
 
       <SectionLabel>Sales & people</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
-        <Tile testId="tile-daily-sales"   to="/admin/daily-sales"    icon={DollarSign} color="#34C759" title="Daily Sales"   subtitle="Record sales & hours" />
-        <Tile testId="tile-sales-summary" to="/admin/sales-summary"  icon={BarChart3}  color="#007AFF" title="Sales Summary" subtitle="Totals & breakdowns" />
         {isAdmin && (
           <Tile testId="tile-staff-table" to="/admin/staff" icon={Users} color="#5856D6" title="Staff Table" subtitle="HR roster" />
         )}
