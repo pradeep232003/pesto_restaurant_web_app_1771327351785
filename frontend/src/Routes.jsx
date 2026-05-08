@@ -71,6 +71,9 @@ import CookedHome from './pages/jkhive/cooked/CookedHome';
 import CookedPickItem from './pages/jkhive/cooked/CookedPickItem';
 import CookedRecordTemp from './pages/jkhive/cooked/CookedRecordTemp';
 import CookedComment from './pages/jkhive/cooked/CookedComment';
+import ChecklistsHome from './pages/jkhive/checklists/ChecklistsHome';
+import ChecklistRun from './pages/jkhive/checklists/ChecklistRun';
+import ChecklistEditor from './pages/jkhive/checklists/ChecklistEditor';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -177,6 +180,10 @@ const AppRouter = () => {
         <Route path="cooked-temp/new" element={<CookedPickItem />} />
         <Route path="cooked-temp/record" element={<CookedRecordTemp />} />
         <Route path="cooked-temp/comment" element={<CookedComment />} />
+        <Route path="checklists" element={<ChecklistsHome />} />
+        <Route path="checklists/new" element={<ChecklistEditor />} />
+        <Route path="checklists/:id/run" element={<ChecklistRun />} />
+        <Route path="checklists/:id/edit" element={<ChecklistEditor />} />
         <Route path="delivery-records" element={<JKHiveDeliveryRecords />} />
         <Route path="opening" element={<JKHiveOpeningRoutine />} />
         <Route path="opening/fridge-temp" element={<JKHiveOpeningFridgeTemp />} />

@@ -807,6 +807,19 @@ class ApiService {
   async cookedRecord(data) { return this.fetch('/api/admin/cooked', { method: 'POST', body: JSON.stringify(data) }); }
   async cookedDelete(id) { return this.fetch(`/api/admin/cooked/${id}`, { method: 'DELETE' }); }
 
+  // ============== CHECKLISTS ==============
+  async checklistList(locationId, frequency) {
+    const qs = new URLSearchParams({ location_id: locationId, ...(frequency ? { frequency } : {}) }).toString();
+    return this.fetch(`/api/admin/checklists?${qs}`);
+  }
+  async checklistGet(id) { return this.fetch(`/api/admin/checklists/${id}`); }
+  async checklistCreate(data) { return this.fetch('/api/admin/checklists', { method: 'POST', body: JSON.stringify(data) }); }
+  async checklistUpdate(id, data) { return this.fetch(`/api/admin/checklists/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  async checklistDelete(id) { return this.fetch(`/api/admin/checklists/${id}`, { method: 'DELETE' }); }
+  async checklistRunsList(id) { return this.fetch(`/api/admin/checklists/${id}/runs`); }
+  async checklistRunSubmit(id, data) { return this.fetch(`/api/admin/checklists/${id}/runs`, { method: 'POST', body: JSON.stringify(data) }); }
+  async checklistRunDelete(runId) { return this.fetch(`/api/admin/checklists/runs/${runId}`, { method: 'DELETE' }); }
+
   // ============== WEB PUSH ==============
   async pushVapidKey() { return this.fetch('/api/push/vapid-public-key'); }
   async pushSubscribe(data) { return this.fetch('/api/push/subscribe', { method: 'POST', body: JSON.stringify(data) }); }

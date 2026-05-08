@@ -59,7 +59,7 @@ const Routines = () => {
         <Tile testId="tile-closing-routine"     to="/jkhive/closing"           icon={Sunset}      color="#5856D6" title="Closing Routine"    subtitle="End-of-day shutdown" />
         <Tile testId="tile-cooking-and-cooling" to="/jkhive/cooking-cooling"   icon={Snowflake}   color="#30B0C7" title="Cooking & Cooling"  subtitle="Cool-down log"
               badge={coolingCount} badgeColor={badgeColor} />
-        <Tile testId="tile-checklists"          comingSoon                     icon={ListChecks}  color="#34C759" title="Checklists"         subtitle="Custom checklists" />
+        <Tile testId="tile-checklists"          to="/jkhive/checklists"        icon={ListChecks}  color="#34C759" title="Checklists"         subtitle="Custom checklists" />
         <Tile testId="tile-reheating"           to="/jkhive/reheating"         icon={Flame}       color="#FF3B30" title="Reheating"          subtitle="≥ 75°C reheat log" />
         <Tile testId="tile-deliveries"          to="/jkhive/delivery-records"  icon={Truck}       color="#8E8E93" title="Deliveries"         subtitle="Goods-in records" />
         <Tile testId="tile-cooking"             to="/jkhive/cooked-temp"       icon={ChefHat}     color="#FF2D55" title="Cooking"            subtitle="Cooked-temp log" />
