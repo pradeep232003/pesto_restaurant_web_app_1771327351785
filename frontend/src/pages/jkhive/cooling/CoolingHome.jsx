@@ -73,8 +73,8 @@ const CoolingHome = () => {
       })
       .catch(err => alert('Failed to load: ' + err.message))
       .finally(() => setLoading(false));
-    // Re-render every 1s so the MM:SS clock countdown ticks visibly.
-    const t = setInterval(() => setTick(x => x + 1), 1000);
+    // Re-render every 50ms so the MM:SS:CS stopwatch ticks visibly.
+    const t = setInterval(() => setTick(x => x + 1), 50);
     return () => clearInterval(t);
   }, [adminLocationId]);
 
@@ -102,17 +102,20 @@ const CoolingHome = () => {
     return { text: `${over}m overdue`, overdue: true };
   };
 
-  // Live MM:SS clock counting down from 90:00 since `startedAt`.
-  // Once 90 min have passed, holds at 00:00 (and we colour it red).
+  // Live MM:SS:CS clock counting down from 90:00:00 since `startedAt`.
+  // CS = centiseconds (hundredths of a second) — gives the "stopwatch" feel.
+  // Once 90 min have passed, holds at 00:00:00 (and we colour it red).
   const clockCountdown = (startedAtIso, endIso) => {
     const start = new Date(startedAtIso).getTime();
     const ref = endIso ? new Date(endIso).getTime() : Date.now();
-    const totalSec = 90 * 60;
-    const elapsedSec = Math.max(0, Math.floor((ref - start) / 1000));
-    const left = Math.max(0, totalSec - elapsedSec);
-    const mm = String(Math.floor(left / 60)).padStart(2, '0');
-    const ss = String(left % 60).padStart(2, '0');
-    return { text: `${mm}:${ss}`, overdue: left === 0 };
+    const totalMs = 90 * 60 * 1000;
+    const elapsedMs = Math.max(0, ref - start);
+    const left = Math.max(0, totalMs - elapsedMs);
+    const totalSec = Math.floor(left / 1000);
+    const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+    const ss = String(totalSec % 60).padStart(2, '0');
+    const cs = String(Math.floor((left % 1000) / 10)).padStart(2, '0');
+    return { text: `${mm}:${ss}:${cs}`, overdue: left === 0 };
   };
 
   // Show the big empty card only when BOTH lists (in-progress + today's
@@ -188,7 +191,6 @@ const CoolingHome = () => {
                           <p data-testid={`cooling-countdown-${it.id}`}
                              style={{ fontSize: 14, fontWeight: 800, color: c.overdue ? '#FF3B30' : color, margin: '4px 0 0', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }}>
                             {c.text}
-                            <span style={{ fontSize: 11, fontWeight: 600, color: '#86868B', marginLeft: 6 }}>/ 90:00</span>
                           </p>
                         );
                       })()}
@@ -246,14 +248,13 @@ const CoolingHome = () => {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 14, fontWeight: 700, color: '#1D1D1F', margin: 0 }}>{it.item_name}</p>
                       <p style={{ fontSize: 11, color: '#86868B', margin: '2px 0 0' }}>
-                        Cooled {Number(it.start_temp_c).toFixed(0)}° → <b style={{ color: passColor }}>{Number(it.end_temp_c).toFixed(1)}°C</b>
+                        Cooked {Number(it.start_temp_c).toFixed(0)}° → <b style={{ color: passColor }}>{Number(it.end_temp_c).toFixed(1)}°C</b>
                         {it.completed_by_name ? ` · by ${it.completed_by_name}` : ''}
                         {time ? ` · ${time}` : ''}
                       </p>
                       <p data-testid={`cooling-history-clock-${it.id}`}
                          style={{ fontSize: 12, fontWeight: 800, color: frozen.overdue ? '#FF3B30' : passColor, margin: '3px 0 0', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }}>
                         {frozen.text}
-                        <span style={{ fontSize: 10, fontWeight: 600, color: '#86868B', marginLeft: 6 }}>/ 90:00</span>
                       </p>
                     </div>
                     <span style={{
