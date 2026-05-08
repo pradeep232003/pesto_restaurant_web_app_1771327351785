@@ -26,27 +26,65 @@ Frequency = Literal["daily", "weekly", "monthly"]
 Scope = Literal["global", "location"]
 
 
+# An item can be a plain string (legacy) or an {"text", "sites"} dict.
+# `sites` is the list of location_ids it applies to; an empty list means
+# "all sites" (the default).
+def _normalize_items(raw):
+    out = []
+    for it in raw or []:
+        if isinstance(it, str):
+            t = it.strip()
+            if t:
+                out.append({"text": t, "sites": []})
+        elif isinstance(it, dict):
+            t = (it.get("text") or "").strip()
+            if not t:
+                continue
+            sites = it.get("sites") or []
+            if not isinstance(sites, list):
+                sites = []
+            sites = [str(s) for s in sites if s]
+            out.append({"text": t, "sites": sites})
+    return out
+
+
+def _filter_items_for_site(items, location_id):
+    """Keep items whose `sites` is empty OR contains `location_id`."""
+    out = []
+    for it in items or []:
+        sites = (it or {}).get("sites") or []
+        if not sites or location_id in sites:
+            out.append(it)
+    return out
+
+
 # ============== MODELS ==============
+
+class ChecklistItem(BaseModel):
+    text: str
+    sites: List[str] = Field(default_factory=list)
+
 
 class TemplateBody(BaseModel):
     location_id: str             # site id used when scope='location'; ignored otherwise
     title: str
     frequency: Frequency
-    items: List[str] = Field(default_factory=list)
+    items: List = Field(default_factory=list)   # accepts strings OR {text,sites}
     scope: Scope = "location"    # 'global' = shared with every site
 
 
 class TemplatePatch(BaseModel):
     title: Optional[str] = None
     frequency: Optional[Frequency] = None
-    items: Optional[List[str]] = None
+    items: Optional[List] = None
     scope: Optional[Scope] = None
     location_id: Optional[str] = None  # only meaningful if scope flips to 'location'
 
 
 class RunBody(BaseModel):
-    checked_items: List[int]   # indices of ticked items
+    checked_items: List[int]   # indices of ticked items (within visible-at-this-site list)
     comment: Optional[str] = ""
+    location_id: Optional[str] = None  # site running the checklist (for global templates)
 
 
 # ============== TEMPLATES ==============
@@ -66,7 +104,15 @@ async def list_templates(
     ]}
     if frequency:
         base["frequency"] = frequency
-    return list(templates.find(base, {"_id": 0}).sort("title", 1))
+    out = []
+    for tpl in templates.find(base, {"_id": 0}).sort("title", 1):
+        items = _normalize_items(tpl.get("items"))
+        # For run-wizard purposes the list view also returns the
+        # already-filtered count so the card label is accurate.
+        tpl["items"] = items
+        tpl["visible_items_count"] = len(_filter_items_for_site(items, location_id))
+        out.append(tpl)
+    return out
 
 
 @router.post("")
@@ -80,7 +126,7 @@ async def create_template(body: TemplateBody, user: dict = Depends(get_admin_use
         "scope": body.scope,
         "title": body.title.strip(),
         "frequency": body.frequency,
-        "items": [s for s in (i.strip() for i in body.items) if s],
+        "items": _normalize_items(body.items),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "created_by": user.get("email", ""),
     }
@@ -89,10 +135,17 @@ async def create_template(body: TemplateBody, user: dict = Depends(get_admin_use
 
 
 @router.get("/{tpl_id}")
-async def get_template(tpl_id: str, user: dict = Depends(get_staff_or_above)):
+async def get_template(
+    tpl_id: str,
+    location_id: Optional[str] = Query(None),
+    user: dict = Depends(get_staff_or_above),
+):
     doc = templates.find_one({"id": tpl_id}, {"_id": 0})
     if not doc:
         raise HTTPException(404, "Not found")
+    items = _normalize_items(doc.get("items"))
+    doc["items_all"] = items  # raw list for the editor
+    doc["items"] = _filter_items_for_site(items, location_id) if location_id else items
     return doc
 
 
@@ -107,7 +160,7 @@ async def update_template(tpl_id: str, body: TemplatePatch, user: dict = Depends
         if not upd["title"]:
             raise HTTPException(400, "Title is required")
     if "items" in upd:
-        upd["items"] = [s for s in (i.strip() for i in upd["items"]) if s]
+        upd["items"] = _normalize_items(upd["items"])
     # Scope flip: if going global, blank the location_id; if going location and
     # no new location_id was supplied, fall back to the existing one.
     if upd.get("scope") == "global":
@@ -165,16 +218,23 @@ async def submit_run(tpl_id: str, body: RunBody, user: dict = Depends(get_staff_
     tpl = templates.find_one({"id": tpl_id}, {"_id": 0})
     if not tpl:
         raise HTTPException(404, "Template not found")
-    total = len(tpl.get("items") or [])
+    site = body.location_id or tpl.get("location_id") or ""
+    raw_items = _normalize_items(tpl.get("items"))
+    visible_items = _filter_items_for_site(raw_items, site)
+    total = len(visible_items)
     checked = [i for i in body.checked_items if 0 <= i < total]
+    # Capture the actual item TEXTS the user ticked off so the audit trail is
+    # legible even after the template gets edited later.
+    ticked_texts = [visible_items[i]["text"] for i in checked]
     doc = {
         "id": str(uuid.uuid4())[:12],
         "template_id": tpl_id,
-        "location_id": tpl["location_id"],
+        "location_id": site,
         "title": tpl["title"],
         "frequency": tpl["frequency"],
         "total_items": total,
         "checked_items": checked,
+        "ticked_texts": ticked_texts,
         "completed": len(checked) == total,
         "comment": body.comment or "",
         "submitted_at": datetime.now(timezone.utc).isoformat(),

@@ -812,7 +812,10 @@ class ApiService {
     const qs = new URLSearchParams({ location_id: locationId, ...(frequency ? { frequency } : {}) }).toString();
     return this.fetch(`/api/admin/checklists?${qs}`);
   }
-  async checklistGet(id) { return this.fetch(`/api/admin/checklists/${id}`); }
+  async checklistGet(id, locationId) {
+    const qs = locationId ? `?location_id=${encodeURIComponent(locationId)}` : '';
+    return this.fetch(`/api/admin/checklists/${id}${qs}`);
+  }
   async checklistCreate(data) { return this.fetch('/api/admin/checklists', { method: 'POST', body: JSON.stringify(data) }); }
   async checklistUpdate(id, data) { return this.fetch(`/api/admin/checklists/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async checklistDelete(id) { return this.fetch(`/api/admin/checklists/${id}`, { method: 'DELETE' }); }

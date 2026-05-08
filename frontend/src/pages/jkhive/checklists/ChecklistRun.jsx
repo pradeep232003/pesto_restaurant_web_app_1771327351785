@@ -22,10 +22,10 @@ const ChecklistRun = () => {
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
 
   useEffect(() => {
-    api.checklistGet(id)
+    api.checklistGet(id, adminLocationId)
       .then(setTpl)
       .catch(err => alert('Failed to load: ' + err.message));
-  }, [id]);
+  }, [id, adminLocationId]);
 
   if (!tpl) return <p style={{ padding: 24, color: '#86868B', textAlign: 'center' }}>Loading…</p>;
 
@@ -41,7 +41,7 @@ const ChecklistRun = () => {
   const submit = async () => {
     setSubmitting(true);
     try {
-      await api.checklistRunSubmit(id, { checked_items: [...checked], comment });
+      await api.checklistRunSubmit(id, { checked_items: [...checked], comment, location_id: adminLocationId });
       setDone(true);
     } catch (err) { alert('Submit failed: ' + err.message); }
     finally { setSubmitting(false); }
@@ -100,7 +100,7 @@ const ChecklistRun = () => {
                 {isChecked && <Check size={16} strokeWidth={3} color="#fff" />}
               </span>
               <span style={{ flex: 1, fontSize: 15, fontWeight: 600, color: '#1D1D1F', textDecoration: isChecked ? 'line-through' : 'none', textDecorationColor: 'rgba(0,0,0,0.3)' }}>
-                {it}
+                {typeof it === 'string' ? it : it.text}
               </span>
             </button>
           );
