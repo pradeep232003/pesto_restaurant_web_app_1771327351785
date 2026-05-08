@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Gauge, Thermometer, ShowerHead, FlaskConical, Package, Sparkles, Soup, Droplet, Flame } from 'lucide-react';
+import { ArrowLeft, Gauge, Thermometer, ShowerHead, FlaskConical, Package, Sparkles, Soup, Droplet } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 
 const MoreRoutines = () => {
@@ -41,10 +41,6 @@ const MoreRoutines = () => {
       <SectionLabel>Compliance</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
         <Tile testId="tile-legionella"       to="/admin/legionella"        icon={Droplet}       color="#30B0C7" title="Legionella"        subtitle="Weekly water test" />
-        <Tile testId="tile-temp-log"         to="/admin/temp-monitor"      icon={Thermometer}   color="#5856D6" title="Temperature Log"   subtitle="Fridge & freezer" />
-        <Tile testId="tile-daily-cleaning"   to="/admin/daily-cleaning"    icon={Sparkles}      color="#34C759" title="Daily Cleaning"    subtitle="18 cleaning items" />
-        <Tile testId="tile-weekly-cleaning"  to="/admin/weekly-cleaning"   icon={Sparkles}      color="#BF5AF2" title="Weekly Deep Clean" subtitle="Deep clean roster" />
-        <Tile testId="tile-cooked-temp-shortcut" to="/admin/cooked-temp"   icon={Flame}         color="#FF2D55" title="Cooked Temp"       subtitle="≥ 75°C compliance" />
       </div>
     </div>
   );
