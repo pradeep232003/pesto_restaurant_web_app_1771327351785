@@ -91,7 +91,15 @@ const ChecklistsHome = () => {
                 width: '100%', display: 'block', padding: '16px 16px 22px', textAlign: 'left',
                 background: 'transparent', border: 0, cursor: 'pointer', fontFamily: 'inherit',
               }}>
-              <p style={{ fontSize: 18, fontWeight: 700, color: '#1D1D1F', margin: 0 }}>{it.title}</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <p style={{ fontSize: 18, fontWeight: 700, color: '#1D1D1F', margin: 0 }}>{it.title}</p>
+                {it.scope === 'global' && (
+                  <span data-testid={`checklist-global-${it.id}`} style={{
+                    fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+                    background: 'rgba(0,122,255,0.12)', color: '#0A84C9',
+                  }}>🌍 All sites</span>
+                )}
+              </div>
               <div style={{ display: 'flex', justifyContent: 'center', margin: '14px 0 4px' }}>
                 <ClipboardEmoji />
               </div>

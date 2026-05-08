@@ -23,6 +23,7 @@ const ChecklistEditor = () => {
 
   const [title, setTitle] = useState('');
   const [frequency, setFrequency] = useState(search.get('frequency') || 'daily');
+  const [scope, setScope] = useState('location');  // 'location' | 'global'
   const [items, setItems] = useState(['']);
   const [saving, setSaving] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
@@ -33,6 +34,7 @@ const ChecklistEditor = () => {
     api.checklistGet(id).then(d => {
       setTitle(d.title || '');
       setFrequency(d.frequency || 'daily');
+      setScope(d.scope || 'location');
       setItems((d.items || []).length ? d.items : ['']);
     }).catch(err => alert('Failed to load: ' + err.message));
   }, [id, isEdit]);
@@ -57,9 +59,9 @@ const ChecklistEditor = () => {
     setSaving(true);
     try {
       if (isEdit) {
-        await api.checklistUpdate(id, { title, frequency, items: cleanItems });
+        await api.checklistUpdate(id, { title, frequency, items: cleanItems, scope, location_id: adminLocationId });
       } else {
-        await api.checklistCreate({ location_id: adminLocationId, title, frequency, items: cleanItems });
+        await api.checklistCreate({ location_id: adminLocationId, title, frequency, items: cleanItems, scope });
       }
       navigate('/jkhive/checklists', { replace: true });
     } catch (err) { alert('Save failed: ' + err.message); }
@@ -106,6 +108,41 @@ const ChecklistEditor = () => {
         })}
       </div>
 
+      <label style={labelSty}>Use at</label>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+        <button data-testid="cl-scope-location"
+          onClick={() => setScope('location')}
+          style={{
+            flex: 1, padding: '12px', borderRadius: 12,
+            background: scope === 'location' ? '#1D1D1F' : '#FFFFFF',
+            color: scope === 'location' ? '#FFFFFF' : '#1D1D1F',
+            border: scope === 'location' ? 0 : '1px solid rgba(0,0,0,0.08)',
+            fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
+            textAlign: 'left',
+          }}>
+          📍 This site only<br/>
+          <span style={{ fontSize: 11, fontWeight: 500, opacity: 0.85 }}>{locationName || 'Pick a site first'}</span>
+        </button>
+        <button data-testid="cl-scope-global"
+          onClick={() => setScope('global')}
+          style={{
+            flex: 1, padding: '12px', borderRadius: 12,
+            background: scope === 'global' ? '#1D1D1F' : '#FFFFFF',
+            color: scope === 'global' ? '#FFFFFF' : '#1D1D1F',
+            border: scope === 'global' ? 0 : '1px solid rgba(0,0,0,0.08)',
+            fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
+            textAlign: 'left',
+          }}>
+          🌍 All locations<br/>
+          <span style={{ fontSize: 11, fontWeight: 500, opacity: 0.85 }}>Shared across every site</span>
+        </button>
+      </div>
+      <p style={{ fontSize: 11, color: '#86868B', margin: '0 4px 16px' }}>
+        Tip: pick "All locations" for shared routines like fire-safety walks.
+        Pick "This site only" for site-specific tasks. You can always duplicate
+        a global checklist later to make a site-specific copy.
+      </p>
+
       <label style={labelSty}>Items</label>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
         {items.map((it, i) => (
@@ -148,6 +185,23 @@ const ChecklistEditor = () => {
           <Save size={16} strokeWidth={2.4} />
           {saving ? 'Saving…' : (isEdit ? 'Save changes' : 'Create checklist')}
         </button>
+        {isEdit && scope === 'global' && (
+          <button data-testid="cl-fork" onClick={async () => {
+              try {
+                await api.checklistDuplicate(id, adminLocationId);
+                alert(`Duplicated to ${locationName}. You can now edit it independently.`);
+                navigate('/jkhive/checklists', { replace: true });
+              } catch (err) { alert('Duplicate failed: ' + err.message); }
+            }}
+            style={{
+              width: '100%', padding: '14px', borderRadius: 999,
+              background: '#FFFFFF', color: '#1D1D1F',
+              border: '1px solid rgba(0,0,0,0.12)', fontSize: 14, fontWeight: 700,
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+            🔀 Duplicate this for {locationName} only
+          </button>
+        )}
         {isEdit && (
           <button data-testid="cl-delete" onClick={handleDelete}
             style={{

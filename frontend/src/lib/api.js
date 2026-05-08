@@ -816,6 +816,7 @@ class ApiService {
   async checklistCreate(data) { return this.fetch('/api/admin/checklists', { method: 'POST', body: JSON.stringify(data) }); }
   async checklistUpdate(id, data) { return this.fetch(`/api/admin/checklists/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async checklistDelete(id) { return this.fetch(`/api/admin/checklists/${id}`, { method: 'DELETE' }); }
+  async checklistDuplicate(id, locationId) { return this.fetch(`/api/admin/checklists/${id}/duplicate?location_id=${encodeURIComponent(locationId)}`, { method: 'POST' }); }
   async checklistRunsList(id) { return this.fetch(`/api/admin/checklists/${id}/runs`); }
   async checklistRunSubmit(id, data) { return this.fetch(`/api/admin/checklists/${id}/runs`, { method: 'POST', body: JSON.stringify(data) }); }
   async checklistRunDelete(runId) { return this.fetch(`/api/admin/checklists/runs/${runId}`, { method: 'DELETE' }); }

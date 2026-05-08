@@ -23,21 +23,25 @@ templates = db["checklist_templates"]
 runs = db["checklist_runs"]
 
 Frequency = Literal["daily", "weekly", "monthly"]
+Scope = Literal["global", "location"]
 
 
 # ============== MODELS ==============
 
 class TemplateBody(BaseModel):
-    location_id: str
+    location_id: str             # site id used when scope='location'; ignored otherwise
     title: str
     frequency: Frequency
     items: List[str] = Field(default_factory=list)
+    scope: Scope = "location"    # 'global' = shared with every site
 
 
 class TemplatePatch(BaseModel):
     title: Optional[str] = None
     frequency: Optional[Frequency] = None
     items: Optional[List[str]] = None
+    scope: Optional[Scope] = None
+    location_id: Optional[str] = None  # only meaningful if scope flips to 'location'
 
 
 class RunBody(BaseModel):
@@ -53,10 +57,16 @@ async def list_templates(
     frequency: Optional[Frequency] = Query(None),
     user: dict = Depends(get_staff_or_above),
 ):
-    q = {"location_id": location_id}
+    # Site-specific OR global templates.
+    base = {"$or": [
+        {"scope": "global"},
+        {"scope": "location", "location_id": location_id},
+        # Backward compat: rows created before `scope` existed.
+        {"scope": {"$exists": False}, "location_id": location_id},
+    ]}
     if frequency:
-        q["frequency"] = frequency
-    return list(templates.find(q, {"_id": 0}).sort("title", 1))
+        base["frequency"] = frequency
+    return list(templates.find(base, {"_id": 0}).sort("title", 1))
 
 
 @router.post("")
@@ -65,7 +75,9 @@ async def create_template(body: TemplateBody, user: dict = Depends(get_admin_use
         raise HTTPException(400, "Title is required")
     doc = {
         "id": str(uuid.uuid4())[:12],
-        "location_id": body.location_id,
+        # Global templates carry an empty location_id so they show on every site.
+        "location_id": "" if body.scope == "global" else body.location_id,
+        "scope": body.scope,
         "title": body.title.strip(),
         "frequency": body.frequency,
         "items": [s for s in (i.strip() for i in body.items) if s],
@@ -96,8 +108,40 @@ async def update_template(tpl_id: str, body: TemplatePatch, user: dict = Depends
             raise HTTPException(400, "Title is required")
     if "items" in upd:
         upd["items"] = [s for s in (i.strip() for i in upd["items"]) if s]
+    # Scope flip: if going global, blank the location_id; if going location and
+    # no new location_id was supplied, fall back to the existing one.
+    if upd.get("scope") == "global":
+        upd["location_id"] = ""
+    elif upd.get("scope") == "location" and not upd.get("location_id"):
+        upd["location_id"] = existing.get("location_id") or ""
     templates.update_one({"id": tpl_id}, {"$set": upd})
     return templates.find_one({"id": tpl_id}, {"_id": 0})
+
+
+@router.post("/{tpl_id}/duplicate")
+async def duplicate_template(
+    tpl_id: str,
+    location_id: str = Query(...),
+    user: dict = Depends(get_admin_user),
+):
+    """Fork a global template into a site-specific copy so this one location can
+    customise items without affecting the global one."""
+    existing = templates.find_one({"id": tpl_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(404, "Not found")
+    doc = {
+        "id": str(uuid.uuid4())[:12],
+        "location_id": location_id,
+        "scope": "location",
+        "title": existing.get("title", ""),
+        "frequency": existing.get("frequency", "daily"),
+        "items": list(existing.get("items") or []),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": user.get("email", ""),
+        "forked_from": tpl_id,
+    }
+    templates.insert_one(dict(doc))
+    return {k: v for k, v in doc.items() if k != "_id"}
 
 
 @router.delete("/{tpl_id}")
