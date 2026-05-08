@@ -797,6 +797,11 @@ class ApiService {
   async coolingComplete(id, data) { return this.fetch(`/api/admin/cooking-cooling/${id}/complete`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async coolingDelete(id) { return this.fetch(`/api/admin/cooking-cooling/${id}`, { method: 'DELETE' }); }
 
+  // ============== REHEATING ==============
+  async reheatingList(locationId) { return this.fetch(`/api/admin/reheating?location_id=${encodeURIComponent(locationId)}`); }
+  async reheatingRecord(data) { return this.fetch('/api/admin/reheating', { method: 'POST', body: JSON.stringify(data) }); }
+  async reheatingDelete(id) { return this.fetch(`/api/admin/reheating/${id}`, { method: 'DELETE' }); }
+
   // ============== WEB PUSH ==============
   async pushVapidKey() { return this.fetch('/api/push/vapid-public-key'); }
   async pushSubscribe(data) { return this.fetch('/api/push/subscribe', { method: 'POST', body: JSON.stringify(data) }); }

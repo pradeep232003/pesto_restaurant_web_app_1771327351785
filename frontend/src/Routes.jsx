@@ -63,6 +63,10 @@ import CoolingPickItem from './pages/jkhive/cooling/CoolingPickItem';
 import CoolingStartTemp from './pages/jkhive/cooling/CoolingStartTemp';
 import CoolingRecordTemp from './pages/jkhive/cooling/CoolingRecordTemp';
 import CoolingComment from './pages/jkhive/cooling/CoolingComment';
+import ReheatingHome from './pages/jkhive/reheating/ReheatingHome';
+import ReheatingPickItem from './pages/jkhive/reheating/ReheatingPickItem';
+import ReheatingRecordTemp from './pages/jkhive/reheating/ReheatingRecordTemp';
+import ReheatingComment from './pages/jkhive/reheating/ReheatingComment';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -176,6 +180,10 @@ const AppRouter = () => {
         <Route path="cooking-cooling/start" element={<CoolingStartTemp />} />
         <Route path="cooking-cooling/:id/record" element={<CoolingRecordTemp />} />
         <Route path="cooking-cooling/:id/comment" element={<CoolingComment />} />
+        <Route path="reheating" element={<ReheatingHome />} />
+        <Route path="reheating/new" element={<ReheatingPickItem />} />
+        <Route path="reheating/record" element={<ReheatingRecordTemp />} />
+        <Route path="reheating/comment" element={<ReheatingComment />} />
         <Route path="manager/routine-units" element={<JKHiveRoutineUnits />} />
       </Route>
 
