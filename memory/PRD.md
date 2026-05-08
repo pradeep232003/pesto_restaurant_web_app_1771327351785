@@ -173,6 +173,13 @@ Automated Monday-morning email digest of the previous week's compliance matrix t
 - **Cross-site safety** — every wizard screen uses a `WizardHeader` showing **location name** + **date** so staff working at multiple sites cannot misfile a record.
 - End-to-end flow verified by screenshot: pick Beef (Brisket) → 75°C start → Begin Cooling → routines tile shows "1" badge → tap "Tap to record" → 5°C → Next → comment → Submit Record → "Record saved!".
 
+### JKHive Deliveries Wizard (May 2026) - VERIFIED
+5-step iOS wizard at `/jkhive/delivery-records` for goods-in temperature logging, mirroring the Cooking/Reheating/Cooked patterns. Supports per-location supplier list with 8 supplier types (general, fishmonger, butcher, greengrocer, bakery, wine merchant, alcohol supplier, other).
+- **Backend** (`/app/backend/routes/deliveries.py`): two collections — `delivery_suppliers` (location-scoped) and `delivery_records`. Endpoints: `GET/POST/DELETE /api/admin/deliveries/suppliers[/{id}]` + `GET/POST/DELETE /api/admin/deliveries[/{id}]`. Each record auto-computes `chilled_pass` (temp_c ≤ 8°C) and `frozen_pass` (temp_c ≤ -18°C). Supplier name denormalised onto each record at write time.
+- **Frontend** (`/app/frontend/src/pages/jkhive/deliveries/`): `DeliveriesHome.jsx` (today's records with CHILLED OK / FROZEN OK / OUT OF RANGE pills + delete) → `PickSupplier.jsx` (3-col grid + Add Supplier tile) → `AddSupplier.jsx` (name + 8-option type select + optional info) → `PickItem.jsx` (reuses cooking-cooling catalog with search + ⭐ favourites) → `RecordTemp.jsx` (semicircular gauge -25°C to +15°C, default 5°C, ticks at -25/-17/-9/-1/7/15, with both Chilled/Frozen recommended-range tick indicators) → `CommentSubmit.jsx` (250-char comment + Submit + green confirmation card).
+- **Tile badge**: Routines page Deliveries tile shows live "today's records" count (blue) refreshed every 60 s.
+- Verified: 16/16 backend pytest + full mobile (414×896) E2E walkthrough (login → dismiss location sheet → add supplier → record 4°C chicken delivery → CHILLED OK pill + delete row → tile badge increments to 1).
+
 ## Prioritized Backlog
 
 ### P1 (High)
