@@ -4,6 +4,7 @@ import { MessageSquare, Check } from 'lucide-react';
 import api from '../../../lib/api';
 import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader } from './_shared';
+import { clearForLog } from './cooling_alarms';
 
 /**
  * /jkhive/cooking-cooling/:id/comment — final step (IMG_6675).
@@ -26,6 +27,7 @@ const CoolingComment = () => {
     setSubmitting(true);
     try {
       await api.coolingComplete(id, { end_temp_c: state.temp, comment });
+      clearForLog(id);
       setDone(true);
     } catch (err) {
       alert('Submit failed: ' + err.message);

@@ -4,6 +4,7 @@ import api from '../../../lib/api';
 import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader, TempStepper, TempGauge, PrimaryAction } from './_shared';
 import { categoryEmoji } from './CoolingHome';
+import { requestPermission, scheduleForLog } from './cooling_alarms';
 
 /**
  * /jkhive/cooking-cooling/start — set the cooked-food temperature, then Begin Cooling.
@@ -23,6 +24,9 @@ const CoolingStartTemp = () => {
   const submit = async () => {
     setSubmitting(true);
     try {
+      // Best-effort: request notification permission so we can fire the
+      // 75/90-min cooling alerts. User can still continue if denied.
+      await requestPermission();
       const res = await api.coolingStart({
         location_id: adminLocationId,
         item_name: state.itemName,
@@ -30,6 +34,7 @@ const CoolingStartTemp = () => {
         start_temp_c: temp,
         target_temp_c: 8,
       });
+      scheduleForLog(res);
       // After "Begin Cooling" → return to home; staff finishes later.
       navigate('/jkhive/cooking-cooling', { replace: true, state: { just_started: res.id } });
     } catch (err) {

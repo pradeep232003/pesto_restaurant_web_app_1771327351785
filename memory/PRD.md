@@ -159,7 +159,8 @@ Automated Monday-morning email digest of the previous week's compliance matrix t
   - `CoolingStartTemp.jsx` — Set Current Temp gauge (red, 0-100°C, default 75°C), Begin Cooling.
   - `CoolingRecordTemp.jsx` — Record Cooled Temperature gauge (blue, 0-30°C, ticks 0/6/12/18/24/30, default 5°C), recommended-range hint turns green/red against the log's `target_temp_c`, Next.
   - `CoolingComment.jsx` — optional 250-char comment, Submit Record → green-check confirmation card.
-- **Tile badge** — `Tile.jsx` now accepts a `badge` prop; the Cooking & Cooling tile renders a red pill with the live count of items currently cooling at the selected location (`api.coolingActiveCount(locationId)`).
+- **Tile badge** — `Tile.jsx` now accepts a `badge` and `badgeColor` prop. On Routines, the badge colour ticks live: **blue** while every item is < 75 min old, **orange** while any item is 75-90 min, **red** as soon as any item is ≥ 90 min.
+- **Soft 90-min cooling timer** (`/app/frontend/src/pages/jkhive/cooling/cooling_alarms.js`): tapping **Begin Cooling** requests `Notification` permission and schedules two local alerts via `setTimeout` — "15 min left" at 75 min and "OVERDUE" at 90 min. Notified-set persisted in localStorage, reconciled on every CoolingHome / Routines mount so timers re-attach after reload within the session. On submit, alarms are cleared. CoolingHome cards show a coloured left-border + status pill ("On track" / "Hurry — 15 min" / "OVERDUE") that ticks every 30 s.
 - **Cross-site safety** — every wizard screen uses a `WizardHeader` showing **location name** + **date** so staff working at multiple sites cannot misfile a record.
 - End-to-end flow verified by screenshot: pick Beef (Brisket) → 75°C start → Begin Cooling → routines tile shows "1" badge → tap "Tap to record" → 5°C → Next → comment → Submit Record → "Record saved!".
 

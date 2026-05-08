@@ -4,6 +4,7 @@ import { Plus, Snowflake, ArrowLeft } from 'lucide-react';
 import api from '../../../lib/api';
 import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader } from './_shared';
+import { reconcile, ageStatus, STATUS_COLOR, STATUS_LABEL } from './cooling_alarms';
 
 /**
  * /jkhive/cooking-cooling — list currently cooling items + Add new.
@@ -13,6 +14,8 @@ const CoolingHome = () => {
   const { adminLocationId, locations } = useLocation2();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  // eslint-disable-next-line no-unused-vars
+  const [tick, setTick] = useState(0);
   const today = new Date().toISOString().slice(0, 10);
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
 
@@ -20,9 +23,12 @@ const CoolingHome = () => {
     if (!adminLocationId) { setLoading(false); return; }
     setLoading(true);
     api.coolingList(adminLocationId, 'cooling')
-      .then(setItems)
+      .then(d => { setItems(d || []); reconcile(d || []); })
       .catch(err => alert('Failed to load: ' + err.message))
       .finally(() => setLoading(false));
+    // Re-render every 30s so age pills + elapsed time update live.
+    const t = setInterval(() => setTick(x => x + 1), 30000);
+    return () => clearInterval(t);
   }, [adminLocationId]);
 
   const elapsed = (iso) => {
@@ -61,30 +67,36 @@ const CoolingHome = () => {
             Currently cooling
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {items.map(it => (
-              <button
-                key={it.id}
-                data-testid={`cooling-item-${it.id}`}
-                onClick={() => navigate(`/jkhive/cooking-cooling/${it.id}/record`)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 14, padding: '16px 16px',
-                  background: '#FFFFFF', borderRadius: 20, border: 0, cursor: 'pointer', textAlign: 'left',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-                }}
-              >
-                <span style={{ fontSize: 36 }}>{categoryEmoji(it.item_category)}</span>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 16, fontWeight: 700, color: '#1D1D1F', margin: 0 }}>{it.item_name}</p>
-                  <p style={{ fontSize: 12, color: '#86868B', margin: '2px 0 0' }}>
-                    Started at {Number(it.start_temp_c).toFixed(1)}°C · {elapsed(it.started_at)}
-                  </p>
-                </div>
-                <span style={{
-                  fontSize: 11, fontWeight: 700, padding: '4px 8px', borderRadius: 999,
-                  background: '#E0F4FF', color: '#0A84C9',
-                }}>Tap to record</span>
-              </button>
-            ))}
+            {items.map(it => {
+              const status = ageStatus(it.started_at);
+              const color = STATUS_COLOR[status];
+              const label = STATUS_LABEL[status];
+              return (
+                <button
+                  key={it.id}
+                  data-testid={`cooling-item-${it.id}`}
+                  onClick={() => navigate(`/jkhive/cooking-cooling/${it.id}/record`)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 14, padding: '16px 16px',
+                    background: '#FFFFFF', borderRadius: 20, border: 0, cursor: 'pointer', textAlign: 'left',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                    borderLeft: `4px solid ${color}`,
+                  }}
+                >
+                  <span style={{ fontSize: 36 }}>{categoryEmoji(it.item_category)}</span>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 16, fontWeight: 700, color: '#1D1D1F', margin: 0 }}>{it.item_name}</p>
+                    <p style={{ fontSize: 12, color: '#86868B', margin: '2px 0 0' }}>
+                      Started at {Number(it.start_temp_c).toFixed(1)}°C · {elapsed(it.started_at)}
+                    </p>
+                  </div>
+                  <span data-testid={`cooling-status-${status}`} style={{
+                    fontSize: 11, fontWeight: 800, padding: '4px 10px', borderRadius: 999,
+                    background: color, color: '#FFFFFF', whiteSpace: 'nowrap',
+                  }}>{label}</span>
+                </button>
+              );
+            })}
           </div>
         </>
       )}

@@ -7,7 +7,7 @@ import { ChevronRight } from 'lucide-react';
 // Each tile is a white card with a colored squircle icon, a title, and an
 // optional subtitle. `to` makes it a real link; `comingSoon` shows the badge
 // and disables navigation. `badge` shows a small numeric pill (e.g. cooling count).
-export const Tile = ({ to, comingSoon, icon: Icon, color, title, subtitle, testId, badge }) => {
+export const Tile = ({ to, comingSoon, icon: Icon, color, title, subtitle, testId, badge, badgeColor = '#FF3B30' }) => {
   const inner = (
     <div
       data-testid={testId}
@@ -23,7 +23,7 @@ export const Tile = ({ to, comingSoon, icon: Icon, color, title, subtitle, testI
           <span
             data-testid={testId ? `${testId}-badge` : undefined}
             className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center"
-            style={{ background: '#FF3B30', color: '#FFFFFF', border: '2px solid #FFFFFF', lineHeight: 1 }}
+            style={{ background: badgeColor, color: '#FFFFFF', border: '2px solid #FFFFFF', lineHeight: 1 }}
           >{badge}</span>
         )}
       </div>
