@@ -14,6 +14,7 @@ const CoolingHome = () => {
   const navigate = useNavigate();
   const { adminLocationId, locations } = useLocation2();
   const [items, setItems] = useState([]);
+  const [completedToday, setCompletedToday] = useState([]);
   const [loading, setLoading] = useState(true);
   // eslint-disable-next-line no-unused-vars
   const [tick, setTick] = useState(0);
@@ -54,8 +55,21 @@ const CoolingHome = () => {
   useEffect(() => {
     if (!adminLocationId) { setLoading(false); return; }
     setLoading(true);
-    api.coolingList(adminLocationId, 'cooling')
-      .then(d => { setItems(d || []); reconcile(d || []); })
+    Promise.all([
+      api.coolingList(adminLocationId, 'cooling'),
+      api.coolingList(adminLocationId, 'complete'),
+    ])
+      .then(([active, complete]) => {
+        setItems(active || []);
+        reconcile(active || []);
+        // Keep only records completed today (server returns ISO strings in UTC)
+        const todayLocal = new Date().toISOString().slice(0, 10);
+        const filtered = (complete || []).filter(c => {
+          const at = c.completed_at || c.started_at || '';
+          return at.slice(0, 10) === todayLocal;
+        });
+        setCompletedToday(filtered);
+      })
       .catch(err => alert('Failed to load: ' + err.message))
       .finally(() => setLoading(false));
     // Re-render every 30s so age pills + elapsed time update live.
@@ -152,6 +166,45 @@ const CoolingHome = () => {
                   >
                     <Trash2 size={18} strokeWidth={2.2} />
                   </button>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* Today's completed records — gives staff visible confirmation that
+          their submitted records are actually saved against this location. */}
+      {adminLocationId && !loading && completedToday.length > 0 && (
+        <>
+          <p style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#86868B', margin: '22px 4px 8px' }}>
+            Today's records · {completedToday.length}
+          </p>
+          <div data-testid="cooling-history-today" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {completedToday.map(it => {
+              const passed = (it.end_temp_c ?? 0) <= (it.target_temp_c ?? 8);
+              const passColor = passed ? '#34C759' : '#FF3B30';
+              const time = (it.completed_at || '').slice(11, 16);
+              return (
+                <div key={it.id} data-testid={`cooling-history-${it.id}`}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+                    background: '#FFFFFF', borderRadius: 16,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                  }}>
+                  <span style={{ fontSize: 28 }}>{categoryEmoji(it.item_category)}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: '#1D1D1F', margin: 0 }}>{it.item_name}</p>
+                    <p style={{ fontSize: 11, color: '#86868B', margin: '2px 0 0' }}>
+                      Cooled {Number(it.start_temp_c).toFixed(0)}° → <b style={{ color: passColor }}>{Number(it.end_temp_c).toFixed(1)}°C</b>
+                      {it.completed_by_name ? ` · by ${it.completed_by_name}` : ''}
+                      {time ? ` · ${time}` : ''}
+                    </p>
+                  </div>
+                  <span style={{
+                    fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
+                    background: passColor, color: '#FFFFFF', whiteSpace: 'nowrap',
+                  }}>{passed ? 'PASS' : 'OVER'}</span>
                 </div>
               );
             })}
