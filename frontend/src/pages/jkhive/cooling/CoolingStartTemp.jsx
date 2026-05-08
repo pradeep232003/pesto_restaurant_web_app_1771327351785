@@ -38,8 +38,11 @@ const CoolingStartTemp = () => {
         target_temp_c: 8,
       });
       scheduleForLog(res);
-      // After "Begin Cooling" → return to home; staff finishes later.
-      navigate('/jkhive/cooking-cooling', { replace: true, state: { just_started: res.id } });
+      // Continue straight into "Record Cooled Temp" so the wizard stays
+      // linear (Begin Cooling → Record temp → Comment → Submit). Staff can
+      // tap the back arrow to leave it in `cooling` status and finish later
+      // from the Cooking & Cooling home screen.
+      navigate(`/jkhive/cooking-cooling/${res.id}/record`, { replace: true });
     } catch (err) {
       alert('Failed to start: ' + err.message);
     } finally { setSubmitting(false); }
