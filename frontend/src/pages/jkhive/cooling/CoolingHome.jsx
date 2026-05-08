@@ -102,9 +102,9 @@ const CoolingHome = () => {
     return { text: `${over}m overdue`, overdue: true };
   };
 
-  // Live MM:SS:CS clock counting down from 90:00:00 since `startedAt`.
-  // CS = centiseconds (hundredths of a second) — gives the "stopwatch" feel.
-  // Once 90 min have passed, holds at 00:00:00 (and we colour it red).
+  // Live MM:SS:MS clock counting down from 90:00:00 since `startedAt`.
+  // MS is base-60 (0-59), derived from the sub-second portion ×60 — keeps
+  // every pair of the stopwatch on the same scale.
   const clockCountdown = (startedAtIso, endIso) => {
     const start = new Date(startedAtIso).getTime();
     const ref = endIso ? new Date(endIso).getTime() : Date.now();
@@ -114,8 +114,8 @@ const CoolingHome = () => {
     const totalSec = Math.floor(left / 1000);
     const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
     const ss = String(totalSec % 60).padStart(2, '0');
-    const cs = String(Math.floor((left % 1000) / 10)).padStart(2, '0');
-    return { text: `${mm}:${ss}:${cs}`, overdue: left === 0 };
+    const ms60 = String(Math.floor(((left % 1000) / 1000) * 60)).padStart(2, '0');
+    return { text: `${mm}:${ss}:${ms60}`, overdue: left === 0 };
   };
 
   // Show the big empty card only when BOTH lists (in-progress + today's
