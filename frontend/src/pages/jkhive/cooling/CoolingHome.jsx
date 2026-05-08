@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Snowflake, ArrowLeft } from 'lucide-react';
+import { Plus, Snowflake, ArrowLeft, Bell, BellOff } from 'lucide-react';
 import api from '../../../lib/api';
 import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader } from './_shared';
 import { reconcile, ageStatus, STATUS_COLOR, STATUS_LABEL } from './cooling_alarms';
+import { ensurePushSubscribed, pushSupported } from './webpush';
 
 /**
  * /jkhive/cooking-cooling — list currently cooling items + Add new.
@@ -16,8 +17,25 @@ const CoolingHome = () => {
   const [loading, setLoading] = useState(true);
   // eslint-disable-next-line no-unused-vars
   const [tick, setTick] = useState(0);
+  const [pushState, setPushState] = useState('idle'); // idle | enabled | denied | unsupported
   const today = new Date().toISOString().slice(0, 10);
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
+
+  // Detect push state on mount (and after enable attempt).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!pushSupported()) { setPushState('unsupported'); return; }
+    if (Notification.permission === 'denied') setPushState('denied');
+    else if (Notification.permission === 'granted') setPushState('enabled');
+    else setPushState('idle');
+  }, []);
+
+  const enablePush = async () => {
+    const r = await ensurePushSubscribed(adminLocationId);
+    if (r.ok) setPushState('enabled');
+    else if (r.reason === 'denied') setPushState('denied');
+    else if (r.reason === 'unsupported') setPushState('unsupported');
+  };
 
   useEffect(() => {
     if (!adminLocationId) { setLoading(false); return; }
@@ -42,6 +60,10 @@ const CoolingHome = () => {
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'Outfit, sans-serif' }} data-testid="cooling-home">
       <WizardHeader title="Cooking & Cooling" locationName={locationName} dateStr={today} backTo="/jkhive/routines" />
+
+      {adminLocationId && (
+        <PushPill state={pushState} onEnable={enablePush} />
+      )}
 
       {!adminLocationId && (
         <p style={{ color: '#FF9500', padding: 18 }}>Please pick a location from JKHive home first.</p>
@@ -130,6 +152,53 @@ export const categoryEmoji = (cat) => {
     Salad: '🥗', Turkey: '🦃', General: '🥘',
   };
   return map[cat] || '🥘';
+};
+
+const PushPill = ({ state, onEnable }) => {
+  if (state === 'enabled') {
+    return (
+      <div data-testid="push-state-enabled" style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999,
+        background: 'rgba(52,199,89,0.12)', color: '#1F8A3F', fontSize: 12, fontWeight: 700,
+        marginBottom: 10,
+      }}>
+        <Bell size={14} strokeWidth={2.4} /> Background alerts on
+      </div>
+    );
+  }
+  if (state === 'denied') {
+    return (
+      <div data-testid="push-state-denied" style={{
+        display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 12,
+        background: 'rgba(255,59,48,0.08)', color: '#A82218', fontSize: 12, fontWeight: 600,
+        marginBottom: 12,
+      }}>
+        <BellOff size={16} strokeWidth={2.4} />
+        Notifications blocked. Enable them in your browser settings to get cooling alerts when JKHive is closed.
+      </div>
+    );
+  }
+  if (state === 'unsupported') {
+    return (
+      <div data-testid="push-state-unsupported" style={{
+        display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 12,
+        background: 'rgba(255,149,0,0.10)', color: '#8C5400', fontSize: 12, fontWeight: 600,
+        marginBottom: 12,
+      }}>
+        <BellOff size={16} strokeWidth={2.4} />
+        On iPhone/iPad, tap Share → "Add to Home Screen" so JKHive can wake you up at 75 / 90 mins.
+      </div>
+    );
+  }
+  return (
+    <button data-testid="push-enable-btn" onClick={onEnable} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 999,
+      background: '#1D1D1F', color: '#FFFFFF', fontSize: 12, fontWeight: 700, border: 0, cursor: 'pointer',
+      marginBottom: 12, fontFamily: 'Outfit, sans-serif',
+    }}>
+      <Bell size={14} strokeWidth={2.6} /> Turn on background alerts
+    </button>
+  );
 };
 
 export default CoolingHome;

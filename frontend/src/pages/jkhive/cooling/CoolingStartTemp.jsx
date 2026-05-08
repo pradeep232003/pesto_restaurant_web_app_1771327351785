@@ -5,6 +5,7 @@ import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader, TempStepper, TempGauge, PrimaryAction } from './_shared';
 import { categoryEmoji } from './CoolingHome';
 import { requestPermission, scheduleForLog } from './cooling_alarms';
+import { ensurePushSubscribed } from './webpush';
 
 /**
  * /jkhive/cooking-cooling/start — set the cooked-food temperature, then Begin Cooling.
@@ -24,9 +25,11 @@ const CoolingStartTemp = () => {
   const submit = async () => {
     setSubmitting(true);
     try {
-      // Best-effort: request notification permission so we can fire the
-      // 75/90-min cooling alerts. User can still continue if denied.
+      // Best-effort: request notification permission and subscribe to web push
+      // so the 75/90-min cooling alerts fire even when the PWA is closed /
+      // device is asleep. Falls back to in-tab setTimeout as a safety net.
       await requestPermission();
+      ensurePushSubscribed(adminLocationId).catch(() => {});
       const res = await api.coolingStart({
         location_id: adminLocationId,
         item_name: state.itemName,

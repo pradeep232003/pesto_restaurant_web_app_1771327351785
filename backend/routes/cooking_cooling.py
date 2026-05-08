@@ -187,3 +187,53 @@ async def cancel_cooling(log_id: str, user: dict = Depends(get_staff_or_above)):
     if res.deleted_count == 0:
         raise HTTPException(404, "Not found")
     return {"deleted": True}
+
+
+# ============== SERVER-SIDE ALARM SCHEDULER ==============
+# Runs every 60 s. For each in-progress cooling log:
+#   • fires a "warn" push at 75 min if not already sent
+#   • fires an "over" push at 90 min if not already sent
+# Sent state is tracked in the log's `alerts_sent` array so notifications
+# are never duplicated, even across server restarts.
+import logging  # noqa: E402
+from routes.push import send_push_to_location  # noqa: E402
+
+_logger = logging.getLogger("cooling-alarms")
+
+
+def run_cooling_alarm_sweep():
+    try:
+        now = datetime.now(timezone.utc)
+        cursor = logs_collection.find({"status": "cooling"}, {"_id": 0})
+        for log in cursor:
+            try:
+                started = datetime.fromisoformat(log["started_at"].replace("Z", "+00:00"))
+            except Exception:
+                continue
+            age_min = (now - started).total_seconds() / 60.0
+            sent = set(log.get("alerts_sent") or [])
+            target = log.get("target_temp_c", 8)
+            item = log.get("item_name", "Cooling item")
+            url = "/jkhive/cooking-cooling"
+
+            if age_min >= 75 and "warn" not in sent:
+                send_push_to_location(log["location_id"], {
+                    "title": f"{item} — 15 min left",
+                    "body": f"Cool to {target}°C or lower in the next 15 minutes.",
+                    "tag": f"cooling-{log['id']}-warn",
+                    "url": url,
+                })
+                sent.add("warn")
+            if age_min >= 90 and "over" not in sent:
+                send_push_to_location(log["location_id"], {
+                    "title": f"{item} OVERDUE",
+                    "body": "Cooling has exceeded 90 min — record the temperature now.",
+                    "tag": f"cooling-{log['id']}-over",
+                    "url": url,
+                })
+                sent.add("over")
+
+            if sent != set(log.get("alerts_sent") or []):
+                logs_collection.update_one({"id": log["id"]}, {"$set": {"alerts_sent": list(sent)}})
+    except Exception as e:
+        _logger.exception("cooling alarm sweep failed: %s", e)

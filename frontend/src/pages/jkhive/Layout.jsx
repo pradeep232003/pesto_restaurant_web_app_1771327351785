@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Brain, ClipboardCheck, Users, Settings2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { installSwMessageBridge } from './cooling/webpush';
 
 const TABS = [
   { to: '/jkhive',           label: 'Intelligence', icon: Brain },
@@ -35,6 +36,10 @@ const JKHiveLayout = () => {
   const location = useLocation();
   const { user, isAuthenticated, loading } = useAuth();
   const initial = (user?.name || user?.email || 'U').charAt(0).toUpperCase();
+
+  // Notification taps fired from /cooling-sw.js post a {type:'jkhive-nav', url}
+  // message to the foreground tab. Route inside the SPA on receive.
+  React.useEffect(() => installSwMessageBridge(navigate), [navigate]);
 
   const isTabActive = (to) => {
     if (to === '/jkhive') return location.pathname === '/jkhive' || location.pathname === '/jkhive/';

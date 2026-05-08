@@ -797,6 +797,12 @@ class ApiService {
   async coolingComplete(id, data) { return this.fetch(`/api/admin/cooking-cooling/${id}/complete`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async coolingDelete(id) { return this.fetch(`/api/admin/cooking-cooling/${id}`, { method: 'DELETE' }); }
 
+  // ============== WEB PUSH ==============
+  async pushVapidKey() { return this.fetch('/api/push/vapid-public-key'); }
+  async pushSubscribe(data) { return this.fetch('/api/push/subscribe', { method: 'POST', body: JSON.stringify(data) }); }
+  async pushUnsubscribe(endpoint) { return this.fetch('/api/push/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint }) }); }
+  async pushTest() { return this.fetch('/api/admin/push/test', { method: 'POST' }); }
+
   // ============== CLEANING SCHEDULES (daily + weekly deep) ==============
   // kind = 'daily-cleaning' | 'weekly-cleaning'
   async adminGetCleaningItems(kind, locationId) {

@@ -92,7 +92,8 @@ from routes.compliance import router as compliance_router
 from routes.compliance_digest import router as compliance_digest_router, run_weekly_digest_job
 from routes.staff import router as staff_router
 from routes.routine_temps import router as routine_temps_router
-from routes.cooking_cooling import router as cooking_cooling_router
+from routes.cooking_cooling import router as cooking_cooling_router, run_cooling_alarm_sweep
+from routes.push import router as push_router
 
 app.include_router(auth_router)
 app.include_router(locations_router)
@@ -120,6 +121,7 @@ app.include_router(compliance_digest_router)
 app.include_router(staff_router)
 app.include_router(routine_temps_router)
 app.include_router(cooking_cooling_router)
+app.include_router(push_router)
 
 # ============== PUBLIC ENDPOINTS ==============
 
@@ -170,9 +172,14 @@ async def startup_event():
         scheduler = BackgroundScheduler(timezone="Europe/London")
         scheduler.add_job(run_weekly_digest_job, CronTrigger(day_of_week="mon", hour=7, minute=0),
                           id="weekly_compliance_digest", replace_existing=True, misfire_grace_time=3600)
+        # Cooling alarm sweep — every minute. Pushes 75/90 min notifications even when the PWA is closed.
+        from apscheduler.triggers.interval import IntervalTrigger
+        scheduler.add_job(run_cooling_alarm_sweep, IntervalTrigger(seconds=60),
+                          id="cooling_alarm_sweep", replace_existing=True, misfire_grace_time=120)
         scheduler.start()
         app.state.scheduler = scheduler
         print("[scheduler] Weekly compliance digest scheduled for Mondays 07:00 Europe/London")
+        print("[scheduler] Cooling alarm sweep running every 60s")
     except Exception as e:
         print(f"[scheduler] Failed to start: {e}")
 
