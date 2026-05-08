@@ -802,6 +802,11 @@ class ApiService {
   async reheatingRecord(data) { return this.fetch('/api/admin/reheating', { method: 'POST', body: JSON.stringify(data) }); }
   async reheatingDelete(id) { return this.fetch(`/api/admin/reheating/${id}`, { method: 'DELETE' }); }
 
+  // ============== COOKED (CORE TEMP) ==============
+  async cookedList(locationId) { return this.fetch(`/api/admin/cooked?location_id=${encodeURIComponent(locationId)}`); }
+  async cookedRecord(data) { return this.fetch('/api/admin/cooked', { method: 'POST', body: JSON.stringify(data) }); }
+  async cookedDelete(id) { return this.fetch(`/api/admin/cooked/${id}`, { method: 'DELETE' }); }
+
   // ============== WEB PUSH ==============
   async pushVapidKey() { return this.fetch('/api/push/vapid-public-key'); }
   async pushSubscribe(data) { return this.fetch('/api/push/subscribe', { method: 'POST', body: JSON.stringify(data) }); }

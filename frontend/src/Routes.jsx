@@ -67,6 +67,10 @@ import ReheatingHome from './pages/jkhive/reheating/ReheatingHome';
 import ReheatingPickItem from './pages/jkhive/reheating/ReheatingPickItem';
 import ReheatingRecordTemp from './pages/jkhive/reheating/ReheatingRecordTemp';
 import ReheatingComment from './pages/jkhive/reheating/ReheatingComment';
+import CookedHome from './pages/jkhive/cooked/CookedHome';
+import CookedPickItem from './pages/jkhive/cooked/CookedPickItem';
+import CookedRecordTemp from './pages/jkhive/cooked/CookedRecordTemp';
+import CookedComment from './pages/jkhive/cooked/CookedComment';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -169,7 +173,10 @@ const AppRouter = () => {
         <Route path="daily-checks" element={<JKHiveDailyChecks />} />
         <Route path="kitchen-closedown" element={<JKHiveKitchenClosedown />} />
         <Route path="temp-monitor" element={<JKHiveTempMonitor />} />
-        <Route path="cooked-temp" element={<JKHiveCookedTemp />} />
+        <Route path="cooked-temp" element={<CookedHome />} />
+        <Route path="cooked-temp/new" element={<CookedPickItem />} />
+        <Route path="cooked-temp/record" element={<CookedRecordTemp />} />
+        <Route path="cooked-temp/comment" element={<CookedComment />} />
         <Route path="delivery-records" element={<JKHiveDeliveryRecords />} />
         <Route path="opening" element={<JKHiveOpeningRoutine />} />
         <Route path="opening/fridge-temp" element={<JKHiveOpeningFridgeTemp />} />

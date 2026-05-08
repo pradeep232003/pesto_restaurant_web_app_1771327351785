@@ -94,6 +94,7 @@ from routes.staff import router as staff_router
 from routes.routine_temps import router as routine_temps_router
 from routes.cooking_cooling import router as cooking_cooling_router, run_cooling_alarm_sweep
 from routes.reheating import router as reheating_router
+from routes.cooked import router as cooked_router
 from routes.push import router as push_router
 
 app.include_router(auth_router)
@@ -123,6 +124,7 @@ app.include_router(staff_router)
 app.include_router(routine_temps_router)
 app.include_router(cooking_cooling_router)
 app.include_router(reheating_router)
+app.include_router(cooked_router)
 app.include_router(push_router)
 
 # ============== PUBLIC ENDPOINTS ==============
