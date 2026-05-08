@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Snowflake, ArrowLeft, Bell, BellOff, Trash2 } from 'lucide-react';
+import { Plus, Snowflake, ArrowLeft, Bell, BellOff, Trash2, RefreshCw } from 'lucide-react';
 import api from '../../../lib/api';
 import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader } from './_shared';
@@ -53,30 +53,69 @@ const CoolingHome = () => {
     }
   };
 
+  // Loader extracted so it can be re-invoked on pull-to-refresh.
+  const loadData = React.useCallback(async () => {
+    if (!adminLocationId) return;
+    try {
+      const [active, complete] = await Promise.all([
+        api.coolingList(adminLocationId, 'cooling'),
+        api.coolingList(adminLocationId, 'complete'),
+      ]);
+      setItems(active || []);
+      reconcile(active || []);
+      const todayLocal = new Date().toISOString().slice(0, 10);
+      const filtered = (complete || []).filter(c => {
+        const at = c.completed_at || c.started_at || '';
+        return at.slice(0, 10) === todayLocal;
+      });
+      setCompletedToday(filtered);
+    } catch (err) {
+      alert('Failed to load: ' + err.message);
+    }
+  }, [adminLocationId]);
+
   useEffect(() => {
     if (!adminLocationId) { setLoading(false); return; }
     setLoading(true);
-    Promise.all([
-      api.coolingList(adminLocationId, 'cooling'),
-      api.coolingList(adminLocationId, 'complete'),
-    ])
-      .then(([active, complete]) => {
-        setItems(active || []);
-        reconcile(active || []);
-        // Keep only records completed today (server returns ISO strings in UTC)
-        const todayLocal = new Date().toISOString().slice(0, 10);
-        const filtered = (complete || []).filter(c => {
-          const at = c.completed_at || c.started_at || '';
-          return at.slice(0, 10) === todayLocal;
-        });
-        setCompletedToday(filtered);
-      })
-      .catch(err => alert('Failed to load: ' + err.message))
-      .finally(() => setLoading(false));
-    // Re-render every 50ms so the MM:SS:CS stopwatch ticks visibly.
-    const t = setInterval(() => setTick(x => x + 1), 50);
-    return () => clearInterval(t);
-  }, [adminLocationId]);
+    loadData().finally(() => setLoading(false));
+    // Smooth requestAnimationFrame loop so the MS/60 third-pair animates
+    // every browser frame (~16ms) — gives the live ticker a true stopwatch
+    // feel instead of stepping in chunks.
+    let raf = 0;
+    const loop = () => { setTick(x => x + 1); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [adminLocationId, loadData]);
+
+  // Pull-to-refresh on touch devices: drag down ≥ 70 px while at scroll-top.
+  useEffect(() => {
+    let startY = 0;
+    let pulling = false;
+    const onTouchStart = (e) => {
+      if (window.scrollY > 0) return;
+      startY = e.touches[0].clientY;
+      pulling = true;
+    };
+    const onTouchMove = (e) => {
+      if (!pulling) return;
+      const dy = e.touches[0].clientY - startY;
+      if (dy < 0) pulling = false;
+    };
+    const onTouchEnd = (e) => {
+      if (!pulling) return;
+      const dy = (e.changedTouches[0]?.clientY || 0) - startY;
+      pulling = false;
+      if (dy >= 70) loadData();
+    };
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [loadData]);
 
   // Pretty elapsed time since `iso`.
   const elapsed = (iso) => {
@@ -127,7 +166,20 @@ const CoolingHome = () => {
       <WizardHeader title="Cooking & Cooling" locationName={locationName} dateStr={today} backTo="/jkhive/routines" />
 
       {adminLocationId && (
-        <PushPill state={pushState} onEnable={enablePush} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <PushPill state={pushState} onEnable={enablePush} />
+          <button data-testid="cooling-refresh-btn" onClick={loadData}
+            aria-label="Refresh"
+            style={{
+              marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '6px 12px', borderRadius: 999, background: '#FFFFFF',
+              border: '1px solid rgba(0,0,0,0.08)', color: '#1D1D1F',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+            }}>
+            <RefreshCw size={14} strokeWidth={2.4} />
+            Refresh
+          </button>
+        </div>
       )}
 
       {!adminLocationId && (

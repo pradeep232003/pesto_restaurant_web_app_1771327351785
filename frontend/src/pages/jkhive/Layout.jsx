@@ -1,7 +1,8 @@
 import React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Brain, ClipboardCheck, Users, Settings2 } from 'lucide-react';
+import { Brain, ClipboardCheck, Users, Settings2, MapPin, X, Check } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLocation2 } from '../../contexts/LocationContext';
 import { installSwMessageBridge } from './cooling/webpush';
 
 const TABS = [
@@ -35,11 +36,22 @@ const JKHiveLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isAuthenticated, loading } = useAuth();
+  const { adminLocationId, setAdminLocationId, locations } = useLocation2();
+  const [pickerOpen, setPickerOpen] = React.useState(false);
   const initial = (user?.name || user?.email || 'U').charAt(0).toUpperCase();
+  const currentLoc = locations.find(l => l.id === adminLocationId);
+  const locShort = currentLoc?.name ? currentLoc.name.split(',')[0] : 'Pick site';
 
   // Notification taps fired from /cooling-sw.js post a {type:'jkhive-nav', url}
   // message to the foreground tab. Route inside the SPA on receive.
   React.useEffect(() => installSwMessageBridge(navigate), [navigate]);
+
+  // Auto-open picker if no location selected and user has access to ≥ 1 site.
+  React.useEffect(() => {
+    if (!loading && isAuthenticated && !adminLocationId && locations.length > 0) {
+      setPickerOpen(true);
+    }
+  }, [loading, isAuthenticated, adminLocationId, locations.length]);
 
   const isTabActive = (to) => {
     if (to === '/jkhive') return location.pathname === '/jkhive' || location.pathname === '/jkhive/';
@@ -59,8 +71,22 @@ const JKHiveLayout = () => {
   return (
     <div style={{ minHeight: '100vh', background: '#F2F2F7', fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, sans-serif' }}>
       <header style={{ position: 'sticky', top: 0, zIndex: 30, background: 'rgba(242,242,247,0.92)', backdropFilter: 'saturate(180%) blur(16px)', WebkitBackdropFilter: 'saturate(180%) blur(16px)', borderBottom: '0.5px solid rgba(0,0,0,0.08)' }}>
-        <div style={{ maxWidth: '768px', margin: '0 auto', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ width: 36 }} />
+        <div style={{ maxWidth: '768px', margin: '0 auto', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <button
+            data-testid="jkhive-location-pill"
+            onClick={() => setPickerOpen(true)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '6px 10px', borderRadius: 999,
+              background: adminLocationId ? '#FFFFFF' : '#FFE5B4',
+              border: '1px solid rgba(0,0,0,0.08)',
+              color: '#1D1D1F', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              fontFamily: 'inherit',
+            }}>
+            <MapPin size={14} strokeWidth={2.4} style={{ color: adminLocationId ? '#0A84C9' : '#FF9500' }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{locShort}</span>
+          </button>
           <h1 style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: '#1D1D1F', margin: 0 }}>JKHive</h1>
           <button
             data-testid="jkhive-user-avatar"
@@ -71,6 +97,15 @@ const JKHiveLayout = () => {
           </button>
         </div>
       </header>
+
+      {pickerOpen && (
+        <LocationPickerSheet
+          locations={locations}
+          currentId={adminLocationId}
+          onPick={(id) => { setAdminLocationId(id); setPickerOpen(false); }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
 
       <main style={{ maxWidth: '768px', margin: '0 auto', padding: '8px 20px 140px 20px' }}>
         <Outlet />
@@ -94,3 +129,51 @@ const JKHiveLayout = () => {
 };
 
 export default JKHiveLayout;
+
+const LocationPickerSheet = ({ locations, currentId, onPick, onClose }) => (
+  <div
+    data-testid="jkhive-location-sheet"
+    style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+    onClick={onClose}
+  >
+    <div
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        width: '100%', maxWidth: 520, maxHeight: '78vh', overflow: 'auto',
+        background: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24,
+        padding: '20px 18px calc(20px + env(safe-area-inset-bottom)) 18px',
+        fontFamily: 'inherit',
+      }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.01em', color: '#1D1D1F', margin: 0 }}>Pick a location</h2>
+        <button onClick={onClose} aria-label="Close"
+          style={{ background: 'transparent', border: 0, padding: 6, cursor: 'pointer', color: '#86868B' }}>
+          <X size={22} strokeWidth={2.4} />
+        </button>
+      </div>
+      <p style={{ fontSize: 13, color: '#86868B', margin: '0 0 14px' }}>
+        All routines and records you submit will be filed against this site.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {locations.map(l => {
+          const active = l.id === currentId;
+          return (
+            <button key={l.id}
+              data-testid={`jkhive-loc-${l.id}`}
+              onClick={() => onPick(l.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
+                background: active ? 'rgba(0,122,255,0.08)' : '#F8F8FA',
+                border: active ? '1.5px solid #0A84C9' : '1px solid rgba(0,0,0,0.06)',
+                borderRadius: 14, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+              }}>
+              <MapPin size={20} strokeWidth={2.2} style={{ color: active ? '#0A84C9' : '#86868B' }} />
+              <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: '#1D1D1F' }}>{l.name}</span>
+              {active && <Check size={18} strokeWidth={2.6} color="#0A84C9" />}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  </div>
+);
