@@ -172,6 +172,18 @@ const CoolingHome = () => {
     return { text: `${hh}:${mm}:${ss}`, overdue: elapsed >= 90 * 60 };
   };
 
+  // Format a frozen elapsed duration (between two timestamps) — used for
+  // already-completed records on the Today's-records list.
+  const frozenClock = (startedAtIso, endIso) => {
+    const start = new Date(startedAtIso).getTime();
+    const ref = new Date(endIso || startedAtIso).getTime();
+    const elapsed = Math.max(0, Math.floor((ref - start) / 1000));
+    const hh = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+    const mm = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+    const ss = String(elapsed % 60).padStart(2, '0');
+    return { text: `${hh}:${mm}:${ss}`, overdue: elapsed >= 90 * 60 };
+  };
+
   // Show the big empty card only when BOTH lists (in-progress + today's
   // completed) are empty — otherwise it confused users who'd just submitted.
   const showEmptyState = adminLocationId && !loading && items.length === 0 && completedToday.length === 0;
@@ -253,15 +265,11 @@ const CoolingHome = () => {
                       <p style={{ fontSize: 12, color: '#86868B', margin: '2px 0 0' }}>
                         Started at {Number(it.start_temp_c).toFixed(1)}°C · {elapsed(it.started_at)}
                       </p>
-                      {(() => {
-                        const c = clockCountdown(it.started_at);
-                        return (
-                          <p data-testid={`cooling-countdown-${it.id}`}
-                             style={{ fontSize: 14, fontWeight: 800, color: c.overdue ? '#FF3B30' : color, margin: '4px 0 0', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }}>
-                            {c.text}
-                          </p>
-                        );
-                      })()}
+                      <LiveClock
+                        startedAt={it.started_at}
+                        baseColor={color}
+                        testId={`cooling-countdown-${it.id}`}
+                      />
                     </div>
                     <span data-testid={`cooling-status-${status}`} style={{
                       fontSize: 11, fontWeight: 800, padding: '4px 10px', borderRadius: 999,
@@ -302,7 +310,7 @@ const CoolingHome = () => {
               // Frozen MM:SS countdown — what was on the clock when this
               // record was submitted. Shows that it landed under the 90:00
               // limit (pass) or that they ran out of time (overdue).
-              const frozen = clockCountdown(it.started_at, it.completed_at);
+              const frozen = frozenClock(it.started_at, it.completed_at);
               return (
                 <div key={it.id} data-testid={`cooling-history-${it.id}`}
                   style={{
@@ -434,3 +442,55 @@ const PushPill = ({ state, onEnable }) => {
 };
 
 export default CoolingHome;
+
+/**
+ * Self-contained live HH:MM:SS clock component.
+ *
+ * Updates the DOM `textContent` directly via a `useRef` every 1 s using a
+ * setInterval. Bypasses React's render cycle entirely so iOS Safari's
+ * aggressive throttling of background renders cannot freeze the display.
+ * Visibility API ensures the clock catches up the moment the tab is
+ * brought to the foreground.
+ */
+const LiveClock = ({ startedAt, baseColor, testId }) => {
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    if (!ref.current || !startedAt) return;
+    const start = new Date(startedAt).getTime();
+    const update = () => {
+      if (!ref.current) return;
+      const elapsed = Math.max(0, Math.floor((Date.now() - start) / 1000));
+      const hh = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+      const mm = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+      const ss = String(elapsed % 60).padStart(2, '0');
+      ref.current.textContent = `${hh}:${mm}:${ss}`;
+      ref.current.style.color = elapsed >= 90 * 60 ? '#FF3B30' : baseColor;
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    const onVis = () => { if (document.visibilityState === 'visible') update(); };
+    document.addEventListener('visibilitychange', onVis);
+    // Belt-and-braces requestAnimationFrame loop — throttles itself to once
+    // per second via lastSec but ensures the clock still ticks if iOS Safari
+    // pauses the setInterval.
+    let raf = 0;
+    let lastSec = 0;
+    const tick = () => {
+      const t = Date.now();
+      if (t - lastSec >= 1000) { lastSec = t; update(); }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      clearInterval(interval);
+      cancelAnimationFrame(raf);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [startedAt, baseColor]);
+  return (
+    <p ref={ref} data-testid={testId}
+       style={{ fontSize: 14, fontWeight: 800, color: baseColor, margin: '4px 0 0', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }}>
+      00:00:00
+    </p>
+  );
+};
