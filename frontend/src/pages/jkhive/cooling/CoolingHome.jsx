@@ -73,8 +73,8 @@ const CoolingHome = () => {
       })
       .catch(err => alert('Failed to load: ' + err.message))
       .finally(() => setLoading(false));
-    // Re-render every 10s so the 90-min countdown + status pill tick visibly.
-    const t = setInterval(() => setTick(x => x + 1), 10000);
+    // Re-render every 1s so the MM:SS clock countdown ticks visibly.
+    const t = setInterval(() => setTick(x => x + 1), 1000);
     return () => clearInterval(t);
   }, [adminLocationId]);
 
@@ -100,6 +100,19 @@ const CoolingHome = () => {
     }
     const over = Math.floor(elapsedMin - 90);
     return { text: `${over}m overdue`, overdue: true };
+  };
+
+  // Live MM:SS clock counting down from 90:00 since `startedAt`.
+  // Once 90 min have passed, holds at 00:00 (and we colour it red).
+  const clockCountdown = (startedAtIso, endIso) => {
+    const start = new Date(startedAtIso).getTime();
+    const ref = endIso ? new Date(endIso).getTime() : Date.now();
+    const totalSec = 90 * 60;
+    const elapsedSec = Math.max(0, Math.floor((ref - start) / 1000));
+    const left = Math.max(0, totalSec - elapsedSec);
+    const mm = String(Math.floor(left / 60)).padStart(2, '0');
+    const ss = String(left % 60).padStart(2, '0');
+    return { text: `${mm}:${ss}`, overdue: left === 0 };
   };
 
   // Show the big empty card only when BOTH lists (in-progress + today's
@@ -170,11 +183,12 @@ const CoolingHome = () => {
                         Started at {Number(it.start_temp_c).toFixed(1)}°C · {elapsed(it.started_at)}
                       </p>
                       {(() => {
-                        const r = remaining(it.started_at);
+                        const c = clockCountdown(it.started_at);
                         return (
                           <p data-testid={`cooling-countdown-${it.id}`}
-                             style={{ fontSize: 12, fontWeight: 700, color: r.overdue ? '#FF3B30' : color, margin: '2px 0 0', fontVariantNumeric: 'tabular-nums' }}>
-                            {r.text}
+                             style={{ fontSize: 14, fontWeight: 800, color: c.overdue ? '#FF3B30' : color, margin: '4px 0 0', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }}>
+                            {c.text}
+                            <span style={{ fontSize: 11, fontWeight: 600, color: '#86868B', marginLeft: 6 }}>/ 90:00</span>
                           </p>
                         );
                       })()}
@@ -215,6 +229,10 @@ const CoolingHome = () => {
               const passed = (it.end_temp_c ?? 0) <= (it.target_temp_c ?? 8);
               const passColor = passed ? '#34C759' : '#FF3B30';
               const time = (it.completed_at || '').slice(11, 16);
+              // Frozen MM:SS countdown — what was on the clock when this
+              // record was submitted. Shows that it landed under the 90:00
+              // limit (pass) or that they ran out of time (overdue).
+              const frozen = clockCountdown(it.started_at, it.completed_at);
               return (
                 <div key={it.id} data-testid={`cooling-history-${it.id}`}
                   style={{
@@ -231,6 +249,11 @@ const CoolingHome = () => {
                         Cooled {Number(it.start_temp_c).toFixed(0)}° → <b style={{ color: passColor }}>{Number(it.end_temp_c).toFixed(1)}°C</b>
                         {it.completed_by_name ? ` · by ${it.completed_by_name}` : ''}
                         {time ? ` · ${time}` : ''}
+                      </p>
+                      <p data-testid={`cooling-history-clock-${it.id}`}
+                         style={{ fontSize: 12, fontWeight: 800, color: frozen.overdue ? '#FF3B30' : passColor, margin: '3px 0 0', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }}>
+                        {frozen.text}
+                        <span style={{ fontSize: 10, fontWeight: 600, color: '#86868B', marginLeft: 6 }}>/ 90:00</span>
                       </p>
                     </div>
                     <span style={{
