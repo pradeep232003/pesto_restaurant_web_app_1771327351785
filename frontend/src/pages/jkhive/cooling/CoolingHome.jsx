@@ -47,6 +47,7 @@ const CoolingHome = () => {
       await api.coolingDelete(it.id);
       clearForLog(it.id);
       setItems(prev => prev.filter(x => x.id !== it.id));
+      setCompletedToday(prev => prev.filter(x => x.id !== it.id));
     } catch (err) {
       alert('Failed to delete: ' + err.message);
     }
@@ -72,18 +73,38 @@ const CoolingHome = () => {
       })
       .catch(err => alert('Failed to load: ' + err.message))
       .finally(() => setLoading(false));
-    // Re-render every 30s so age pills + elapsed time update live.
-    const t = setInterval(() => setTick(x => x + 1), 30000);
+    // Re-render every 10s so the 90-min countdown + status pill tick visibly.
+    const t = setInterval(() => setTick(x => x + 1), 10000);
     return () => clearInterval(t);
   }, [adminLocationId]);
 
+  // Pretty elapsed time since `iso`.
   const elapsed = (iso) => {
     const ms = Date.now() - new Date(iso).getTime();
     const m = Math.floor(ms / 60000);
     if (m < 60) return `${m} min ago`;
     const h = Math.floor(m / 60);
-    return `${h} h ${m % 60} m ago`;
+    return `${h}h ${m % 60}m ago`;
   };
+
+  // Countdown text to the 90-min cooling deadline.
+  // < 90 min remaining → "1h 15m left" / "12m left"
+  // ≥ 90 min elapsed   → "12m overdue"
+  const remaining = (iso) => {
+    const elapsedMin = (Date.now() - new Date(iso).getTime()) / 60000;
+    if (elapsedMin < 90) {
+      const left = Math.max(0, Math.ceil(90 - elapsedMin));
+      const h = Math.floor(left / 60);
+      const m = left % 60;
+      return { text: h > 0 ? `${h}h ${m}m left` : `${m}m left`, overdue: false };
+    }
+    const over = Math.floor(elapsedMin - 90);
+    return { text: `${over}m overdue`, overdue: true };
+  };
+
+  // Show the big empty card only when BOTH lists (in-progress + today's
+  // completed) are empty — otherwise it confused users who'd just submitted.
+  const showEmptyState = adminLocationId && !loading && items.length === 0 && completedToday.length === 0;
 
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'Outfit, sans-serif' }} data-testid="cooling-home">
@@ -101,7 +122,7 @@ const CoolingHome = () => {
         <p style={{ color: '#86868B', padding: 18, textAlign: 'center' }}>Loading…</p>
       )}
 
-      {adminLocationId && !loading && items.length === 0 && (
+      {showEmptyState && (
         <div style={{ background: '#FFFFFF', borderRadius: 24, padding: '36px 22px', textAlign: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
           <div style={{ width: 64, height: 64, borderRadius: 999, background: '#E0F4FF', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
             <Snowflake size={32} color="#30B0C7" strokeWidth={2} />
@@ -148,6 +169,15 @@ const CoolingHome = () => {
                       <p style={{ fontSize: 12, color: '#86868B', margin: '2px 0 0' }}>
                         Started at {Number(it.start_temp_c).toFixed(1)}°C · {elapsed(it.started_at)}
                       </p>
+                      {(() => {
+                        const r = remaining(it.started_at);
+                        return (
+                          <p data-testid={`cooling-countdown-${it.id}`}
+                             style={{ fontSize: 12, fontWeight: 700, color: r.overdue ? '#FF3B30' : color, margin: '2px 0 0', fontVariantNumeric: 'tabular-nums' }}>
+                            {r.text}
+                          </p>
+                        );
+                      })()}
                     </div>
                     <span data-testid={`cooling-status-${status}`} style={{
                       fontSize: 11, fontWeight: 800, padding: '4px 10px', borderRadius: 999,
@@ -188,23 +218,37 @@ const CoolingHome = () => {
               return (
                 <div key={it.id} data-testid={`cooling-history-${it.id}`}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+                    display: 'flex', alignItems: 'stretch', gap: 0, padding: 0,
                     background: '#FFFFFF', borderRadius: 16,
                     boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                    overflow: 'hidden',
                   }}>
-                  <span style={{ fontSize: 28 }}>{categoryEmoji(it.item_category)}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: '#1D1D1F', margin: 0 }}>{it.item_name}</p>
-                    <p style={{ fontSize: 11, color: '#86868B', margin: '2px 0 0' }}>
-                      Cooled {Number(it.start_temp_c).toFixed(0)}° → <b style={{ color: passColor }}>{Number(it.end_temp_c).toFixed(1)}°C</b>
-                      {it.completed_by_name ? ` · by ${it.completed_by_name}` : ''}
-                      {time ? ` · ${time}` : ''}
-                    </p>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: '12px 12px 12px 14px', minWidth: 0 }}>
+                    <span style={{ fontSize: 28 }}>{categoryEmoji(it.item_category)}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: '#1D1D1F', margin: 0 }}>{it.item_name}</p>
+                      <p style={{ fontSize: 11, color: '#86868B', margin: '2px 0 0' }}>
+                        Cooled {Number(it.start_temp_c).toFixed(0)}° → <b style={{ color: passColor }}>{Number(it.end_temp_c).toFixed(1)}°C</b>
+                        {it.completed_by_name ? ` · by ${it.completed_by_name}` : ''}
+                        {time ? ` · ${time}` : ''}
+                      </p>
+                    </div>
+                    <span style={{
+                      fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
+                      background: passColor, color: '#FFFFFF', whiteSpace: 'nowrap',
+                    }}>{passed ? 'PASS' : 'OVER'}</span>
                   </div>
-                  <span style={{
-                    fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
-                    background: passColor, color: '#FFFFFF', whiteSpace: 'nowrap',
-                  }}>{passed ? 'PASS' : 'OVER'}</span>
+                  <button
+                    data-testid={`cooling-history-delete-${it.id}`}
+                    onClick={(e) => handleDelete(it, e)}
+                    aria-label={`Delete ${it.item_name}`}
+                    style={{
+                      width: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: 'transparent', border: 0, borderLeft: '1px solid rgba(0,0,0,0.06)',
+                      cursor: 'pointer', color: '#FF3B30',
+                    }}>
+                    <Trash2 size={16} strokeWidth={2.2} />
+                  </button>
                 </div>
               );
             })}

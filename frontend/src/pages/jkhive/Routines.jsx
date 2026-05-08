@@ -8,15 +8,25 @@ import { reconcile, worstStatus, STATUS_COLOR } from './cooling/cooling_alarms';
 const Routines = () => {
   const { adminLocationId } = useLocation2();
   const [coolingLogs, setCoolingLogs] = useState([]);
+  const [completedTodayCount, setCompletedTodayCount] = useState(0);
   const [tick, setTick] = useState(0);
 
   // Refresh from server on mount + every 60s; recompute age every 30s.
   useEffect(() => {
-    if (!adminLocationId) { setCoolingLogs([]); return; }
+    if (!adminLocationId) { setCoolingLogs([]); setCompletedTodayCount(0); return; }
     let cancelled = false;
-    const load = () => api.coolingList(adminLocationId, 'cooling')
-      .then(d => { if (!cancelled) { setCoolingLogs(d || []); reconcile(d || []); } })
-      .catch(() => {});
+    const todayLocal = () => new Date().toISOString().slice(0, 10);
+    const load = () => Promise.all([
+      api.coolingList(adminLocationId, 'cooling'),
+      api.coolingList(adminLocationId, 'complete'),
+    ]).then(([active, complete]) => {
+      if (cancelled) return;
+      setCoolingLogs(active || []);
+      reconcile(active || []);
+      const t = todayLocal();
+      const n = (complete || []).filter(c => (c.completed_at || c.started_at || '').slice(0, 10) === t).length;
+      setCompletedTodayCount(n);
+    }).catch(() => {});
     load();
     const refresh = setInterval(load, 60000);
     const ageTick = setInterval(() => setTick(t => t + 1), 30000);
@@ -27,7 +37,11 @@ const Routines = () => {
   const worst = worstStatus(coolingLogs);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _ = tick;
-  const coolingCount = coolingLogs.length;
+  // Badge shows total of in-progress + today's completed so staff still see
+  // their day's activity even after every record is submitted.
+  const coolingCount = coolingLogs.length + completedTodayCount;
+  // Colour priority: any in-progress overdue → red; any warn → orange;
+  // otherwise neutral blue (informational total).
   const badgeColor = worst ? STATUS_COLOR[worst] : '#0A84C9';
 
   return (
