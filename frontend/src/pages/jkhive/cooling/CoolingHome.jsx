@@ -78,13 +78,9 @@ const CoolingHome = () => {
     if (!adminLocationId) { setLoading(false); return; }
     setLoading(true);
     loadData().finally(() => setLoading(false));
-    // Smooth requestAnimationFrame loop so the MS/60 third-pair animates
-    // every browser frame (~16ms) — gives the live ticker a true stopwatch
-    // feel instead of stepping in chunks.
-    let raf = 0;
-    const loop = () => { setTick(x => x + 1); raf = requestAnimationFrame(loop); };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+    // Re-render every second so the HH:MM:SS clock counts up visibly.
+    const t = setInterval(() => setTick(x => x + 1), 1000);
+    return () => clearInterval(t);
   }, [adminLocationId, loadData]);
 
   // Pull-to-refresh on touch devices: drag down ≥ 70 px while at scroll-top.
@@ -141,20 +137,18 @@ const CoolingHome = () => {
     return { text: `${over}m overdue`, overdue: true };
   };
 
-  // Live MM:SS:MS clock counting down from 90:00:00 since `startedAt`.
-  // MS is base-60 (0-59), derived from the sub-second portion ×60 — keeps
-  // every pair of the stopwatch on the same scale.
+  // Live HH:MM:SS clock counting UP from 00:00:00 since `startedAt`.
+  // Counts up indefinitely — the server-side push scheduler fires the
+  // 75 / 90-min alerts (see /app/backend/routes/cooking_cooling.py).
+  // We turn the text red once past 90:00 so it visually flags the breach.
   const clockCountdown = (startedAtIso, endIso) => {
     const start = new Date(startedAtIso).getTime();
     const ref = endIso ? new Date(endIso).getTime() : Date.now();
-    const totalMs = 90 * 60 * 1000;
-    const elapsedMs = Math.max(0, ref - start);
-    const left = Math.max(0, totalMs - elapsedMs);
-    const totalSec = Math.floor(left / 1000);
-    const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
-    const ss = String(totalSec % 60).padStart(2, '0');
-    const ms60 = String(Math.floor(((left % 1000) / 1000) * 60)).padStart(2, '0');
-    return { text: `${mm}:${ss}:${ms60}`, overdue: left === 0 };
+    const elapsed = Math.max(0, Math.floor((ref - start) / 1000));
+    const hh = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+    const mm = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+    const ss = String(elapsed % 60).padStart(2, '0');
+    return { text: `${hh}:${mm}:${ss}`, overdue: elapsed >= 90 * 60 };
   };
 
   // Show the big empty card only when BOTH lists (in-progress + today's
@@ -170,8 +164,9 @@ const CoolingHome = () => {
           <PushPill state={pushState} onEnable={enablePush} />
           <button data-testid="cooling-refresh-btn" onClick={loadData}
             aria-label="Refresh"
+            className="hidden md:inline-flex"
             style={{
-              marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6,
+              marginLeft: 'auto', alignItems: 'center', gap: 6,
               padding: '6px 12px', borderRadius: 999, background: '#FFFFFF',
               border: '1px solid rgba(0,0,0,0.08)', color: '#1D1D1F',
               fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
