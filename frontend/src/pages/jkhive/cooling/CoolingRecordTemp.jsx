@@ -19,7 +19,12 @@ const CoolingRecordTemp = () => {
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
 
   useEffect(() => {
-    api.coolingGet(id).then(d => { setLog(d); setTemp(5); })
+    api.coolingGet(id).then(d => {
+      setLog(d);
+      // If a temp was already submitted, pre-fill it so the user can review
+      // / edit. Otherwise default to 5°C.
+      setTemp(d?.end_temp_c != null ? d.end_temp_c : 5);
+    })
       .catch(err => alert('Failed to load: ' + err.message));
   }, [id]);
 

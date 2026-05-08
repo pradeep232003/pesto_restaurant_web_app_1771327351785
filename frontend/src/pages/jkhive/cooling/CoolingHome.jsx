@@ -16,8 +16,6 @@ const CoolingHome = () => {
   const [items, setItems] = useState([]);
   const [completedToday, setCompletedToday] = useState([]);
   const [loading, setLoading] = useState(true);
-  // eslint-disable-next-line no-unused-vars
-  const [tick, setTick] = useState(0);
   const [pushState, setPushState] = useState('idle'); // idle | enabled | denied | unsupported
   const today = new Date().toISOString().slice(0, 10);
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
@@ -78,10 +76,17 @@ const CoolingHome = () => {
     if (!adminLocationId) { setLoading(false); return; }
     setLoading(true);
     loadData().finally(() => setLoading(false));
-    // Re-render every second so the HH:MM:SS clock counts up visibly.
-    const t = setInterval(() => setTick(x => x + 1), 1000);
-    return () => clearInterval(t);
   }, [adminLocationId, loadData]);
+
+  // Independent 1-second ticker — runs the entire time the component is
+  // mounted, decoupled from the data loader so it can't be torn down by
+  // unrelated re-renders. Stores `now` in state so every consumer of the
+  // HH:MM:SS clock re-renders together.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   // Pull-to-refresh on touch devices: drag down ≥ 70 px while at scroll-top.
   useEffect(() => {
@@ -141,9 +146,10 @@ const CoolingHome = () => {
   // Counts up indefinitely — the server-side push scheduler fires the
   // 75 / 90-min alerts (see /app/backend/routes/cooking_cooling.py).
   // We turn the text red once past 90:00 so it visually flags the breach.
+  // Reads `now` from state so React re-renders every second guaranteed.
   const clockCountdown = (startedAtIso, endIso) => {
     const start = new Date(startedAtIso).getTime();
-    const ref = endIso ? new Date(endIso).getTime() : Date.now();
+    const ref = endIso ? new Date(endIso).getTime() : now;
     const elapsed = Math.max(0, Math.floor((ref - start) / 1000));
     const hh = String(Math.floor(elapsed / 3600)).padStart(2, '0');
     const mm = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
@@ -290,7 +296,14 @@ const CoolingHome = () => {
                     boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
                     overflow: 'hidden',
                   }}>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: '12px 12px 12px 14px', minWidth: 0 }}>
+                  <button
+                    data-testid={`cooling-history-open-${it.id}`}
+                    onClick={() => navigate(`/jkhive/cooking-cooling/${it.id}/record`)}
+                    style={{
+                      flex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: '12px 12px 12px 14px',
+                      minWidth: 0, background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left',
+                      fontFamily: 'Outfit, sans-serif',
+                    }}>
                     <span style={{ fontSize: 28 }}>{categoryEmoji(it.item_category)}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 14, fontWeight: 700, color: '#1D1D1F', margin: 0 }}>{it.item_name}</p>
@@ -308,7 +321,7 @@ const CoolingHome = () => {
                       fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
                       background: passColor, color: '#FFFFFF', whiteSpace: 'nowrap',
                     }}>{passed ? 'PASS' : 'OVER'}</span>
-                  </div>
+                  </button>
                   <button
                     data-testid={`cooling-history-delete-${it.id}`}
                     onClick={(e) => handleDelete(it, e)}

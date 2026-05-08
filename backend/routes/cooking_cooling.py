@@ -167,13 +167,14 @@ async def complete_cooling(log_id: str, body: CompleteCoolingBody, user: dict = 
     existing = logs_collection.find_one({"id": log_id}, {"_id": 0})
     if not existing:
         raise HTTPException(404, "Not found")
-    if existing.get("status") == "complete":
-        raise HTTPException(400, "Already completed")
+    # Allow re-submitting a completed record (staff opening "Today's record" to
+    # correct an entry). We keep the original `completed_at` to preserve the
+    # 90-min audit trail and overwrite the rest.
     upd = {
         "status": "complete",
         "end_temp_c": body.end_temp_c,
         "comment": body.comment or "",
-        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "completed_at": existing.get("completed_at") or datetime.now(timezone.utc).isoformat(),
         "completed_by": user.get("email", ""),
         "completed_by_name": user.get("name", ""),
     }
