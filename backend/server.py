@@ -97,6 +97,7 @@ from routes.reheating import router as reheating_router
 from routes.cooked import router as cooked_router
 from routes.checklists import router as checklists_router
 from routes.deliveries import router as deliveries_router
+from routes.inventory import router as inventory_router
 from routes.push import router as push_router
 
 app.include_router(auth_router)
@@ -129,6 +130,7 @@ app.include_router(reheating_router)
 app.include_router(cooked_router)
 app.include_router(checklists_router)
 app.include_router(deliveries_router)
+app.include_router(inventory_router)
 app.include_router(push_router)
 
 # ============== PUBLIC ENDPOINTS ==============

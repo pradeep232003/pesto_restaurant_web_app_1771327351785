@@ -76,9 +76,14 @@ import ChecklistEditor from './pages/jkhive/checklists/ChecklistEditor';
 import DeliveriesHome from './pages/jkhive/deliveries/DeliveriesHome';
 import DeliveriesPickSupplier from './pages/jkhive/deliveries/PickSupplier';
 import DeliveriesAddSupplier from './pages/jkhive/deliveries/AddSupplier';
+import DeliveriesEditSupplier from './pages/jkhive/deliveries/EditSupplier';
 import DeliveriesPickItem from './pages/jkhive/deliveries/PickItem';
 import DeliveriesRecordTemp from './pages/jkhive/deliveries/RecordTemp';
 import DeliveriesCommentSubmit from './pages/jkhive/deliveries/CommentSubmit';
+import DeliveriesAskAddInventory from './pages/jkhive/deliveries/AskAddInventory';
+import DeliveriesAddStockAmount from './pages/jkhive/deliveries/AddStockAmount';
+import DeliveriesAddStockBatch from './pages/jkhive/deliveries/AddStockBatch';
+import DeliveriesReview from './pages/jkhive/deliveries/ReviewDelivery';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -192,9 +197,14 @@ const AppRouter = () => {
         <Route path="delivery-records" element={<DeliveriesHome />} />
         <Route path="delivery-records/supplier" element={<DeliveriesPickSupplier />} />
         <Route path="delivery-records/supplier/new" element={<DeliveriesAddSupplier />} />
+        <Route path="delivery-records/supplier/:id/edit" element={<DeliveriesEditSupplier />} />
         <Route path="delivery-records/item" element={<DeliveriesPickItem />} />
         <Route path="delivery-records/record" element={<DeliveriesRecordTemp />} />
         <Route path="delivery-records/comment" element={<DeliveriesCommentSubmit />} />
+        <Route path="delivery-records/inventory-prompt" element={<DeliveriesAskAddInventory />} />
+        <Route path="delivery-records/add-stock/amount" element={<DeliveriesAddStockAmount />} />
+        <Route path="delivery-records/add-stock/batch" element={<DeliveriesAddStockBatch />} />
+        <Route path="delivery-records/review" element={<DeliveriesReview /> } />
         <Route path="opening" element={<JKHiveOpeningRoutine />} />
         <Route path="opening/fridge-temp" element={<JKHiveOpeningFridgeTemp />} />
         <Route path="closing" element={<JKHiveClosingRoutine />} />

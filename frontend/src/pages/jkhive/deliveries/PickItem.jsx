@@ -6,10 +6,18 @@ import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader } from '../cooling/_shared';
 
 /**
- * /jkhive/delivery-records/item — pick ingredient (reuses cooking-cooling catalog).
- * Mirrors CookedPickItem; on select, navigates to record-temp screen.
+ * /jkhive/delivery-records/item — pick ingredient.
+ *
+ * Adds Fresh / Frozen / Dry / Prepared / Beverages section tabs (IMG_6688 spec)
+ * above the alphabetised category accordion. Each catalog category carries a
+ * `section` field served by /api/admin/cooking-cooling/catalog.
+ *
+ * For "Add another item" mode (state.itemsLogged set), navigation skips the
+ * temp/comment screens and routes straight to the inventory prompt — re-using
+ * the first item's temp + comment for the new delivery record.
  */
 const FAV_KEY = 'jkhive.delivery.favs';
+const SECTIONS = ['Fresh', 'Frozen', 'Dry', 'Prepared', 'Beverages'];
 
 const PickItem = () => {
   const navigate = useNavigate();
@@ -18,6 +26,7 @@ const PickItem = () => {
   const [catalog, setCatalog] = useState([]);
   const [open, setOpen] = useState(null);
   const [search, setSearch] = useState('');
+  const [section, setSection] = useState('Fresh');
   const [favs, setFavs] = useState(() => {
     try { return JSON.parse(localStorage.getItem(FAV_KEY)) || []; } catch { return []; }
   });
@@ -26,6 +35,7 @@ const PickItem = () => {
 
   const today = new Date().toISOString().slice(0, 10);
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
+  const isSubsequent = Array.isArray(state?.itemsLogged) && state.itemsLogged.length > 0;
 
   useEffect(() => {
     if (!adminLocationId) return;
@@ -42,8 +52,9 @@ const PickItem = () => {
     localStorage.setItem(FAV_KEY, JSON.stringify(next));
   };
 
+  // Filter by section, then sort favourites first.
   const ordered = useMemo(() => {
-    const arr = [...catalog];
+    const arr = catalog.filter(c => (c.section || 'Fresh') === section);
     arr.sort((a, b) => {
       const af = favs.includes(a.name) ? 0 : 1;
       const bf = favs.includes(b.name) ? 0 : 1;
@@ -51,7 +62,7 @@ const PickItem = () => {
       return a.name.localeCompare(b.name);
     });
     return arr;
-  }, [catalog, favs]);
+  }, [catalog, favs, section]);
 
   const searchResults = useMemo(() => {
     if (!search.trim()) return null;
@@ -59,16 +70,32 @@ const PickItem = () => {
     const out = [];
     catalog.forEach(c => c.items.forEach(item => {
       if (item.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)) {
-        out.push({ category: c.name, item });
+        out.push({ category: c.name, section: c.section, item, icon: c.icon });
       }
     }));
     return out;
   }, [catalog, search]);
 
-  const goRecord = (category, itemPart) => {
-    navigate('/jkhive/delivery-records/record', {
-      state: { supplier: state.supplier, itemName: `${category} (${itemPart})`, category },
-    });
+  /**
+   * On item pick: for the first item, route to /record (temperature wizard).
+   * For subsequent items in the same delivery, skip /record + /comment and go
+   * straight to the Add-to-Inventory prompt — inheriting the first item's temp
+   * (it's saved as a delivery record on inventory-prompt mount).
+   */
+  const goNext = (category, itemPart, icon) => {
+    const itemName = `${category} (${itemPart})`;
+    const baseState = {
+      supplier: state.supplier,
+      itemName, category, itemIcon: icon,
+      itemsLogged: state.itemsLogged || [],
+      sharedTemp: state.sharedTemp,
+      sharedComment: state.sharedComment,
+    };
+    if (isSubsequent) {
+      navigate('/jkhive/delivery-records/inventory-prompt', { state: { ...baseState, autoSaveRecord: true } });
+    } else {
+      navigate('/jkhive/delivery-records/record', { state: baseState });
+    }
   };
 
   const submitCustom = async (cat) => {
@@ -84,13 +111,14 @@ const PickItem = () => {
 
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'Outfit, sans-serif' }} data-testid="delivery-pick-item">
-      <WizardHeader title="Select an Ingredient" locationName={locationName} dateStr={today} backTo="/jkhive/delivery-records/supplier" />
+      <WizardHeader title="Select an Ingredient" locationName={locationName} dateStr={today} backTo={isSubsequent ? '/jkhive/delivery-records/review' : '/jkhive/delivery-records/supplier'} />
 
       <p style={{ fontSize: 12, color: '#86868B', textAlign: 'center', margin: '0 0 12px' }}>
         Supplier: <b style={{ color: '#1D1D1F' }}>{state.supplier.name}</b>
       </p>
 
-      <div style={{ position: 'relative', marginBottom: 14 }}>
+      {/* Search */}
+      <div style={{ position: 'relative', marginBottom: 12 }}>
         <Search size={18} strokeWidth={2.4} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: '#86868B' }} />
         <input data-testid="delivery-search"
           value={search} onChange={e => setSearch(e.target.value)}
@@ -103,18 +131,44 @@ const PickItem = () => {
           }} />
       </div>
 
+      {/* Section tabs */}
+      {!searchResults && (
+        <div style={{
+          display: 'flex', overflowX: 'auto', gap: 18, padding: '4px 2px 14px',
+          borderBottom: '1px solid rgba(0,0,0,0.06)', marginBottom: 12,
+          scrollbarWidth: 'none',
+        }}>
+          {SECTIONS.map(s => {
+            const active = s === section;
+            return (
+              <button key={s} data-testid={`section-tab-${s.toLowerCase()}`}
+                onClick={() => { setSection(s); setOpen(null); }}
+                style={{
+                  flex: '0 0 auto', padding: '6px 0', background: 'transparent',
+                  border: 0, borderBottom: `2.5px solid ${active ? '#FF3B30' : 'transparent'}`,
+                  fontSize: 15, fontWeight: active ? 800 : 500,
+                  color: active ? '#1D1D1F' : '#86868B',
+                  cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                }}>{s}</button>
+            );
+          })}
+        </div>
+      )}
+
       {searchResults && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {searchResults.length === 0 && <p style={{ color: '#86868B', textAlign: 'center', padding: 16 }}>No matches.</p>}
           {searchResults.map((r, i) => (
-            <button key={i} onClick={() => goRecord(r.category, r.item)}
+            <button key={i} onClick={() => goNext(r.category, r.item, r.icon)}
               data-testid={`delivery-search-${i}`}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
                 background: '#FFFFFF', borderRadius: 14, border: 0, cursor: 'pointer', textAlign: 'left',
                 boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
               }}>
-              <p style={{ fontSize: 15, fontWeight: 600, color: '#1D1D1F', margin: 0 }}>{r.category} ({r.item})</p>
+              <span style={{ fontSize: 24 }}>{r.icon}</span>
+              <p style={{ flex: 1, fontSize: 15, fontWeight: 600, color: '#1D1D1F', margin: 0 }}>{r.category} ({r.item})</p>
+              <span style={{ fontSize: 10, color: '#86868B', textTransform: 'uppercase' }}>{r.section}</span>
             </button>
           ))}
         </div>
@@ -122,6 +176,13 @@ const PickItem = () => {
 
       {!searchResults && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {ordered.length === 0 && (
+            <div style={{ background: '#FFFFFF', borderRadius: 16, padding: '28px 18px', textAlign: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+              <p style={{ fontSize: 14, color: '#86868B', margin: 0 }}>
+                No items in <b>{section}</b> yet. Use search above, switch tabs, or add a custom item.
+              </p>
+            </div>
+          )}
           {ordered.map(c => {
             const isOpen = open === c.name;
             const isFav = favs.includes(c.name);
@@ -145,7 +206,7 @@ const PickItem = () => {
                   <div style={{ padding: '4px 12px 16px' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                       {c.items.map(itm => (
-                        <button key={itm} onClick={() => goRecord(c.name, itm)}
+                        <button key={itm} onClick={() => goNext(c.name, itm, c.icon)}
                           data-testid={`delivery-item-${c.name}-${itm}`}
                           style={{
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,

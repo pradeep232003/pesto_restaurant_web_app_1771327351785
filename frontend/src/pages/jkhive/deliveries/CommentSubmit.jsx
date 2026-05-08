@@ -1,18 +1,20 @@
 import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { MessageSquare, Check } from 'lucide-react';
-import api from '../../../lib/api';
+import { MessageSquare } from 'lucide-react';
 import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader } from '../cooling/_shared';
 
-/** /jkhive/delivery-records/comment — final step: optional comment + Submit Record. */
+/**
+ * /jkhive/delivery-records/comment — optional 250-char comment.
+ * Submitting routes to the AskAddInventory screen (which will save the
+ * delivery record on mount). The temp + comment are stashed in route state
+ * so subsequent items in the same delivery inherit them (1b workflow).
+ */
 const CommentSubmit = () => {
   const navigate = useNavigate();
   const { state } = useLocation();
   const { adminLocationId, locations } = useLocation2();
   const [comment, setComment] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
 
@@ -20,44 +22,17 @@ const CommentSubmit = () => {
     return <Navigate to="/jkhive/delivery-records/supplier" replace />;
   }
 
-  const submit = async () => {
-    setSubmitting(true);
-    try {
-      await api.deliveriesRecord({
-        location_id: adminLocationId,
-        supplier_id: state.supplier.id,
-        item_name: state.itemName,
-        item_category: state.category,
-        temp_c: state.temp,
+  const next = () => {
+    navigate('/jkhive/delivery-records/inventory-prompt', {
+      state: {
+        ...state,
         comment,
-      });
-      setDone(true);
-    } catch (err) {
-      alert('Submit failed: ' + err.message);
-    } finally { setSubmitting(false); }
+        sharedTemp: state.temp,
+        sharedComment: comment,
+        autoSaveRecord: true,
+      },
+    });
   };
-
-  if (done) {
-    return (
-      <div style={{ padding: '24px 12px', fontFamily: 'Outfit, sans-serif' }} data-testid="delivery-done">
-        <div style={{ background: '#FFFFFF', borderRadius: 24, padding: '36px 22px', textAlign: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.04)', marginTop: 80 }}>
-          <div style={{ width: 72, height: 72, borderRadius: 999, background: '#34C759', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-            <Check size={36} strokeWidth={2.6} color="#fff" />
-          </div>
-          <h2 style={{ fontSize: 24, fontWeight: 800, color: '#1D1D1F', margin: '0 0 6px' }}>Delivery saved!</h2>
-          <p style={{ fontSize: 14, color: '#3A3A3C', margin: '0 0 18px' }}>
-            {state.itemName} from {state.supplier.name} at {Number(state.temp).toFixed(1)}°C — logged against {locationName}.
-          </p>
-          <button data-testid="delivery-done-back"
-            onClick={() => navigate('/jkhive/delivery-records', { replace: true })}
-            style={{
-              width: '100%', padding: '14px 16px', borderRadius: 999, border: 0,
-              background: '#1D1D1F', color: '#FFFFFF', fontSize: 16, fontWeight: 600, cursor: 'pointer',
-            }}>Done</button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'Outfit, sans-serif' }} data-testid="delivery-comment">
@@ -87,14 +62,13 @@ const CommentSubmit = () => {
       <p style={{ fontSize: 12, color: '#86868B', textAlign: 'right', marginTop: 6 }}>{comment.length}/250</p>
 
       <div style={{ position: 'fixed', left: 16, right: 16, bottom: 96, maxWidth: 600, margin: '0 auto', zIndex: 5 }}>
-        <button data-testid="delivery-submit-btn" onClick={submit} disabled={submitting}
+        <button data-testid="delivery-submit-btn" onClick={next}
           style={{
             width: '100%', padding: '18px 16px', borderRadius: 999, border: 0,
             background: '#1D1D1F', color: '#FFFFFF', fontSize: 17, fontWeight: 600,
-            cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1,
-            boxShadow: '0 6px 18px rgba(0,0,0,0.18)', fontFamily: 'Outfit, sans-serif',
+            cursor: 'pointer', boxShadow: '0 6px 18px rgba(0,0,0,0.18)', fontFamily: 'Outfit, sans-serif',
           }}>
-          {submitting ? 'Submitting…' : 'Submit Record'}
+          Submit Record
         </button>
       </div>
     </div>

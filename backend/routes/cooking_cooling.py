@@ -25,24 +25,28 @@ custom_collection = db["cooking_cooling_custom"]
 
 # Default master catalog. Categories are alphabetised (matches the screenshots).
 # Each category has a single emoji icon used for every item card in that category.
+# `section` groups categories under the Fresh / Frozen / Dry / Prepared / Beverages
+# tab bar in the JKHive ingredient picker (matches IMG_6688).
 DEFAULT_CATALOG = {
-    "Beef":            {"icon": "🐄", "items": ["Brisket", "Chuck", "Diced", "Fillet", "Mince", "Ribeye", "Rump", "Sirloin", "Stewing"]},
-    "Chicken":         {"icon": "🐔", "items": ["Breast", "Drum stick", "Fillet", "Fronts", "Gizzard", "Heart", "Leg", "Liver", "Supremes", "Thigh", "Wing", "Whole bird"]},
-    "Eggs":            {"icon": "🥚", "items": ["Whole", "Yolks", "Whites"]},
-    "Fish (other)":    {"icon": "🎣", "items": ["Anchovy", "Cod", "Haddock", "Sardine", "Tuna"]},
-    "Flat Fish":       {"icon": "🐟", "items": ["Sole", "Plaice", "Halibut", "Turbot"]},
-    "Game":            {"icon": "🦌", "items": ["Venison", "Pheasant", "Rabbit", "Duck (game)", "Partridge"]},
-    "Lamb":            {"icon": "🐑", "items": ["Leg", "Shoulder", "Mince", "Chops", "Rack", "Diced"]},
-    "Milk":            {"icon": "🥛", "items": ["Whole", "Semi-skimmed", "Cream", "Custard"]},
-    "Molluscs":        {"icon": "🦑", "items": ["Squid", "Octopus", "Mussels", "Clams", "Oysters"]},
-    "Pastry":          {"icon": "🥐", "items": ["Shortcrust", "Puff", "Filo", "Choux"]},
-    "Pork":            {"icon": "🐷", "items": ["Belly", "Loin", "Mince", "Sausages", "Ribs", "Shoulder", "Bacon"]},
-    "Rice And Grains": {"icon": "🌾", "items": ["Rice (white)", "Rice (brown)", "Pasta", "Couscous", "Quinoa", "Bulgur"]},
-    "Round Fish":      {"icon": "🐠", "items": ["Salmon", "Sea bass", "Mackerel", "Trout"]},
-    "Salad":           {"icon": "🥗", "items": ["Mixed greens", "Coleslaw", "Pasta salad", "Potato salad"]},
-    "Turkey":          {"icon": "🦃", "items": ["Breast", "Whole bird", "Mince", "Crown"]},
-    "General":         {"icon": "🥘", "items": ["Soup", "Sauce", "Stew", "Curry", "Casserole", "Stock", "Gravy"]},
+    "Beef":            {"icon": "🐄", "section": "Fresh",    "items": ["Brisket", "Chuck", "Diced", "Fillet", "Flank", "Mince", "Ribeye", "Rump", "Sirloin", "Stewing"]},
+    "Chicken":         {"icon": "🐔", "section": "Fresh",    "items": ["Breast", "Drum stick", "Fillet", "Fronts", "Gizzard", "Heart", "Leg", "Liver", "Supremes", "Thigh", "Wing", "Whole bird"]},
+    "Eggs":            {"icon": "🥚", "section": "Fresh",    "items": ["Whole", "Yolks", "Whites"]},
+    "Fish (other)":    {"icon": "🎣", "section": "Fresh",    "items": ["Anchovy", "Cod", "Haddock", "Sardine", "Tuna"]},
+    "Flat Fish":       {"icon": "🐟", "section": "Fresh",    "items": ["Sole", "Plaice", "Halibut", "Turbot"]},
+    "Game":            {"icon": "🦌", "section": "Fresh",    "items": ["Venison", "Pheasant", "Rabbit", "Duck (game)", "Partridge"]},
+    "Lamb":            {"icon": "🐑", "section": "Fresh",    "items": ["Leg", "Shoulder", "Mince", "Chops", "Rack", "Diced"]},
+    "Milk":            {"icon": "🥛", "section": "Fresh",    "items": ["Whole", "Semi-skimmed", "Cream", "Custard"]},
+    "Molluscs":        {"icon": "🦑", "section": "Fresh",    "items": ["Squid", "Octopus", "Mussels", "Clams", "Oysters"]},
+    "Pastry":          {"icon": "🥐", "section": "Prepared", "items": ["Shortcrust", "Puff", "Filo", "Choux"]},
+    "Pork":            {"icon": "🐷", "section": "Fresh",    "items": ["Belly", "Loin", "Mince", "Sausages", "Ribs", "Shoulder", "Bacon"]},
+    "Rice And Grains": {"icon": "🌾", "section": "Dry",      "items": ["Rice (white)", "Rice (brown)", "Pasta", "Couscous", "Quinoa", "Bulgur"]},
+    "Round Fish":      {"icon": "🐠", "section": "Fresh",    "items": ["Salmon", "Sea bass", "Mackerel", "Trout"]},
+    "Salad":           {"icon": "🥗", "section": "Prepared", "items": ["Mixed greens", "Coleslaw", "Pasta salad", "Potato salad"]},
+    "Turkey":          {"icon": "🦃", "section": "Fresh",    "items": ["Breast", "Whole bird", "Mince", "Crown"]},
+    "General":         {"icon": "🥘", "section": "Prepared", "items": ["Soup", "Sauce", "Stew", "Curry", "Casserole", "Stock", "Gravy"]},
 }
+
+VALID_SECTIONS = ["Fresh", "Frozen", "Dry", "Prepared", "Beverages"]
 
 
 # ============== MODELS ==============
@@ -72,18 +76,18 @@ class CompleteCoolingBody(BaseModel):
 async def get_catalog(location_id: str = Query(...), user: dict = Depends(get_staff_or_above)):
     """Return the merged catalog: default categories + this-location's custom items."""
     # Start from defaults
-    catalog = {cat: {"icon": meta["icon"], "items": list(meta["items"])} for cat, meta in DEFAULT_CATALOG.items()}
+    catalog = {cat: {"icon": meta["icon"], "section": meta.get("section", "Fresh"), "items": list(meta["items"])} for cat, meta in DEFAULT_CATALOG.items()}
     # Merge custom items for this location
     for c in custom_collection.find({"location_id": location_id}, {"_id": 0}):
         cat = c.get("category") or "General"
         if cat not in catalog:
-            catalog[cat] = {"icon": "🥘", "items": []}
+            catalog[cat] = {"icon": "🥘", "section": c.get("section", "Fresh"), "items": []}
         if c["name"] not in catalog[cat]["items"]:
             catalog[cat]["items"].append(c["name"])
     return {"categories": [
-        {"name": cat, "icon": meta["icon"], "items": meta["items"]}
+        {"name": cat, "icon": meta["icon"], "section": meta["section"], "items": meta["items"]}
         for cat, meta in catalog.items()
-    ]}
+    ], "sections": VALID_SECTIONS}
 
 
 @router.post("/catalog")

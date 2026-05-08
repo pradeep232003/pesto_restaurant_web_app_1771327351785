@@ -810,10 +810,20 @@ class ApiService {
   // ============== DELIVERIES (JKHive goods-in) ==============
   async deliveriesSuppliersList(locationId) { return this.fetch(`/api/admin/deliveries/suppliers?location_id=${encodeURIComponent(locationId)}`); }
   async deliveriesSupplierAdd(data) { return this.fetch('/api/admin/deliveries/suppliers', { method: 'POST', body: JSON.stringify(data) }); }
+  async deliveriesSupplierUpdate(id, data) { return this.fetch(`/api/admin/deliveries/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async deliveriesSupplierDelete(id) { return this.fetch(`/api/admin/deliveries/suppliers/${id}`, { method: 'DELETE' }); }
   async deliveriesList(locationId) { return this.fetch(`/api/admin/deliveries?location_id=${encodeURIComponent(locationId)}`); }
   async deliveriesRecord(data) { return this.fetch('/api/admin/deliveries', { method: 'POST', body: JSON.stringify(data) }); }
   async deliveriesDelete(id) { return this.fetch(`/api/admin/deliveries/${id}`, { method: 'DELETE' }); }
+
+  // ============== INVENTORY ==============
+  async inventoryAddStock(data) { return this.fetch('/api/admin/inventory/stock', { method: 'POST', body: JSON.stringify(data) }); }
+  async inventoryList(locationId) { return this.fetch(`/api/admin/inventory?location_id=${encodeURIComponent(locationId)}`); }
+  async inventoryBatches(locationId, opts = {}) {
+    const qs = new URLSearchParams({ location_id: locationId, ...opts }).toString();
+    return this.fetch(`/api/admin/inventory/batches?${qs}`);
+  }
+  async inventoryBatchDelete(batchId) { return this.fetch(`/api/admin/inventory/batches/${batchId}`, { method: 'DELETE' }); }
 
   // ============== CHECKLISTS ==============
   async checklistList(locationId, frequency) {

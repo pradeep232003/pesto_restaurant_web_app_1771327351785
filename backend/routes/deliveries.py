@@ -1,7 +1,9 @@
 """
 Goods-in / Deliveries log:
-  • Suppliers per location (CRUD, admin-managed)
-  • Delivery records: supplier × ingredient × temp + comment
+  • Suppliers (CRUD, admin-managed) — each supplier is scoped to one or more
+    site IDs via a `sites` array. An empty `sites` array means the supplier
+    is global (visible at every location).
+  • Delivery records: supplier × ingredient × temp + comment.
 
 Reuses the cooking_cooling catalog endpoint for ingredient picking.
 """
@@ -10,7 +12,7 @@ from datetime import datetime, timezone
 from typing import List, Optional, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from db import db
 from auth import get_staff_or_above
@@ -27,10 +29,18 @@ SupplierType = Literal["general", "fishmonger", "butcher", "greengrocer",
 # ============== MODELS ==============
 
 class SupplierBody(BaseModel):
-    location_id: str
     name: str
     type: SupplierType = "general"
     info: Optional[str] = ""
+    # Empty list = global (visible at every site).
+    sites: List[str] = Field(default_factory=list)
+
+
+class SupplierUpdate(BaseModel):
+    name: Optional[str] = None
+    type: Optional[SupplierType] = None
+    info: Optional[str] = None
+    sites: Optional[List[str]] = None
 
 
 class RecordBody(BaseModel):
@@ -42,11 +52,33 @@ class RecordBody(BaseModel):
     comment: Optional[str] = ""
 
 
+def _migrate(doc: dict) -> dict:
+    """Back-compat: legacy suppliers had a single `location_id`. Convert to sites array on read."""
+    if "sites" not in doc:
+        loc = doc.get("location_id")
+        doc["sites"] = [loc] if loc else []
+    return doc
+
+
 # ============== SUPPLIERS ==============
 
 @router.get("/suppliers")
-async def list_suppliers(location_id: str = Query(...), user: dict = Depends(get_staff_or_above)):
-    return list(suppliers.find({"location_id": location_id}, {"_id": 0}).sort("name", 1))
+async def list_suppliers(
+    location_id: str = Query(...),
+    user: dict = Depends(get_staff_or_above),
+):
+    """List suppliers visible at the given location.
+    A supplier is visible if its sites array is empty (global) or includes location_id.
+    Also includes legacy suppliers that still carry the old `location_id` field.
+    """
+    cursor = suppliers.find({
+        "$or": [
+            {"sites": {"$in": [location_id]}},
+            {"sites": {"$size": 0}},
+            {"sites": {"$exists": False}, "location_id": location_id},
+        ]
+    }, {"_id": 0}).sort("name", 1)
+    return [_migrate(dict(d)) for d in cursor]
 
 
 @router.post("/suppliers")
@@ -56,15 +88,39 @@ async def add_supplier(body: SupplierBody, user: dict = Depends(get_staff_or_abo
         raise HTTPException(400, "Name required")
     doc = {
         "id": str(uuid.uuid4())[:12],
-        "location_id": body.location_id,
         "name": name,
         "type": body.type,
         "info": body.info or "",
+        "sites": body.sites or [],
         "created_at": datetime.now(timezone.utc).isoformat(),
         "created_by": user.get("email", ""),
     }
     suppliers.insert_one(dict(doc))
     return {k: v for k, v in doc.items() if k != "_id"}
+
+
+@router.patch("/suppliers/{supplier_id}")
+async def update_supplier(supplier_id: str, body: SupplierUpdate, user: dict = Depends(get_staff_or_above)):
+    existing = suppliers.find_one({"id": supplier_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(404, "Not found")
+    update = {}
+    if body.name is not None:
+        n = body.name.strip()
+        if not n:
+            raise HTTPException(400, "Name cannot be empty")
+        update["name"] = n
+    if body.type is not None:
+        update["type"] = body.type
+    if body.info is not None:
+        update["info"] = body.info
+    if body.sites is not None:
+        update["sites"] = body.sites
+    if update:
+        update["updated_at"] = datetime.now(timezone.utc).isoformat()
+        suppliers.update_one({"id": supplier_id}, {"$set": update})
+    fresh = suppliers.find_one({"id": supplier_id}, {"_id": 0})
+    return _migrate(dict(fresh))
 
 
 @router.delete("/suppliers/{supplier_id}")
