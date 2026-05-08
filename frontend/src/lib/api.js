@@ -807,6 +807,14 @@ class ApiService {
   async cookedRecord(data) { return this.fetch('/api/admin/cooked', { method: 'POST', body: JSON.stringify(data) }); }
   async cookedDelete(id) { return this.fetch(`/api/admin/cooked/${id}`, { method: 'DELETE' }); }
 
+  // ============== DELIVERIES (JKHive goods-in) ==============
+  async deliveriesSuppliersList(locationId) { return this.fetch(`/api/admin/deliveries/suppliers?location_id=${encodeURIComponent(locationId)}`); }
+  async deliveriesSupplierAdd(data) { return this.fetch('/api/admin/deliveries/suppliers', { method: 'POST', body: JSON.stringify(data) }); }
+  async deliveriesSupplierDelete(id) { return this.fetch(`/api/admin/deliveries/suppliers/${id}`, { method: 'DELETE' }); }
+  async deliveriesList(locationId) { return this.fetch(`/api/admin/deliveries?location_id=${encodeURIComponent(locationId)}`); }
+  async deliveriesRecord(data) { return this.fetch('/api/admin/deliveries', { method: 'POST', body: JSON.stringify(data) }); }
+  async deliveriesDelete(id) { return this.fetch(`/api/admin/deliveries/${id}`, { method: 'DELETE' }); }
+
   // ============== CHECKLISTS ==============
   async checklistList(locationId, frequency) {
     const qs = new URLSearchParams({ location_id: locationId, ...(frequency ? { frequency } : {}) }).toString();

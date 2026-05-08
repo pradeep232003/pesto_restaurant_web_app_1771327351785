@@ -9,23 +9,27 @@ const Routines = () => {
   const { adminLocationId } = useLocation2();
   const [coolingLogs, setCoolingLogs] = useState([]);
   const [completedTodayCount, setCompletedTodayCount] = useState(0);
+  const [deliveriesTodayCount, setDeliveriesTodayCount] = useState(0);
   const [tick, setTick] = useState(0);
 
   // Refresh from server on mount + every 60s; recompute age every 30s.
   useEffect(() => {
-    if (!adminLocationId) { setCoolingLogs([]); setCompletedTodayCount(0); return; }
+    if (!adminLocationId) { setCoolingLogs([]); setCompletedTodayCount(0); setDeliveriesTodayCount(0); return; }
     let cancelled = false;
     const todayLocal = () => new Date().toISOString().slice(0, 10);
     const load = () => Promise.all([
       api.coolingList(adminLocationId, 'cooling'),
       api.coolingList(adminLocationId, 'complete'),
-    ]).then(([active, complete]) => {
+      api.deliveriesList(adminLocationId).catch(() => []),
+    ]).then(([active, complete, deliveries]) => {
       if (cancelled) return;
       setCoolingLogs(active || []);
       reconcile(active || []);
       const t = todayLocal();
       const n = (complete || []).filter(c => (c.completed_at || c.started_at || '').slice(0, 10) === t).length;
       setCompletedTodayCount(n);
+      const d = (deliveries || []).filter(r => (r.recorded_at || '').slice(0, 10) === t).length;
+      setDeliveriesTodayCount(d);
     }).catch(() => {});
     load();
     const refresh = setInterval(load, 60000);
@@ -61,7 +65,8 @@ const Routines = () => {
               badge={coolingCount} badgeColor={badgeColor} />
         <Tile testId="tile-checklists"          to="/jkhive/checklists"        icon={ListChecks}  color="#34C759" title="Checklists"         subtitle="Custom checklists" />
         <Tile testId="tile-reheating"           to="/jkhive/reheating"         icon={Flame}       color="#FF3B30" title="Reheating"          subtitle="≥ 75°C reheat log" />
-        <Tile testId="tile-deliveries"          to="/jkhive/delivery-records"  icon={Truck}       color="#8E8E93" title="Deliveries"         subtitle="Goods-in records" />
+        <Tile testId="tile-deliveries"          to="/jkhive/delivery-records"  icon={Truck}       color="#8E8E93" title="Deliveries"         subtitle="Goods-in records"
+              badge={deliveriesTodayCount} badgeColor="#0A84C9" />
         <Tile testId="tile-cooking"             to="/jkhive/cooked-temp"       icon={ChefHat}     color="#FF2D55" title="Cooking"            subtitle="Cooked-temp log" />
         <Tile testId="tile-other-routines"      to="/jkhive/routines/more"     icon={MoreHorizontal} color="#3A3A3C" title="Other"           subtitle="Probe, holding, more…" />
       </div>

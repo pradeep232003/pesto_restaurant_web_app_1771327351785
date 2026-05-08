@@ -50,7 +50,6 @@ import JKHiveDailyChecks from './pages/jkhive-daily-checks';
 import JKHiveKitchenClosedown from './pages/jkhive-kitchen-closedown';
 import JKHiveTempMonitor from './pages/jkhive-temp-monitor';
 import JKHiveCookedTemp from './pages/jkhive-cooked-temp';
-import JKHiveDeliveryRecords from './pages/jkhive-delivery-records';
 import JKHiveOpeningRoutine from './pages/jkhive/OpeningRoutine';
 import JKHiveOpeningFridgeTemp from './pages/jkhive/OpeningFridgeTemp';
 import JKHiveClosingRoutine from './pages/jkhive/ClosingRoutine';
@@ -74,6 +73,12 @@ import CookedComment from './pages/jkhive/cooked/CookedComment';
 import ChecklistsHome from './pages/jkhive/checklists/ChecklistsHome';
 import ChecklistRun from './pages/jkhive/checklists/ChecklistRun';
 import ChecklistEditor from './pages/jkhive/checklists/ChecklistEditor';
+import DeliveriesHome from './pages/jkhive/deliveries/DeliveriesHome';
+import DeliveriesPickSupplier from './pages/jkhive/deliveries/PickSupplier';
+import DeliveriesAddSupplier from './pages/jkhive/deliveries/AddSupplier';
+import DeliveriesPickItem from './pages/jkhive/deliveries/PickItem';
+import DeliveriesRecordTemp from './pages/jkhive/deliveries/RecordTemp';
+import DeliveriesCommentSubmit from './pages/jkhive/deliveries/CommentSubmit';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -184,7 +189,12 @@ const AppRouter = () => {
         <Route path="checklists/new" element={<ChecklistEditor />} />
         <Route path="checklists/:id/run" element={<ChecklistRun />} />
         <Route path="checklists/:id/edit" element={<ChecklistEditor />} />
-        <Route path="delivery-records" element={<JKHiveDeliveryRecords />} />
+        <Route path="delivery-records" element={<DeliveriesHome />} />
+        <Route path="delivery-records/supplier" element={<DeliveriesPickSupplier />} />
+        <Route path="delivery-records/supplier/new" element={<DeliveriesAddSupplier />} />
+        <Route path="delivery-records/item" element={<DeliveriesPickItem />} />
+        <Route path="delivery-records/record" element={<DeliveriesRecordTemp />} />
+        <Route path="delivery-records/comment" element={<DeliveriesCommentSubmit />} />
         <Route path="opening" element={<JKHiveOpeningRoutine />} />
         <Route path="opening/fridge-temp" element={<JKHiveOpeningFridgeTemp />} />
         <Route path="closing" element={<JKHiveClosingRoutine />} />
