@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Snowflake, ArrowLeft, Bell, BellOff } from 'lucide-react';
+import { Plus, Snowflake, ArrowLeft, Bell, BellOff, Trash2 } from 'lucide-react';
 import api from '../../../lib/api';
 import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader } from './_shared';
-import { reconcile, ageStatus, STATUS_COLOR, STATUS_LABEL } from './cooling_alarms';
+import { reconcile, ageStatus, STATUS_COLOR, STATUS_LABEL, clearForLog } from './cooling_alarms';
 import { ensurePushSubscribed, pushSupported } from './webpush';
 
 /**
@@ -35,6 +35,20 @@ const CoolingHome = () => {
     if (r.ok) setPushState('enabled');
     else if (r.reason === 'denied') setPushState('denied');
     else if (r.reason === 'unsupported') setPushState('unsupported');
+  };
+
+  // Confirm-then-delete an in-progress cooling record (e.g. accidental start).
+  const handleDelete = async (it, e) => {
+    e.stopPropagation();
+    const ok = window.confirm(`Delete "${it.item_name}"?\n\nThis will permanently remove this cooling record. This can't be undone.`);
+    if (!ok) return;
+    try {
+      await api.coolingDelete(it.id);
+      clearForLog(it.id);
+      setItems(prev => prev.filter(x => x.id !== it.id));
+    } catch (err) {
+      alert('Failed to delete: ' + err.message);
+    }
   };
 
   useEffect(() => {
@@ -94,29 +108,51 @@ const CoolingHome = () => {
               const color = STATUS_COLOR[status];
               const label = STATUS_LABEL[status];
               return (
-                <button
+                <div
                   key={it.id}
-                  data-testid={`cooling-item-${it.id}`}
-                  onClick={() => navigate(`/jkhive/cooking-cooling/${it.id}/record`)}
+                  data-testid={`cooling-row-${it.id}`}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 14, padding: '16px 16px',
-                    background: '#FFFFFF', borderRadius: 20, border: 0, cursor: 'pointer', textAlign: 'left',
+                    display: 'flex', alignItems: 'stretch',
+                    background: '#FFFFFF', borderRadius: 20,
                     boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
                     borderLeft: `4px solid ${color}`,
+                    overflow: 'hidden',
                   }}
                 >
-                  <span style={{ fontSize: 36 }}>{categoryEmoji(it.item_category)}</span>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 16, fontWeight: 700, color: '#1D1D1F', margin: 0 }}>{it.item_name}</p>
-                    <p style={{ fontSize: 12, color: '#86868B', margin: '2px 0 0' }}>
-                      Started at {Number(it.start_temp_c).toFixed(1)}°C · {elapsed(it.started_at)}
-                    </p>
-                  </div>
-                  <span data-testid={`cooling-status-${status}`} style={{
-                    fontSize: 11, fontWeight: 800, padding: '4px 10px', borderRadius: 999,
-                    background: color, color: '#FFFFFF', whiteSpace: 'nowrap',
-                  }}>{label}</span>
-                </button>
+                  <button
+                    data-testid={`cooling-item-${it.id}`}
+                    onClick={() => navigate(`/jkhive/cooking-cooling/${it.id}/record`)}
+                    style={{
+                      flex: 1, display: 'flex', alignItems: 'center', gap: 14, padding: '16px 12px 16px 16px',
+                      background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left',
+                      fontFamily: 'Outfit, sans-serif',
+                    }}
+                  >
+                    <span style={{ fontSize: 36 }}>{categoryEmoji(it.item_category)}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: '#1D1D1F', margin: 0 }}>{it.item_name}</p>
+                      <p style={{ fontSize: 12, color: '#86868B', margin: '2px 0 0' }}>
+                        Started at {Number(it.start_temp_c).toFixed(1)}°C · {elapsed(it.started_at)}
+                      </p>
+                    </div>
+                    <span data-testid={`cooling-status-${status}`} style={{
+                      fontSize: 11, fontWeight: 800, padding: '4px 10px', borderRadius: 999,
+                      background: color, color: '#FFFFFF', whiteSpace: 'nowrap',
+                    }}>{label}</span>
+                  </button>
+                  <button
+                    data-testid={`cooling-delete-${it.id}`}
+                    onClick={(e) => handleDelete(it, e)}
+                    aria-label={`Delete ${it.item_name}`}
+                    style={{
+                      width: 52, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: 'transparent', border: 0, borderLeft: '1px solid rgba(0,0,0,0.06)',
+                      cursor: 'pointer', color: '#FF3B30',
+                    }}
+                  >
+                    <Trash2 size={18} strokeWidth={2.2} />
+                  </button>
+                </div>
               );
             })}
           </div>
