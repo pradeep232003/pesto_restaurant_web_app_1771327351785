@@ -78,14 +78,29 @@ const CoolingHome = () => {
     loadData().finally(() => setLoading(false));
   }, [adminLocationId, loadData]);
 
-  // Independent 1-second ticker — runs the entire time the component is
-  // mounted, decoupled from the data loader so it can't be torn down by
-  // unrelated re-renders. Stores `now` in state so every consumer of the
-  // HH:MM:SS clock re-renders together.
+  // Independent ticker — runs the entire time the component is mounted,
+  // decoupled from the data loader so it can't be torn down by unrelated
+  // re-renders. Uses BOTH a 1-second setInterval AND a requestAnimationFrame
+  // loop so iOS Safari / PWA can't pause it; also refreshes on visibility
+  // change so backgrounded tabs catch up the moment they come forward.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
+    let raf = 0;
+    let lastSec = 0;
+    const tick = () => {
+      const t = Date.now();
+      if (t - lastSec >= 1000) { lastSec = t; setNow(t); }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    const onVis = () => { if (document.visibilityState === 'visible') setNow(Date.now()); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, []);
 
   // Pull-to-refresh on touch devices: drag down ≥ 70 px while at scroll-top.
