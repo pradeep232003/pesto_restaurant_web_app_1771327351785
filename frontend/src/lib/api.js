@@ -784,6 +784,19 @@ class ApiService {
   }
   async adminUpdateTempUnit(unitId, data) { return this.fetch(`/api/admin/temp/units/${unitId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
 
+  // ============== COOKING & COOLING ==============
+  async coolingCatalog(locationId) { return this.fetch(`/api/admin/cooking-cooling/catalog?location_id=${encodeURIComponent(locationId)}`); }
+  async coolingAddCustomItem(data) { return this.fetch('/api/admin/cooking-cooling/catalog', { method: 'POST', body: JSON.stringify(data) }); }
+  async coolingActiveCount(locationId) { return this.fetch(`/api/admin/cooking-cooling/active-count?location_id=${encodeURIComponent(locationId)}`); }
+  async coolingList(locationId, status) {
+    const qs = new URLSearchParams({ location_id: locationId, ...(status ? { status } : {}) }).toString();
+    return this.fetch(`/api/admin/cooking-cooling?${qs}`);
+  }
+  async coolingGet(id) { return this.fetch(`/api/admin/cooking-cooling/${id}`); }
+  async coolingStart(data) { return this.fetch('/api/admin/cooking-cooling/start', { method: 'POST', body: JSON.stringify(data) }); }
+  async coolingComplete(id, data) { return this.fetch(`/api/admin/cooking-cooling/${id}/complete`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  async coolingDelete(id) { return this.fetch(`/api/admin/cooking-cooling/${id}`, { method: 'DELETE' }); }
+
   // ============== CLEANING SCHEDULES (daily + weekly deep) ==============
   // kind = 'daily-cleaning' | 'weekly-cleaning'
   async adminGetCleaningItems(kind, locationId) {

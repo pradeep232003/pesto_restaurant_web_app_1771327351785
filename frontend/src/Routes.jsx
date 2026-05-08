@@ -58,6 +58,11 @@ import JKHiveClosingFridgeTemp from './pages/jkhive/ClosingFridgeTemp';
 import JKHiveRoutineUnits from './pages/jkhive/RoutineUnits';
 import JKHiveWorkforce from './pages/jkhive/Workforce';
 import JKHiveManager from './pages/jkhive/Manager';
+import CoolingHome from './pages/jkhive/cooling/CoolingHome';
+import CoolingPickItem from './pages/jkhive/cooling/CoolingPickItem';
+import CoolingStartTemp from './pages/jkhive/cooling/CoolingStartTemp';
+import CoolingRecordTemp from './pages/jkhive/cooling/CoolingRecordTemp';
+import CoolingComment from './pages/jkhive/cooling/CoolingComment';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -166,6 +171,11 @@ const AppRouter = () => {
         <Route path="opening/fridge-temp" element={<JKHiveOpeningFridgeTemp />} />
         <Route path="closing" element={<JKHiveClosingRoutine />} />
         <Route path="closing/fridge-temp" element={<JKHiveClosingFridgeTemp />} />
+        <Route path="cooking-cooling" element={<CoolingHome />} />
+        <Route path="cooking-cooling/new" element={<CoolingPickItem />} />
+        <Route path="cooking-cooling/start" element={<CoolingStartTemp />} />
+        <Route path="cooking-cooling/:id/record" element={<CoolingRecordTemp />} />
+        <Route path="cooking-cooling/:id/comment" element={<CoolingComment />} />
         <Route path="manager/routine-units" element={<JKHiveRoutineUnits />} />
       </Route>
 

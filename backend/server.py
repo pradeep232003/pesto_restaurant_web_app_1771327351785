@@ -92,6 +92,7 @@ from routes.compliance import router as compliance_router
 from routes.compliance_digest import router as compliance_digest_router, run_weekly_digest_job
 from routes.staff import router as staff_router
 from routes.routine_temps import router as routine_temps_router
+from routes.cooking_cooling import router as cooking_cooling_router
 
 app.include_router(auth_router)
 app.include_router(locations_router)
@@ -118,6 +119,7 @@ app.include_router(compliance_router)
 app.include_router(compliance_digest_router)
 app.include_router(staff_router)
 app.include_router(routine_temps_router)
+app.include_router(cooking_cooling_router)
 
 # ============== PUBLIC ENDPOINTS ==============
 

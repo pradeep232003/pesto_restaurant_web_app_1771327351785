@@ -150,6 +150,19 @@ Automated Monday-morning email digest of the previous week's compliance matrix t
 - **Layout reorder (May 2026)**: +/- pill buttons + numeric input now render **above** the gauge (per user IMG_6666 spec); recommended-range hint sits below the gauge.
 - Excel exports via `xlsx` for Daily Sales (per-location sheets + staff hours + staff totals). Staff Table CRUD admin page with auto-fill `Cash Taken By` / `Staff Name` combo-boxes powered by `StaffPicker`.
 
+### JKHive Cooking & Cooling Wizard (May 2026) - VERIFIED
+- New 5-step wizard for the EHO "cooked-then-cooled" log, accessible from `/jkhive/cooking-cooling` (Routines tab). The "Temp Log" tile was removed from `Routines.jsx` to make space.
+- **Backend** (`/app/backend/routes/cooking_cooling.py`): two collections — `cooking_cooling_logs` (one per cooling session) and `cooking_cooling_custom` (per-location custom items). Endpoints: `GET /catalog`, `POST /catalog`, `GET /active-count`, `GET ""`, `POST /start`, `GET /{id}`, `PATCH /{id}/complete`, `DELETE /{id}`. Default catalog is hard-coded with 16 categories (Beef, Chicken, Eggs, Fish (other), Flat Fish, Game, Lamb, Milk, Molluscs, Pastry, Pork, Rice And Grains, Round Fish, Salad, Turkey, General) each with 3-12 items and a category emoji icon.
+- **Frontend** (`/app/frontend/src/pages/jkhive/cooling/`):
+  - `CoolingHome.jsx` — list currently-cooling items with start temp + elapsed time; sticky "Add new cooling" button.
+  - `CoolingPickItem.jsx` — search box, alphabetised category accordion with star-favourites (sorted to top via localStorage), 3-col grid of item tiles with category emoji + per-category "Add Custom" inline form.
+  - `CoolingStartTemp.jsx` — Set Current Temp gauge (red, 0-100°C, default 75°C), Begin Cooling.
+  - `CoolingRecordTemp.jsx` — Record Cooled Temperature gauge (blue, 0-30°C, ticks 0/6/12/18/24/30, default 5°C), recommended-range hint turns green/red against the log's `target_temp_c`, Next.
+  - `CoolingComment.jsx` — optional 250-char comment, Submit Record → green-check confirmation card.
+- **Tile badge** — `Tile.jsx` now accepts a `badge` prop; the Cooking & Cooling tile renders a red pill with the live count of items currently cooling at the selected location (`api.coolingActiveCount(locationId)`).
+- **Cross-site safety** — every wizard screen uses a `WizardHeader` showing **location name** + **date** so staff working at multiple sites cannot misfile a record.
+- End-to-end flow verified by screenshot: pick Beef (Brisket) → 75°C start → Begin Cooling → routines tile shows "1" badge → tap "Tap to record" → 5°C → Next → comment → Submit Record → "Record saved!".
+
 ## Prioritized Backlog
 
 ### P1 (High)

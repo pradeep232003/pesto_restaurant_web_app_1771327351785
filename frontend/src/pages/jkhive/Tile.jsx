@@ -6,8 +6,8 @@ import { ChevronRight } from 'lucide-react';
 //
 // Each tile is a white card with a colored squircle icon, a title, and an
 // optional subtitle. `to` makes it a real link; `comingSoon` shows the badge
-// and disables navigation.
-export const Tile = ({ to, comingSoon, icon: Icon, color, title, subtitle, testId }) => {
+// and disables navigation. `badge` shows a small numeric pill (e.g. cooling count).
+export const Tile = ({ to, comingSoon, icon: Icon, color, title, subtitle, testId, badge }) => {
   const inner = (
     <div
       data-testid={testId}
@@ -15,10 +15,17 @@ export const Tile = ({ to, comingSoon, icon: Icon, color, title, subtitle, testI
       style={{ background: '#FFFFFF', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}
     >
       <div
-        className="w-11 h-11 rounded-[12px] flex items-center justify-center mb-3"
+        className="w-11 h-11 rounded-[12px] flex items-center justify-center mb-3 relative"
         style={{ background: color }}
       >
         <Icon size={22} color="white" strokeWidth={2} />
+        {badge != null && Number(badge) > 0 && (
+          <span
+            data-testid={testId ? `${testId}-badge` : undefined}
+            className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center"
+            style={{ background: '#FF3B30', color: '#FFFFFF', border: '2px solid #FFFFFF', lineHeight: 1 }}
+          >{badge}</span>
+        )}
       </div>
       <p className="text-[15px] font-semibold leading-tight" style={{ color: '#1D1D1F' }}>
         {title}
