@@ -98,6 +98,16 @@ DEFAULT_CATALOG = {
     "Oil And Dressing":        {"icon": "🫒", "section": "Prepared", "items": ["Olive oil", "Vegetable oil", "Rapeseed oil", "Vinaigrette", "Caesar dressing", "Honey mustard", "Balsamic dressing"]},
     "Pastry":                  {"icon": "🥐", "section": "Prepared", "items": ["Shortcrust", "Puff", "Filo", "Choux"]},
     "Prepared Crustaceans":    {"icon": "🦐", "section": "Prepared", "items": ["Cooked prawns", "King prawns", "Lobster (cooked)", "Crab meat", "Langoustine"]},
+    "Prepared Fish":           {"icon": "🐟", "section": "Prepared", "items": ["Smoked salmon", "Smoked mackerel", "Smoked haddock", "Cured salmon (gravlax)", "Marinated anchovies", "Pickled herring", "Tuna (cooked)"]},
+    "Prepared Shellfish":      {"icon": "🦪", "section": "Prepared", "items": ["Cooked mussels", "Cooked clams", "Cooked oysters", "Cooked scallops", "Cooked squid", "Cooked octopus"]},
+    "Prepped Vegetables":      {"icon": "🥗", "section": "Prepared", "items": ["Diced onion", "Sliced peppers", "Roasted vegetables", "Mashed potato", "Blanched greens", "Shredded carrot", "Stir-fry mix"]},
+    "Purees and Gels":         {"icon": "🧪", "section": "Prepared", "items": ["Pea purée", "Carrot purée", "Beetroot purée", "Cauliflower purée", "Fruit gel", "Reduction gel", "Coulis"]},
+    "Salad":                   {"icon": "🥗", "section": "Prepared", "items": ["Coleslaw", "Pasta salad", "Potato salad", "Caesar salad", "Greek salad", "Quinoa salad", "Couscous salad"]},
+    "Sauces":                  {"icon": "🥫", "section": "Prepared", "items": ["Tomato sauce", "Béchamel", "Hollandaise", "Bolognese", "Curry sauce", "Pesto", "Gravy", "Bbq sauce"]},
+    "Sides":                   {"icon": "🍟", "section": "Prepared", "items": ["Chips", "Roast potatoes", "Mash", "Rice (cooked)", "Pasta (cooked)", "Bread basket", "Garlic bread", "Onion rings"]},
+    "Soups":                   {"icon": "🍲", "section": "Prepared", "items": ["Tomato soup", "Chicken soup", "Vegetable soup", "Lentil soup", "Mushroom soup", "Minestrone", "Bisque", "Broth"]},
+    "Spreads":                 {"icon": "🍯", "section": "Prepared", "items": ["Butter (whipped)", "Pâté", "Hummus", "Tapenade", "Cream cheese spread", "Peanut butter", "Nut butter", "Chocolate spread"]},
+    "Stocks":                  {"icon": "🥣", "section": "Prepared", "items": ["Chicken stock", "Beef stock", "Vegetable stock", "Fish stock", "Lamb stock", "Mushroom stock", "Demi-glace"]},
     "General":                 {"icon": "🥘", "section": "Prepared", "items": ["Soup", "Sauce", "Stew", "Curry", "Casserole", "Stock", "Gravy"]},
 
     # ---------- BEVERAGES ----------
@@ -116,6 +126,8 @@ DEFAULT_CATALOG = {
     "Sparkling Wine":          {"icon": "🥂", "section": "Beverages", "items": ["Prosecco", "Champagne", "Cava", "Crémant"]},
     "Soft Drinks":             {"icon": "🥤", "section": "Beverages", "items": ["Cola", "Diet cola", "Lemonade", "Tonic water", "Soda water", "Ginger ale", "Mixers"]},
     "Spirits":                 {"icon": "🥃", "section": "Beverages", "items": ["Vodka", "Rum (light)", "Rum (dark)", "Whisky", "Bourbon", "Tequila", "Brandy"]},
+    "Squash and Cordials":     {"icon": "🧃", "section": "Beverages", "items": ["Orange squash", "Blackcurrant squash", "Lemon squash", "Apple squash", "Elderflower cordial", "Lime cordial", "Ginger cordial"]},
+    "Tea":                     {"icon": "🫖", "section": "Beverages", "items": ["English breakfast", "Earl grey", "Green tea", "Peppermint", "Chamomile", "Rooibos", "Fruit tea", "Chai"]},
     "Water":                   {"icon": "💧", "section": "Beverages", "items": ["Still", "Sparkling", "Flavoured"]},
 }
 
