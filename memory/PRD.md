@@ -187,6 +187,17 @@ Automated Monday-morning email digest of the previous week's compliance matrix t
 - **Wired**: `MoreRoutines.jsx` Washer Temps tile (#FFCC00) routes to `/jkhive/washer-temps` (no longer Coming Soon). 6 new routes added under JKHive layout in `Routes.jsx`.
 - Verified: 13/13 backend pytest + full mobile Playwright E2E (login → /jkhive → routines → more → Washer Temps → add 'Test Dishwasher' → wash 55°C green → rinse 82°C green → submit → 'Washer passed!' card with both ✓ ticks).
 
+### JKHive Specialist Routines (May 2026) - VERIFIED
+Four new specialist food-safety workflows under `/jkhive/routines/more`, each following the same Home → Pick (shared catalog) → Record + Submit + result card pattern, reusing the existing `/api/admin/cooking-cooling/catalog` endpoint (Fresh / Frozen / Dry / Prepared / Beverages) via a new `SpecialistCatalogPicker` component at `/app/frontend/src/pages/jkhive/_shared/CatalogPicker.jsx`.
+
+1. **Food Acidity (pH)** — `/jkhive/acidity` · backend `/api/admin/acidity` · collection `acidity_records` · pH gauge 0–7 default 4.0 · pass when `ph_value ≤ 4.6` (FSA acidified-foods rule for *C. botulinum*).
+2. **Vacuum Packing** — `/jkhive/vacuum-packing` · backend `/api/admin/vacuum-packing` · collection `vacuum_records` · pack-temp gauge -5–15 °C default 3 °C + use-by date input (required, default +5 days) + optional batch label · pass when `pack_temp ≤ 5` AND a use-by date is supplied.
+3. **Food Washing** — `/jkhive/food-washing` · backend `/api/admin/food-washing` · collection `washing_records` · sanitiser picker (Chlorine / Peracetic / Other) + ppm + contact minutes · pass when `chlorine 50–200 ppm` OR `peracetic 80–120 ppm` OR `other ppm > 0` AND `contact_minutes ≥ 1`.
+4. **Sous Vide** — `/jkhive/sous-vide` · backend `/api/admin/sous-vide` · collection `sousvide_records` · 2×2 form (target temp/min vs actual core temp/min) · pass when `actual_temp ≥ target_temp` AND `actual_minutes ≥ target_minutes`.
+
+- **Wired**: `MoreRoutines.jsx` Food Acidity (#30B0C7), Vacuum Packing (#007AFF), Food Washing (#32ADE6), Sous Vide (#AF52DE) tiles all routed (no longer Coming Soon). 12 new routes under JKHive layout.
+- Verified: 18/18 backend pytest (CRUD, pass/fail logic, `_id` excluded, 401/403 unauth, 404 unknown delete, sanitiser-specific PPM bands) + main-agent mobile Playwright E2E for Acidity (Alcopops (WKD) · pH 4.00 → "Within range" pass card) + Sous Vide home render confirmed. Vacuum/Washing share identical pattern.
+
 ## Prioritized Backlog
 
 ### P1 (High)
