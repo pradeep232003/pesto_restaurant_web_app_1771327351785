@@ -84,6 +84,11 @@ import DeliveriesAskAddInventory from './pages/jkhive/deliveries/AskAddInventory
 import DeliveriesAddStockAmount from './pages/jkhive/deliveries/AddStockAmount';
 import DeliveriesAddStockBatch from './pages/jkhive/deliveries/AddStockBatch';
 import DeliveriesReview from './pages/jkhive/deliveries/ReviewDelivery';
+import InventoryHome from './pages/jkhive/inventory/InventoryHome';
+import InventoryPickItem from './pages/jkhive/inventory/InventoryPickItem';
+import InvAddStockAmount from './pages/jkhive/inventory/InvAddStockAmount';
+import InvAddStockBatch from './pages/jkhive/inventory/InvAddStockBatch';
+import InventoryItemDetail from './pages/jkhive/inventory/InventoryItemDetail';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -205,6 +210,11 @@ const AppRouter = () => {
         <Route path="delivery-records/add-stock/amount" element={<DeliveriesAddStockAmount />} />
         <Route path="delivery-records/add-stock/batch" element={<DeliveriesAddStockBatch />} />
         <Route path="delivery-records/review" element={<DeliveriesReview /> } />
+        <Route path="inventory" element={<InventoryHome />} />
+        <Route path="inventory/pick" element={<InventoryPickItem />} />
+        <Route path="inventory/add/amount" element={<InvAddStockAmount />} />
+        <Route path="inventory/add/batch" element={<InvAddStockBatch />} />
+        <Route path="inventory/item/:id" element={<InventoryItemDetail />} />
         <Route path="opening" element={<JKHiveOpeningRoutine />} />
         <Route path="opening/fridge-temp" element={<JKHiveOpeningFridgeTemp />} />
         <Route path="closing" element={<JKHiveClosingRoutine />} />

@@ -46,11 +46,11 @@ const Intelligence = () => {
         />
         <Tile
           testId="tile-inventory"
-          comingSoon
+          to="/jkhive/inventory"
           icon={Package}
           color="#FF2D55"
           title="Inventory"
-          subtitle="Stock levels & reorder"
+          subtitle="Stock taking & FIFO"
         />
         <Tile
           testId="tile-allergens"
