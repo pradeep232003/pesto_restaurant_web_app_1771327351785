@@ -843,6 +843,16 @@ class ApiService {
   async probeCalibrate(data) { return this.fetch('/api/admin/probes/calibrations', { method: 'POST', body: JSON.stringify(data) }); }
   async probeCalibrationDelete(id) { return this.fetch(`/api/admin/probes/calibrations/${id}`, { method: 'DELETE' }); }
 
+  // ============== HOT / COLD HOLDING ==============
+  async hotColdList(locationId, status) {
+    const qs = new URLSearchParams({ location_id: locationId, ...(status ? { status } : {}) }).toString();
+    return this.fetch(`/api/admin/hot-cold/sessions?${qs}`);
+  }
+  async hotColdStart(data) { return this.fetch('/api/admin/hot-cold/sessions', { method: 'POST', body: JSON.stringify(data) }); }
+  async hotColdCheck(id, data) { return this.fetch(`/api/admin/hot-cold/sessions/${id}/check`, { method: 'POST', body: JSON.stringify(data) }); }
+  async hotColdComplete(id, data) { return this.fetch(`/api/admin/hot-cold/sessions/${id}/complete`, { method: 'POST', body: JSON.stringify(data) }); }
+  async hotColdDelete(id) { return this.fetch(`/api/admin/hot-cold/sessions/${id}`, { method: 'DELETE' }); }
+
   // ============== CHECKLISTS ==============
   async checklistList(locationId, frequency) {
     const qs = new URLSearchParams({ location_id: locationId, ...(frequency ? { frequency } : {}) }).toString();

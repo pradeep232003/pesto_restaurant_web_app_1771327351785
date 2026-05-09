@@ -102,6 +102,11 @@ import ProbeEdit from './pages/jkhive/probes/EditProbe';
 import ProbeBoiling from './pages/jkhive/probes/BoilingTemp';
 import ProbeIced from './pages/jkhive/probes/IcedTemp';
 import ProbeCommentSubmit from './pages/jkhive/probes/CommentSubmit';
+import HotColdHome from './pages/jkhive/hot_cold/HotColdHome';
+import HotColdMode from './pages/jkhive/hot_cold/PickMode';
+import HotColdPickItem from './pages/jkhive/hot_cold/PickItem';
+import HotColdRecord from './pages/jkhive/hot_cold/RecordHolding';
+import HotColdCheck from './pages/jkhive/hot_cold/HoldingCheck';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -252,6 +257,11 @@ const AppRouter = () => {
         <Route path="probe-calibration/:probeId/boiling" element={<ProbeBoiling />} />
         <Route path="probe-calibration/:probeId/iced" element={<ProbeIced />} />
         <Route path="probe-calibration/:probeId/comment" element={<ProbeCommentSubmit />} />
+        <Route path="hot-cold-holding" element={<HotColdHome />} />
+        <Route path="hot-cold-holding/mode" element={<HotColdMode />} />
+        <Route path="hot-cold-holding/pick" element={<HotColdPickItem />} />
+        <Route path="hot-cold-holding/record" element={<HotColdRecord />} />
+        <Route path="hot-cold-holding/:id/check" element={<HotColdCheck />} />
         <Route path="opening" element={<JKHiveOpeningRoutine />} />
         <Route path="opening/fridge-temp" element={<JKHiveOpeningFridgeTemp />} />
         <Route path="closing" element={<JKHiveClosingRoutine />} />
