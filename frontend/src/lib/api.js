@@ -843,6 +843,18 @@ class ApiService {
   async probeCalibrate(data) { return this.fetch('/api/admin/probes/calibrations', { method: 'POST', body: JSON.stringify(data) }); }
   async probeCalibrationDelete(id) { return this.fetch(`/api/admin/probes/calibrations/${id}`, { method: 'DELETE' }); }
 
+  // ============== WASHER TEMPS ==============
+  async washersList(locationId) { return this.fetch(`/api/admin/washers?location_id=${encodeURIComponent(locationId)}`); }
+  async washerAdd(data) { return this.fetch('/api/admin/washers', { method: 'POST', body: JSON.stringify(data) }); }
+  async washerUpdate(id, data) { return this.fetch(`/api/admin/washers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  async washerDelete(id) { return this.fetch(`/api/admin/washers/${id}`, { method: 'DELETE' }); }
+  async washerChecks(locationId, opts = {}) {
+    const qs = new URLSearchParams({ location_id: locationId, ...opts }).toString();
+    return this.fetch(`/api/admin/washers/checks?${qs}`);
+  }
+  async washerRecord(data) { return this.fetch('/api/admin/washers/checks', { method: 'POST', body: JSON.stringify(data) }); }
+  async washerCheckDelete(id) { return this.fetch(`/api/admin/washers/checks/${id}`, { method: 'DELETE' }); }
+
   // ============== HOT / COLD HOLDING ==============
   async hotColdList(locationId, status) {
     const qs = new URLSearchParams({ location_id: locationId, ...(status ? { status } : {}) }).toString();

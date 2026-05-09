@@ -1,0 +1,37 @@
+{
+  "summary": "Washer Temps E2E tested — backend (13/13 pytest pass) + frontend Playwright flow on mobile viewport. Tile no longer 'Coming Soon'; full Add → Wash (55°C, green ≥55) → Rinse (82°C, green ≥82) → Comment → Submit flow works and shows 'Washer passed!' card with washer name + both ✓ temps. /rinse direct-nav redirect to /wash verified. Backend asserts wash_pass when wash_temp>=55, rinse_pass when rinse_temp>=82, passed=both, 404 for unknown washer_id, all responses exclude _id, auth-gated CRUD enforced.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Picker reload via page.goto right after /comment redirect produced ~70 spurious 403s on /api/admin/washers (likely because LocationContext rehydrated after first render so adminLocationId was empty/undefined for first call). Possible real fix: PickWasher should guard the API call until adminLocationId is truthy AND skip the alert toast on first transient empty state. Did not block the user E2E — issue only reproduced via direct goto in test harness.",
+        "affected_selectors": ["/api/admin/washers"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_washers.py",
+    "/app/test_reports/pytest/pytest_washers.xml"
+  ],
+  "action_items": [
+    "(Optional) PickWasher.jsx: skip the api.washersList() call when adminLocationId is undefined/empty and avoid alert() on transient empty state — this caused noisy 403s in the test harness when navigating directly to /jkhive/washer-temps before LocationContext settled.",
+    "(Optional) Standardize to 401 (not 403) when JWT missing/expired so the api.fetch() auto-refresh path is exercised (currently get_staff_or_above appears to return 403)."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/routes/washers.py is clean (excludes _id everywhere, validates name, enforces wash>=55 / rinse>=82 thresholds, returns 404 for missing washer_id).",
+    "Frontend AddWasher.jsx: 'Save & Record' uses navigate(..., { replace: true }) so the back button skips the new screen — correct pattern.",
+    "RinseTemp.jsx state-missing redirect to /wash works as expected (verified)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_washers.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100% (all required steps passed)"},
+  "test_credentials": "admin@jollys.com / Admin123! (super_admin)",
+  "seed_data_creation": "Test washer 'Test Dishwasher' (id=282307cb-e41) created during E2E and cleaned up after.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest at /app/backend/tests/test_washers.py (13 tests, all green). Mobile-viewport Playwright flow validated full happy path with screenshots showing wash gauge default 55 with green color, rinse gauge default 82 with green color, and pass card showing 'Test Dishwasher · Wash 55.0°C (✓) · Rinse 82.0°C (✓)'. Note: clicking the MoreRoutines tile via the testid wrapper element didn't trigger nav (Tile uses internal <Link>, so click the inner <a> or use navigate/goto). Edit/Delete UI was not fully validated via Playwright due to a post-redirect 403 cascade; backend covers update_name + delete tests.",
+  "rca of the issue": "No blocking issue. Spurious 403s observed on picker reload after a direct goto stem from PickWasher firing api.washersList() before LocationContext finishes rehydrating adminLocationId — the GET goes out with location_id=undefined and the staff-gate returns 403. User-flow does not hit this because normal navigation keeps context intact."
+}

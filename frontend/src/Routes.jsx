@@ -107,6 +107,12 @@ import HotColdMode from './pages/jkhive/hot_cold/PickMode';
 import HotColdPickItem from './pages/jkhive/hot_cold/PickItem';
 import HotColdRecord from './pages/jkhive/hot_cold/RecordHolding';
 import HotColdCheck from './pages/jkhive/hot_cold/HoldingCheck';
+import WasherPick from './pages/jkhive/washers/PickWasher';
+import WasherAdd from './pages/jkhive/washers/AddWasher';
+import WasherEdit from './pages/jkhive/washers/EditWasher';
+import WasherWash from './pages/jkhive/washers/WashTemp';
+import WasherRinse from './pages/jkhive/washers/RinseTemp';
+import WasherCommentSubmit from './pages/jkhive/washers/CommentSubmit';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -262,6 +268,12 @@ const AppRouter = () => {
         <Route path="hot-cold-holding/pick" element={<HotColdPickItem />} />
         <Route path="hot-cold-holding/record" element={<HotColdRecord />} />
         <Route path="hot-cold-holding/:id/check" element={<HotColdCheck />} />
+        <Route path="washer-temps" element={<WasherPick />} />
+        <Route path="washer-temps/new" element={<WasherAdd />} />
+        <Route path="washer-temps/:id/edit" element={<WasherEdit />} />
+        <Route path="washer-temps/:washerId/wash" element={<WasherWash />} />
+        <Route path="washer-temps/:washerId/rinse" element={<WasherRinse />} />
+        <Route path="washer-temps/:washerId/comment" element={<WasherCommentSubmit />} />
         <Route path="opening" element={<JKHiveOpeningRoutine />} />
         <Route path="opening/fridge-temp" element={<JKHiveOpeningFridgeTemp />} />
         <Route path="closing" element={<JKHiveClosingRoutine />} />

@@ -138,6 +138,7 @@ app.include_router(inventory_router)
 app.include_router(wastage_router)
 app.include_router(probes_router)
 app.include_router(hot_cold_router)
+app.include_router(washers_router)
 app.include_router(push_router)
 
 # ============== PUBLIC ENDPOINTS ==============

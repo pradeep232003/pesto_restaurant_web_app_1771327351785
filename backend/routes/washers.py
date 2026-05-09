@@ -101,7 +101,7 @@ async def record_check(body: CheckBody, user: dict = Depends(get_staff_or_above)
     if not washer:
         raise HTTPException(404, "Washer not found")
     wash_pass = body.wash_temp >= 55.0
-    rinse_pass = body.rinse_temp >= 81.0
+    rinse_pass = body.rinse_temp >= 82.0
     doc = {
         "id": str(uuid.uuid4())[:12],
         "location_id": body.location_id,
