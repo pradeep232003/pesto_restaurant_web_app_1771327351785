@@ -138,28 +138,28 @@ export default JKHiveLayout;
 const LocationPickerSheet = ({ locations, currentId, onPick, onClose }) => (
   <div
     data-testid="jkhive-location-sheet"
-    style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+    style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
     onClick={onClose}
   >
     <div
       onClick={(e) => e.stopPropagation()}
       style={{
-        width: '100%', maxWidth: 520, maxHeight: '78vh', overflow: 'auto',
-        background: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-        padding: '20px 18px calc(20px + env(safe-area-inset-bottom)) 18px',
-        fontFamily: 'inherit',
+        width: '100%', maxWidth: 460, maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+        background: '#FFFFFF', borderRadius: 22,
+        boxShadow: '0 24px 60px rgba(0,0,0,0.25)',
+        fontFamily: 'inherit', overflow: 'hidden',
       }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 18px 8px' }}>
         <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.01em', color: '#1D1D1F', margin: 0 }}>Pick a location</h2>
         <button onClick={onClose} aria-label="Close"
           style={{ background: 'transparent', border: 0, padding: 6, cursor: 'pointer', color: '#86868B' }}>
           <X size={22} strokeWidth={2.4} />
         </button>
       </div>
-      <p style={{ fontSize: 13, color: '#86868B', margin: '0 0 14px' }}>
+      <p style={{ fontSize: 13, color: '#86868B', margin: '0 18px 14px' }}>
         All routines and records you submit will be filed against this site.
       </p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {locations.map(l => {
           const active = l.id === currentId;
           return (
@@ -171,6 +171,7 @@ const LocationPickerSheet = ({ locations, currentId, onPick, onClose }) => (
                 background: active ? 'rgba(0,122,255,0.08)' : '#F8F8FA',
                 border: active ? '1.5px solid #0A84C9' : '1px solid rgba(0,0,0,0.06)',
                 borderRadius: 14, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+                flexShrink: 0,
               }}>
               <MapPin size={20} strokeWidth={2.2} style={{ color: active ? '#0A84C9' : '#86868B' }} />
               <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: '#1D1D1F' }}>{l.name}</span>

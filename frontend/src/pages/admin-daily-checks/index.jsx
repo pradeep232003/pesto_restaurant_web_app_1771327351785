@@ -184,7 +184,7 @@ const AdminDailyChecks = () => {
   const inputStyle = { background: '#F5F5F7', color: '#1D1D1F', ...font, boxShadow: '0 0 0 1px rgba(0,0,0,0.06)' };
 
   return (
-    <div className={isJkhive ? "px-4 sm:px-6 lg:px-8 pt-2 pb-4 max-w-5xl mx-auto" : "p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto"} data-testid="admin-daily-checks-page">
+    <div className={isJkhive ? "px-4 sm:px-6 lg:px-8 pt-2 pb-32 max-w-5xl mx-auto" : "p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto"} data-testid="admin-daily-checks-page">
       {isJkhive ? (
         <Link to="/jkhive/routines" data-testid="back-to-jkhive" className="inline-flex items-center gap-1.5 -ml-1 px-1 py-1 mb-1 rounded-lg active:scale-95" style={{ color: '#1D1D1F', ...font }}>
           <ArrowLeft size={20} strokeWidth={2.4} style={{ color: '#007AFF' }} />
