@@ -182,7 +182,7 @@ const AppRouter = () => {
         <Route path="routines" element={<JKHiveRoutines />} />
         <Route path="routines/more" element={<JKHiveMoreRoutines />} />
         <Route path="workforce" element={<JKHiveWorkforce />} />
-        <Route path="manager" element={<JKHiveManager />} />
+        <Route path="manager" element={<AdminRoute><JKHiveManager /></AdminRoute>} />
         <Route path="profile" element={<JKHiveProfile />} />
         <Route path="daily-sales" element={<JKHiveDailySales />} />
         <Route path="sales-summary" element={<JKHiveSalesSummary />} />
@@ -228,7 +228,7 @@ const AppRouter = () => {
         <Route path="reheating/new" element={<ReheatingPickItem />} />
         <Route path="reheating/record" element={<ReheatingRecordTemp />} />
         <Route path="reheating/comment" element={<ReheatingComment />} />
-        <Route path="manager/routine-units" element={<JKHiveRoutineUnits />} />
+        <Route path="manager/routine-units" element={<AdminRoute><JKHiveRoutineUnits /></AdminRoute>} />
       </Route>
 
       {/* Customer loyalty card */}

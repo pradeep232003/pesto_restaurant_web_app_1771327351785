@@ -1,15 +1,15 @@
 import React from 'react';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { Brain, ClipboardCheck, Users, Settings2, MapPin, X, Check } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
 import { installSwMessageBridge } from './cooling/webpush';
 
-const TABS = [
-  { to: '/jkhive',           label: 'Intelligence', icon: Brain },
-  { to: '/jkhive/routines',  label: 'Routines',     icon: ClipboardCheck },
-  { to: '/jkhive/workforce', label: 'Workforce',    icon: Users },
-  { to: '/jkhive/manager',   label: 'Manager',      icon: Settings2 },
+const ALL_TABS = [
+  { to: '/jkhive',           label: 'Intelligence', icon: Brain,          adminOnly: false },
+  { to: '/jkhive/routines',  label: 'Routines',     icon: ClipboardCheck, adminOnly: false },
+  { to: '/jkhive/workforce', label: 'Workforce',    icon: Users,          adminOnly: false },
+  { to: '/jkhive/manager',   label: 'Manager',      icon: Settings2,      adminOnly: true },
 ];
 
 const FooterTab = ({ tab, isActive }) => (
@@ -35,12 +35,17 @@ const FooterTab = ({ tab, isActive }) => (
 const JKHiveLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isAuthenticated, loading } = useAuth();
+  const { user, isAuthenticated, isAdmin, loading } = useAuth();
   const { adminLocationId, setAdminLocationId, locations } = useLocation2();
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const initial = (user?.name || user?.email || 'U').charAt(0).toUpperCase();
   const currentLoc = locations.find(l => l.id === adminLocationId);
   const locShort = currentLoc?.name ? currentLoc.name.split(',')[0] : 'Pick site';
+
+  const TABS = React.useMemo(
+    () => ALL_TABS.filter(t => !t.adminOnly || isAdmin),
+    [isAdmin],
+  );
 
   // Notification taps fired from /cooling-sw.js post a {type:'jkhive-nav', url}
   // message to the foreground tab. Route inside the SPA on receive.
