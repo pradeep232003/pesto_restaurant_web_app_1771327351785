@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Users, ShieldCheck, BarChart3, TrendingUp, TrendingDown, UtensilsCrossed, Snowflake } from 'lucide-react';
+import { Settings, Users, ShieldCheck, BarChart3, TrendingUp, TrendingDown, UtensilsCrossed, Snowflake, LineChart } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -21,6 +21,11 @@ const Manager = () => {
         <Tile testId="tile-sales-summary" to="/jkhive/sales-summary" icon={BarChart3} color="#007AFF" title="Sales Summary" subtitle="Totals & breakdowns" />
         <Tile testId="tile-income"   to="/admin/income"   icon={TrendingUp}   color="#34C759" title="Income"   subtitle="Track revenue streams" />
         <Tile testId="tile-expenses" to="/admin/expenses" icon={TrendingDown} color="#FF3B30" title="Expenses" subtitle="Outgoings & receipts" />
+      </div>
+
+      <SectionLabel>Analytics</SectionLabel>
+      <div className="grid grid-cols-2 gap-3">
+        <Tile testId="tile-business-intelligence" comingSoon icon={LineChart} color="#007AFF" title="Business Intelligence" subtitle="Cross-site analytics" />
       </div>
 
       <SectionLabel>Configuration</SectionLabel>

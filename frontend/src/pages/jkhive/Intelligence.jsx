@@ -72,14 +72,6 @@ const Intelligence = () => {
           title="In-Prep Wastage"
           subtitle="Kitchen prep losses"
         />
-        <Tile
-          testId="tile-business-intelligence"
-          comingSoon
-          icon={BarChart3}
-          color="#007AFF"
-          title="Business Intelligence"
-          subtitle="Cross-site analytics"
-        />
       </div>
 
       <SectionLabel>Compliance & docs</SectionLabel>
