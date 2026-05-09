@@ -28,6 +28,7 @@ custom_collection = db["cooking_cooling_custom"]
 # `section` groups categories under the Fresh / Frozen / Dry / Prepared / Beverages
 # tab bar in the JKHive ingredient picker (matches IMG_6688).
 DEFAULT_CATALOG = {
+    # ---------- FRESH ----------
     "Beef":            {"icon": "🐄", "section": "Fresh",    "items": ["Brisket", "Chuck", "Diced", "Fillet", "Flank", "Mince", "Ribeye", "Rump", "Sirloin", "Stewing"]},
     "Chicken":         {"icon": "🐔", "section": "Fresh",    "items": ["Breast", "Drum stick", "Fillet", "Fronts", "Gizzard", "Heart", "Leg", "Liver", "Supremes", "Thigh", "Wing", "Whole bird"]},
     "Eggs":            {"icon": "🥚", "section": "Fresh",    "items": ["Whole", "Yolks", "Whites"]},
@@ -37,13 +38,68 @@ DEFAULT_CATALOG = {
     "Lamb":            {"icon": "🐑", "section": "Fresh",    "items": ["Leg", "Shoulder", "Mince", "Chops", "Rack", "Diced"]},
     "Milk":            {"icon": "🥛", "section": "Fresh",    "items": ["Whole", "Semi-skimmed", "Cream", "Custard"]},
     "Molluscs":        {"icon": "🦑", "section": "Fresh",    "items": ["Squid", "Octopus", "Mussels", "Clams", "Oysters"]},
-    "Pastry":          {"icon": "🥐", "section": "Prepared", "items": ["Shortcrust", "Puff", "Filo", "Choux"]},
     "Pork":            {"icon": "🐷", "section": "Fresh",    "items": ["Belly", "Loin", "Mince", "Sausages", "Ribs", "Shoulder", "Bacon"]},
-    "Rice And Grains": {"icon": "🌾", "section": "Dry",      "items": ["Rice (white)", "Rice (brown)", "Pasta", "Couscous", "Quinoa", "Bulgur"]},
     "Round Fish":      {"icon": "🐠", "section": "Fresh",    "items": ["Salmon", "Sea bass", "Mackerel", "Trout"]},
-    "Salad":           {"icon": "🥗", "section": "Prepared", "items": ["Mixed greens", "Coleslaw", "Pasta salad", "Potato salad"]},
     "Turkey":          {"icon": "🦃", "section": "Fresh",    "items": ["Breast", "Whole bird", "Mince", "Crown"]},
-    "General":         {"icon": "🥘", "section": "Prepared", "items": ["Soup", "Sauce", "Stew", "Curry", "Casserole", "Stock", "Gravy"]},
+
+    # ---------- FROZEN ----------
+    "Frozen Bread":               {"icon": "🥖", "section": "Frozen", "items": ["Bread loaves", "Bread rolls", "Brioche", "Pitta", "Naan", "Wraps"]},
+    "Frozen Fish":                {"icon": "🐟", "section": "Frozen", "items": ["Cod fillet", "Salmon fillet", "Haddock", "Prawns", "Calamari rings", "Fish fingers"]},
+    "Frozen Fruit And Vegetables":{"icon": "🥦", "section": "Frozen", "items": ["Mixed berries", "Peas", "Sweetcorn", "Mixed veg", "Spinach", "Broccoli", "Chips", "Hash browns"]},
+    "Frozen Fruit Purée":         {"icon": "🍓", "section": "Frozen", "items": ["Mango", "Raspberry", "Strawberry", "Passion fruit", "Mixed berry"]},
+    "Frozen Meat":                {"icon": "🥩", "section": "Frozen", "items": ["Mince", "Chicken breast", "Burgers", "Sausages", "Diced beef", "Diced lamb"]},
+    "Frozen Meat Alternatives":   {"icon": "🌱", "section": "Frozen", "items": ["Quorn pieces", "Vegan burgers", "Vegan sausages", "Tofu", "Vegan mince"]},
+    "Frozen Pastry":              {"icon": "🥐", "section": "Frozen", "items": ["Puff pastry", "Shortcrust pastry", "Filo", "Pizza dough"]},
+    "Frozen Patisseries":         {"icon": "🥐", "section": "Frozen", "items": ["Croissants", "Pain au chocolat", "Danish pastries", "Donuts", "Eclairs"]},
+    "Frozen Prepared":            {"icon": "🍕", "section": "Frozen", "items": ["Pizzas", "Lasagne", "Curry", "Pies", "Spring rolls", "Samosas"]},
+    "Ice Cream And Sorbets":      {"icon": "🍦", "section": "Frozen", "items": ["Vanilla", "Chocolate", "Strawberry", "Mint", "Sorbet (lemon)", "Sorbet (mango)"]},
+
+    # ---------- DRY ----------
+    "Bakery":                  {"icon": "🍞", "section": "Dry", "items": ["Bread", "Rolls", "Crumpets", "Bagels", "Wraps", "Pitta"]},
+    "Cereal":                  {"icon": "🥣", "section": "Dry", "items": ["Cornflakes", "Porridge oats", "Muesli", "Granola", "Weetabix"]},
+    "Chocolate":               {"icon": "🍫", "section": "Dry", "items": ["Dark", "Milk", "White", "Cocoa powder", "Chocolate chips"]},
+    "Crackers And Biscuits":   {"icon": "🍪", "section": "Dry", "items": ["Crackers", "Digestives", "Shortbread", "Rich tea", "Oatcakes"]},
+    "Dried Beans And Peas":    {"icon": "🫘", "section": "Dry", "items": ["Chickpeas", "Kidney beans", "Black beans", "Lentils (red)", "Lentils (green)", "Split peas", "Cannellini"]},
+    "Dried Fruit":             {"icon": "🍇", "section": "Dry", "items": ["Raisins", "Sultanas", "Apricots", "Cranberries", "Dates", "Figs", "Prunes"]},
+    "Dried Herbs And Spices":  {"icon": "🌿", "section": "Dry", "items": ["Oregano", "Basil", "Thyme", "Rosemary", "Cumin", "Paprika", "Cinnamon", "Black pepper", "Salt"]},
+    "Dried Other":             {"icon": "🥫", "section": "Dry", "items": ["Stock cubes", "Gelatin", "Yeast", "Baking powder", "Bicarbonate of soda"]},
+    "Molecular":               {"icon": "⚗️", "section": "Dry", "items": ["Agar agar", "Xanthan gum", "Locust bean gum", "Sodium alginate", "Calcium chloride"]},
+    "Nuts":                    {"icon": "🥜", "section": "Dry", "items": ["Almonds", "Cashews", "Walnuts", "Pistachios", "Hazelnuts", "Pine nuts", "Peanuts"]},
+    "Pasta And Noodles":       {"icon": "🍝", "section": "Dry", "items": ["Spaghetti", "Penne", "Fusilli", "Rigatoni", "Lasagne sheets", "Egg noodles", "Rice noodles"]},
+    "Rice And Grains":         {"icon": "🌾", "section": "Dry", "items": ["Rice (white)", "Rice (brown)", "Couscous", "Quinoa", "Bulgur", "Pearl barley"]},
+
+    # ---------- PREPARED ----------
+    "Bread And Baked Goods":   {"icon": "🥖", "section": "Prepared", "items": ["Sourdough", "Focaccia", "Ciabatta", "Brioche", "Bagels", "Crumpets", "Buns"]},
+    "Condiments":              {"icon": "🧂", "section": "Prepared", "items": ["Ketchup", "Mayonnaise", "Mustard", "Brown sauce", "Soy sauce", "Vinegar", "Worcestershire"]},
+    "Cured Meats":             {"icon": "🥓", "section": "Prepared", "items": ["Prosciutto", "Salami", "Chorizo", "Pancetta", "Bacon", "Ham", "Pastrami"]},
+    "Deli Counter":            {"icon": "🧀", "section": "Prepared", "items": ["Cooked ham", "Turkey breast", "Roast beef", "Pâté", "Cheese (cut)", "Olives"]},
+    "Dips":                    {"icon": "🥑", "section": "Prepared", "items": ["Hummus", "Guacamole", "Tzatziki", "Salsa", "Sour cream", "Tapenade"]},
+    "Ferments And Pickles":    {"icon": "🥒", "section": "Prepared", "items": ["Sauerkraut", "Kimchi", "Pickled cucumber", "Pickled onions", "Pickled chillies", "Capers"]},
+    "Garnish":                 {"icon": "🌿", "section": "Prepared", "items": ["Microgreens", "Edible flowers", "Cress", "Parsley", "Coriander", "Chives", "Lemon zest"]},
+    "Jellies, Jams And Chutney": {"icon": "🍯", "section": "Prepared", "items": ["Strawberry jam", "Raspberry jam", "Marmalade", "Mango chutney", "Apple chutney", "Mint jelly", "Redcurrant jelly"]},
+    "Oil And Dressing":        {"icon": "🫒", "section": "Prepared", "items": ["Olive oil", "Vegetable oil", "Rapeseed oil", "Vinaigrette", "Caesar dressing", "Honey mustard", "Balsamic dressing"]},
+    "Pastry":                  {"icon": "🥐", "section": "Prepared", "items": ["Shortcrust", "Puff", "Filo", "Choux"]},
+    "Prepared Crustaceans":    {"icon": "🦐", "section": "Prepared", "items": ["Cooked prawns", "King prawns", "Lobster (cooked)", "Crab meat", "Langoustine"]},
+    "Salad":                   {"icon": "🥗", "section": "Prepared", "items": ["Mixed greens", "Coleslaw", "Pasta salad", "Potato salad"]},
+    "General":                 {"icon": "🥘", "section": "Prepared", "items": ["Soup", "Sauce", "Stew", "Curry", "Casserole", "Stock", "Gravy"]},
+
+    # ---------- BEVERAGES ----------
+    "Alcopops":                {"icon": "🍾", "section": "Beverages", "items": ["WKD", "Smirnoff Ice", "Bacardi Breezer", "Hooch"]},
+    "Ale":                     {"icon": "🍺", "section": "Beverages", "items": ["Bitter", "IPA", "Brown ale", "Pale ale", "Stout", "Porter"]},
+    "Cider":                   {"icon": "🍎", "section": "Beverages", "items": ["Apple cider", "Pear cider", "Fruit cider", "Strong cider"]},
+    "Coffee":                  {"icon": "☕", "section": "Beverages", "items": ["Espresso beans", "Filter coffee", "Instant coffee", "Decaf", "Ground coffee"]},
+    "Gin":                     {"icon": "🍸", "section": "Beverages", "items": ["London dry", "Pink gin", "Sloe gin", "Flavoured gin"]},
+    "Hot Drinks (other)":      {"icon": "🍵", "section": "Beverages", "items": ["Hot chocolate", "Tea (black)", "Tea (green)", "Tea (herbal)", "Chai"]},
+    "Juices And Smoothies":    {"icon": "🥤", "section": "Beverages", "items": ["Orange", "Apple", "Pineapple", "Cranberry", "Tomato", "Smoothie (mixed berry)", "Smoothie (tropical)"]},
+    "Lager":                   {"icon": "🍻", "section": "Beverages", "items": ["Standard lager", "Premium lager", "Light lager", "Strong lager"]},
+    "Milkshakes":              {"icon": "🥤", "section": "Beverages", "items": ["Vanilla", "Chocolate", "Strawberry", "Banana"]},
+    "Red Wine":                {"icon": "🍷", "section": "Beverages", "items": ["Merlot", "Cabernet", "Shiraz", "Pinot noir", "Malbec", "House red"]},
+    "Rosé Wine":               {"icon": "🌸", "section": "Beverages", "items": ["Provence rosé", "Pinot rosé", "House rosé"]},
+    "White Wine":              {"icon": "🍾", "section": "Beverages", "items": ["Chardonnay", "Sauvignon blanc", "Pinot grigio", "Riesling", "House white"]},
+    "Sparkling Wine":          {"icon": "🥂", "section": "Beverages", "items": ["Prosecco", "Champagne", "Cava", "Crémant"]},
+    "Soft Drinks":             {"icon": "🥤", "section": "Beverages", "items": ["Cola", "Diet cola", "Lemonade", "Tonic water", "Soda water", "Ginger ale", "Mixers"]},
+    "Spirits":                 {"icon": "🥃", "section": "Beverages", "items": ["Vodka", "Rum (light)", "Rum (dark)", "Whisky", "Bourbon", "Tequila", "Brandy"]},
+    "Water":                   {"icon": "💧", "section": "Beverages", "items": ["Still", "Sparkling", "Flavoured"]},
 }
 
 VALID_SECTIONS = ["Fresh", "Frozen", "Dry", "Prepared", "Beverages"]
