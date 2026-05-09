@@ -66,7 +66,7 @@ const Intelligence = () => {
         />
         <Tile
           testId="tile-in-prep-wastage"
-          comingSoon
+          to="/jkhive/in-prep-wastage"
           icon={ChefHat}
           color="#AF52DE"
           title="In-Prep Wastage"

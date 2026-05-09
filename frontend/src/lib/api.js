@@ -825,6 +825,12 @@ class ApiService {
   }
   async inventoryBatchDelete(batchId) { return this.fetch(`/api/admin/inventory/batches/${batchId}`, { method: 'DELETE' }); }
 
+  // ============== WASTAGE ==============
+  async wastageList(locationId, type = 'in_prep') { return this.fetch(`/api/admin/wastage?location_id=${encodeURIComponent(locationId)}&type=${type}`); }
+  async wastageSummary(locationId, type = 'in_prep') { return this.fetch(`/api/admin/wastage/summary?location_id=${encodeURIComponent(locationId)}&type=${type}`); }
+  async wastageRecord(data) { return this.fetch('/api/admin/wastage', { method: 'POST', body: JSON.stringify(data) }); }
+  async wastageDelete(id) { return this.fetch(`/api/admin/wastage/${id}`, { method: 'DELETE' }); }
+
   // ============== CHECKLISTS ==============
   async checklistList(locationId, frequency) {
     const qs = new URLSearchParams({ location_id: locationId, ...(frequency ? { frequency } : {}) }).toString();

@@ -89,6 +89,10 @@ import InventoryPickItem from './pages/jkhive/inventory/InventoryPickItem';
 import InvAddStockAmount from './pages/jkhive/inventory/InvAddStockAmount';
 import InvAddStockBatch from './pages/jkhive/inventory/InvAddStockBatch';
 import InventoryItemDetail from './pages/jkhive/inventory/InventoryItemDetail';
+import InPrepHome from './pages/jkhive/wastage/InPrepHome';
+import InPrepPickItem from './pages/jkhive/wastage/InPrepPickItem';
+import InPrepAmount from './pages/jkhive/wastage/InPrepAmount';
+import InPrepComment from './pages/jkhive/wastage/InPrepComment';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -226,6 +230,10 @@ const AppRouter = () => {
         <Route path="inventory/add/amount" element={<InvAddStockAmount />} />
         <Route path="inventory/add/batch" element={<InvAddStockBatch />} />
         <Route path="inventory/item/:id" element={<InventoryItemDetail />} />
+        <Route path="in-prep-wastage" element={<InPrepHome />} />
+        <Route path="in-prep-wastage/pick" element={<InPrepPickItem />} />
+        <Route path="in-prep-wastage/amount" element={<InPrepAmount />} />
+        <Route path="in-prep-wastage/comment" element={<InPrepComment />} />
         <Route path="opening" element={<JKHiveOpeningRoutine />} />
         <Route path="opening/fridge-temp" element={<JKHiveOpeningFridgeTemp />} />
         <Route path="closing" element={<JKHiveClosingRoutine />} />
