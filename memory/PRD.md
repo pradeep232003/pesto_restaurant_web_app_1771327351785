@@ -180,6 +180,13 @@ Automated Monday-morning email digest of the previous week's compliance matrix t
 - **Tile badge**: Routines page Deliveries tile shows live "today's records" count (blue) refreshed every 60 s.
 - Verified: 16/16 backend pytest + full mobile (414×896) E2E walkthrough (login → dismiss location sheet → add supplier → record 4°C chicken delivery → CHILLED OK pill + delete row → tile badge increments to 1).
 
+### JKHive Washer Temps Wizard (May 2026) - VERIFIED
+4-step iOS wizard at `/jkhive/washer-temps` for dishwasher / glasswasher cycle temperature logging, mirroring the Probe Calibration pattern. UK FSA thresholds: Wash ≥ 55°C, Rinse ≥ 82°C, `passed` = both.
+- **Backend** (`/app/backend/routes/washers.py`): two collections — `washers` (per-location registry: name + optional info) and `washer_checks`. Endpoints: `GET/POST/PATCH/DELETE /api/admin/washers[/{washer_id}]` + `GET/POST/DELETE /api/admin/washers/checks[/{record_id}]`. Each check auto-computes `wash_pass`, `rinse_pass`, `passed`. 404 returned for unknown `washer_id` on POST /checks.
+- **Frontend** (`/app/frontend/src/pages/jkhive/washers/`): `PickWasher.jsx` (3-col grid + Add Washer tile, 🚿 icon, edit-info button per tile) → `AddWasher.jsx` / `EditWasher.jsx` (name + notes; delete preserves history) → `WashTemp.jsx` (gauge 30→70°C, default 55, knob green ≥55 / red <55, ticks 30/40/50/55/60/70) → `RinseTemp.jsx` (gauge 65→95°C, default 82, knob green ≥82, ticks 65/71/77/82/87/95, redirects back to /wash if state missing) → `CommentSubmit.jsx` (250-char comment + pass/fail card showing both ✓/✗ temps).
+- **Wired**: `MoreRoutines.jsx` Washer Temps tile (#FFCC00) routes to `/jkhive/washer-temps` (no longer Coming Soon). 6 new routes added under JKHive layout in `Routes.jsx`.
+- Verified: 13/13 backend pytest + full mobile Playwright E2E (login → /jkhive → routines → more → Washer Temps → add 'Test Dishwasher' → wash 55°C green → rinse 82°C green → submit → 'Washer passed!' card with both ✓ ticks).
+
 ## Prioritized Backlog
 
 ### P1 (High)
