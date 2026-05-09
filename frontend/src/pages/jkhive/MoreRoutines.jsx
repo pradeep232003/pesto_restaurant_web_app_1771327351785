@@ -28,14 +28,14 @@ const MoreRoutines = () => {
         <Tile testId="tile-probe-cal"        to="/jkhive/probe-calibration" icon={Gauge}         color="#FF9500" title="Probe Calibration" subtitle="Cold/hot accuracy" />
         <Tile testId="tile-hot-cold-holding" to="/jkhive/hot-cold-holding"     icon={Thermometer}   color="#FF3B30" title="Hot/Cold Holding"  subtitle="Service-line temps" />
         <Tile testId="tile-washer-temps"     to="/jkhive/washer-temps"     icon={ShowerHead}    color="#FFCC00" title="Washer Temps"      subtitle="Dishwasher cycle" />
-        <Tile testId="tile-food-acidity"     comingSoon                    icon={FlaskConical}  color="#30B0C7" title="Food Acidity"      subtitle="pH testing" />
+        <Tile testId="tile-food-acidity"     to="/jkhive/acidity"          icon={FlaskConical}  color="#30B0C7" title="Food Acidity"      subtitle="pH testing" />
       </div>
 
       <SectionLabel>Specialist methods</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
-        <Tile testId="tile-vacuum-packing"   comingSoon                    icon={Package}       color="#007AFF" title="Vacuum Packing"    subtitle="Sealed batches" />
-        <Tile testId="tile-food-washing"     comingSoon                    icon={Sparkles}      color="#32ADE6" title="Food Washing"      subtitle="Wash & sanitise" />
-        <Tile testId="tile-sous-vide"        comingSoon                    icon={Soup}          color="#AF52DE" title="Sous Vide"         subtitle="Time/temp programs" />
+        <Tile testId="tile-vacuum-packing"   to="/jkhive/vacuum-packing"   icon={Package}       color="#007AFF" title="Vacuum Packing"    subtitle="Sealed batches" />
+        <Tile testId="tile-food-washing"     to="/jkhive/food-washing"     icon={Sparkles}      color="#32ADE6" title="Food Washing"      subtitle="Wash & sanitise" />
+        <Tile testId="tile-sous-vide"        to="/jkhive/sous-vide"        icon={Soup}          color="#AF52DE" title="Sous Vide"         subtitle="Time/temp programs" />
       </div>
 
       <SectionLabel>Compliance</SectionLabel>

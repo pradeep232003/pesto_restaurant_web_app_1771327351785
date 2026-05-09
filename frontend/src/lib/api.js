@@ -855,6 +855,26 @@ class ApiService {
   async washerRecord(data) { return this.fetch('/api/admin/washers/checks', { method: 'POST', body: JSON.stringify(data) }); }
   async washerCheckDelete(id) { return this.fetch(`/api/admin/washers/checks/${id}`, { method: 'DELETE' }); }
 
+  // ============== FOOD ACIDITY (pH) ==============
+  async acidityList(locationId) { return this.fetch(`/api/admin/acidity?location_id=${encodeURIComponent(locationId)}`); }
+  async acidityRecord(data) { return this.fetch('/api/admin/acidity', { method: 'POST', body: JSON.stringify(data) }); }
+  async acidityDelete(id) { return this.fetch(`/api/admin/acidity/${id}`, { method: 'DELETE' }); }
+
+  // ============== VACUUM PACKING ==============
+  async vacuumList(locationId) { return this.fetch(`/api/admin/vacuum-packing?location_id=${encodeURIComponent(locationId)}`); }
+  async vacuumRecord(data) { return this.fetch('/api/admin/vacuum-packing', { method: 'POST', body: JSON.stringify(data) }); }
+  async vacuumDelete(id) { return this.fetch(`/api/admin/vacuum-packing/${id}`, { method: 'DELETE' }); }
+
+  // ============== FOOD WASHING ==============
+  async foodWashList(locationId) { return this.fetch(`/api/admin/food-washing?location_id=${encodeURIComponent(locationId)}`); }
+  async foodWashRecord(data) { return this.fetch('/api/admin/food-washing', { method: 'POST', body: JSON.stringify(data) }); }
+  async foodWashDelete(id) { return this.fetch(`/api/admin/food-washing/${id}`, { method: 'DELETE' }); }
+
+  // ============== SOUS VIDE ==============
+  async sousVideList(locationId) { return this.fetch(`/api/admin/sous-vide?location_id=${encodeURIComponent(locationId)}`); }
+  async sousVideRecord(data) { return this.fetch('/api/admin/sous-vide', { method: 'POST', body: JSON.stringify(data) }); }
+  async sousVideDelete(id) { return this.fetch(`/api/admin/sous-vide/${id}`, { method: 'DELETE' }); }
+
   // ============== HOT / COLD HOLDING ==============
   async hotColdList(locationId, status) {
     const qs = new URLSearchParams({ location_id: locationId, ...(status ? { status } : {}) }).toString();

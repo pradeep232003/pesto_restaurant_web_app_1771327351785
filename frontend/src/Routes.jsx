@@ -113,6 +113,18 @@ import WasherEdit from './pages/jkhive/washers/EditWasher';
 import WasherWash from './pages/jkhive/washers/WashTemp';
 import WasherRinse from './pages/jkhive/washers/RinseTemp';
 import WasherCommentSubmit from './pages/jkhive/washers/CommentSubmit';
+import AcidityHome from './pages/jkhive/acidity/AcidityHome';
+import AcidityPick from './pages/jkhive/acidity/AcidityPick';
+import AcidityRecord from './pages/jkhive/acidity/AcidityRecord';
+import VacuumHome from './pages/jkhive/vacuum/VacuumHome';
+import VacuumPick from './pages/jkhive/vacuum/VacuumPick';
+import VacuumRecord from './pages/jkhive/vacuum/VacuumRecord';
+import WashingHome from './pages/jkhive/washing/WashingHome';
+import WashingPick from './pages/jkhive/washing/WashingPick';
+import WashingRecord from './pages/jkhive/washing/WashingRecord';
+import SousVideHome from './pages/jkhive/sous_vide/SousVideHome';
+import SousVidePick from './pages/jkhive/sous_vide/SousVidePick';
+import SousVideRecord from './pages/jkhive/sous_vide/SousVideRecord';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -274,6 +286,18 @@ const AppRouter = () => {
         <Route path="washer-temps/:washerId/wash" element={<WasherWash />} />
         <Route path="washer-temps/:washerId/rinse" element={<WasherRinse />} />
         <Route path="washer-temps/:washerId/comment" element={<WasherCommentSubmit />} />
+        <Route path="acidity" element={<AcidityHome />} />
+        <Route path="acidity/pick" element={<AcidityPick />} />
+        <Route path="acidity/record" element={<AcidityRecord />} />
+        <Route path="vacuum-packing" element={<VacuumHome />} />
+        <Route path="vacuum-packing/pick" element={<VacuumPick />} />
+        <Route path="vacuum-packing/record" element={<VacuumRecord />} />
+        <Route path="food-washing" element={<WashingHome />} />
+        <Route path="food-washing/pick" element={<WashingPick />} />
+        <Route path="food-washing/record" element={<WashingRecord />} />
+        <Route path="sous-vide" element={<SousVideHome />} />
+        <Route path="sous-vide/pick" element={<SousVidePick />} />
+        <Route path="sous-vide/record" element={<SousVideRecord />} />
         <Route path="opening" element={<JKHiveOpeningRoutine />} />
         <Route path="opening/fridge-temp" element={<JKHiveOpeningFridgeTemp />} />
         <Route path="closing" element={<JKHiveClosingRoutine />} />
