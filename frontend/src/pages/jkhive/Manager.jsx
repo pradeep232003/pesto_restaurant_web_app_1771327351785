@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Settings, Wallet, Receipt, ClipboardList, TrendingUp, TrendingDown, Users, ShieldCheck, BarChart3, UtensilsCrossed, Snowflake } from 'lucide-react';
+import { Settings, Users, ShieldCheck, BarChart3, TrendingUp, TrendingDown, UtensilsCrossed, Snowflake } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -16,23 +16,11 @@ const Manager = () => {
         Settings, finances and admin controls.
       </p>
 
-      <SectionLabel>Overview</SectionLabel>
-      <div className="grid grid-cols-2 gap-3">
-        <Tile testId="tile-admin-dashboard" to="/admin"          icon={LayoutDashboard} color="#1D1D1F" title="Admin Dashboard" subtitle="Full control panel" />
-        <Tile testId="tile-orders"          to="/admin/orders"   icon={ClipboardList}   color="#FF9500" title="Orders"          subtitle="Live & history" />
-      </div>
-
       <SectionLabel>Finance</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
         <Tile testId="tile-sales-summary" to="/jkhive/sales-summary" icon={BarChart3} color="#007AFF" title="Sales Summary" subtitle="Totals & breakdowns" />
         <Tile testId="tile-income"   to="/admin/income"   icon={TrendingUp}   color="#34C759" title="Income"   subtitle="Track revenue streams" />
         <Tile testId="tile-expenses" to="/admin/expenses" icon={TrendingDown} color="#FF3B30" title="Expenses" subtitle="Outgoings & receipts" />
-        {isAdmin && (
-          <Tile testId="tile-wallets" to="/admin/residents" icon={Wallet} color="#5856D6" title="Resident Wallets" subtitle="Prepaid balances" />
-        )}
-        {isAdmin && (
-          <Tile testId="tile-reports" to="/admin/transactions" icon={Receipt} color="#007AFF" title="Reports" subtitle="Transaction history" />
-        )}
       </div>
 
       <SectionLabel>Configuration</SectionLabel>
