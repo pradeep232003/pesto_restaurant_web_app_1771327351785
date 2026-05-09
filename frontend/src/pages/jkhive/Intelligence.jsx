@@ -105,13 +105,6 @@ const Intelligence = () => {
         <Tile testId="tile-documents"      comingSoon icon={FolderOpen}    color="#5856D6" title="Documents"      subtitle="Policies & manuals" />
         <Tile testId="tile-risk-assessments" comingSoon icon={Shield}      color="#FF3B30" title="Risk Assessments" subtitle="HSE-ready records" />
       </div>
-
-      <SectionLabel>Learn</SectionLabel>
-      <div className="grid grid-cols-2 gap-3">
-        <Tile testId="tile-learning"     comingSoon icon={Sparkles}  color="#FFCC00" title="Learning"  subtitle="Staff training & courses" />
-        <Tile testId="tile-certificates" comingSoon icon={Award}     color="#AF52DE" title="Certificates" subtitle="Level 2/3 hygiene certs" />
-        <Tile testId="tile-onboarding"   comingSoon icon={ClipboardCheck} color="#30B0C7" title="Onboarding" subtitle="New starter packs" />
-      </div>
     </div>
   );
 };

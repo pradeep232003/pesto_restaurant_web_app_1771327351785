@@ -100,12 +100,23 @@ import ContactUs from './pages/contact-us';
 import JKLocations from './pages/jk-locations';
 import LocationLanding from './pages/location-landing';
 import AdminLayout from './components/AdminLayout';
+import { useAuth } from './contexts/AuthContext';
 import { LocationProvider } from './contexts/LocationContext';
 import { CustomerProvider } from './contexts/CustomerContext';
 
 const AdminRoute = ({ children }) => (
   <AdminLayout>{children}</AdminLayout>
 );
+
+/** Admin guard that does NOT wrap in AdminLayout — for pages already inside another layout. */
+const AdminOnly = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+    return <Navigate to="/jkhive" replace />;
+  }
+  return children;
+};
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
 const AppRouter = () => {
@@ -182,7 +193,7 @@ const AppRouter = () => {
         <Route path="routines" element={<JKHiveRoutines />} />
         <Route path="routines/more" element={<JKHiveMoreRoutines />} />
         <Route path="workforce" element={<JKHiveWorkforce />} />
-        <Route path="manager" element={<AdminRoute><JKHiveManager /></AdminRoute>} />
+        <Route path="manager" element={<AdminOnly><JKHiveManager /></AdminOnly>} />
         <Route path="profile" element={<JKHiveProfile />} />
         <Route path="daily-sales" element={<JKHiveDailySales />} />
         <Route path="sales-summary" element={<JKHiveSalesSummary />} />
@@ -228,7 +239,7 @@ const AppRouter = () => {
         <Route path="reheating/new" element={<ReheatingPickItem />} />
         <Route path="reheating/record" element={<ReheatingRecordTemp />} />
         <Route path="reheating/comment" element={<ReheatingComment />} />
-        <Route path="manager/routine-units" element={<AdminRoute><JKHiveRoutineUnits /></AdminRoute>} />
+        <Route path="manager/routine-units" element={<AdminOnly><JKHiveRoutineUnits /></AdminOnly>} />
       </Route>
 
       {/* Customer loyalty card */}

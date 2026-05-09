@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Clock, Wallet, MessageSquareWarning, Headphones } from 'lucide-react';
+import { Calendar, Clock, Wallet, MessageSquareWarning, Headphones, Sparkles, Award, ClipboardCheck } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 
 const Workforce = () => {
@@ -11,6 +11,13 @@ const Workforce = () => {
       <p className="text-[14px] mt-2 mb-1" style={{ color: '#86868B' }}>
         People, sales and customer engagement at a glance.
       </p>
+
+      <SectionLabel>Learn</SectionLabel>
+      <div className="grid grid-cols-2 gap-3">
+        <Tile testId="tile-learning"     comingSoon icon={Sparkles}  color="#FFCC00" title="Learning"  subtitle="Staff training & courses" />
+        <Tile testId="tile-certificates" comingSoon icon={Award}     color="#AF52DE" title="Certificates" subtitle="Level 2/3 hygiene certs" />
+        <Tile testId="tile-onboarding"   comingSoon icon={ClipboardCheck} color="#30B0C7" title="Onboarding" subtitle="New starter packs" />
+      </div>
 
       <SectionLabel>Coming soon</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
