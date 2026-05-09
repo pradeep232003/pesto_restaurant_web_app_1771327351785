@@ -831,6 +831,18 @@ class ApiService {
   async wastageRecord(data) { return this.fetch('/api/admin/wastage', { method: 'POST', body: JSON.stringify(data) }); }
   async wastageDelete(id) { return this.fetch(`/api/admin/wastage/${id}`, { method: 'DELETE' }); }
 
+  // ============== PROBE CALIBRATION ==============
+  async probesList(locationId) { return this.fetch(`/api/admin/probes?location_id=${encodeURIComponent(locationId)}`); }
+  async probeAdd(data) { return this.fetch('/api/admin/probes', { method: 'POST', body: JSON.stringify(data) }); }
+  async probeUpdate(id, data) { return this.fetch(`/api/admin/probes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  async probeDelete(id) { return this.fetch(`/api/admin/probes/${id}`, { method: 'DELETE' }); }
+  async probeCalibrations(locationId, opts = {}) {
+    const qs = new URLSearchParams({ location_id: locationId, ...opts }).toString();
+    return this.fetch(`/api/admin/probes/calibrations?${qs}`);
+  }
+  async probeCalibrate(data) { return this.fetch('/api/admin/probes/calibrations', { method: 'POST', body: JSON.stringify(data) }); }
+  async probeCalibrationDelete(id) { return this.fetch(`/api/admin/probes/calibrations/${id}`, { method: 'DELETE' }); }
+
   // ============== CHECKLISTS ==============
   async checklistList(locationId, frequency) {
     const qs = new URLSearchParams({ location_id: locationId, ...(frequency ? { frequency } : {}) }).toString();

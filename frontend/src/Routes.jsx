@@ -96,6 +96,12 @@ import InPrepComment from './pages/jkhive/wastage/InPrepComment';
 import InServiceHome from './pages/jkhive/wastage/InServiceHome';
 import InServicePick from './pages/jkhive/wastage/InServicePick';
 import InServiceComment from './pages/jkhive/wastage/InServiceComment';
+import ProbePick from './pages/jkhive/probes/PickProbe';
+import ProbeAdd from './pages/jkhive/probes/AddProbe';
+import ProbeEdit from './pages/jkhive/probes/EditProbe';
+import ProbeBoiling from './pages/jkhive/probes/BoilingTemp';
+import ProbeIced from './pages/jkhive/probes/IcedTemp';
+import ProbeCommentSubmit from './pages/jkhive/probes/CommentSubmit';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -240,6 +246,12 @@ const AppRouter = () => {
         <Route path="in-service-wastage" element={<InServiceHome />} />
         <Route path="in-service-wastage/pick" element={<InServicePick />} />
         <Route path="in-service-wastage/comment" element={<InServiceComment />} />
+        <Route path="probe-calibration" element={<ProbePick />} />
+        <Route path="probe-calibration/new" element={<ProbeAdd />} />
+        <Route path="probe-calibration/:id/edit" element={<ProbeEdit />} />
+        <Route path="probe-calibration/:probeId/boiling" element={<ProbeBoiling />} />
+        <Route path="probe-calibration/:probeId/iced" element={<ProbeIced />} />
+        <Route path="probe-calibration/:probeId/comment" element={<ProbeCommentSubmit />} />
         <Route path="opening" element={<JKHiveOpeningRoutine />} />
         <Route path="opening/fridge-temp" element={<JKHiveOpeningFridgeTemp />} />
         <Route path="closing" element={<JKHiveClosingRoutine />} />

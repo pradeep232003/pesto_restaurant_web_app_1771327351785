@@ -25,7 +25,7 @@ const MoreRoutines = () => {
 
       <SectionLabel>Equipment & calibration</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
-        <Tile testId="tile-probe-cal"        to="/admin/probe-calibration" icon={Gauge}         color="#FF9500" title="Probe Calibration" subtitle="Cold/hot accuracy" />
+        <Tile testId="tile-probe-cal"        to="/jkhive/probe-calibration" icon={Gauge}         color="#FF9500" title="Probe Calibration" subtitle="Cold/hot accuracy" />
         <Tile testId="tile-hot-cold-holding" comingSoon                    icon={Thermometer}   color="#FF3B30" title="Hot/Cold Holding"  subtitle="Service-line temps" />
         <Tile testId="tile-washer-temps"     comingSoon                    icon={ShowerHead}    color="#FFCC00" title="Washer Temps"      subtitle="Dishwasher cycle" />
         <Tile testId="tile-food-acidity"     comingSoon                    icon={FlaskConical}  color="#30B0C7" title="Food Acidity"      subtitle="pH testing" />
