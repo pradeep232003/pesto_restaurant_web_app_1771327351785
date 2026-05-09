@@ -29,18 +29,34 @@ custom_collection = db["cooking_cooling_custom"]
 # tab bar in the JKHive ingredient picker (matches IMG_6688).
 DEFAULT_CATALOG = {
     # ---------- FRESH ----------
-    "Beef":            {"icon": "🐄", "section": "Fresh",    "items": ["Brisket", "Chuck", "Diced", "Fillet", "Flank", "Mince", "Ribeye", "Rump", "Sirloin", "Stewing"]},
-    "Chicken":         {"icon": "🐔", "section": "Fresh",    "items": ["Breast", "Drum stick", "Fillet", "Fronts", "Gizzard", "Heart", "Leg", "Liver", "Supremes", "Thigh", "Wing", "Whole bird"]},
-    "Eggs":            {"icon": "🥚", "section": "Fresh",    "items": ["Whole", "Yolks", "Whites"]},
-    "Fish (other)":    {"icon": "🎣", "section": "Fresh",    "items": ["Anchovy", "Cod", "Haddock", "Sardine", "Tuna"]},
-    "Flat Fish":       {"icon": "🐟", "section": "Fresh",    "items": ["Sole", "Plaice", "Halibut", "Turbot"]},
-    "Game":            {"icon": "🦌", "section": "Fresh",    "items": ["Venison", "Pheasant", "Rabbit", "Duck (game)", "Partridge"]},
-    "Lamb":            {"icon": "🐑", "section": "Fresh",    "items": ["Leg", "Shoulder", "Mince", "Chops", "Rack", "Diced"]},
-    "Milk":            {"icon": "🥛", "section": "Fresh",    "items": ["Whole", "Semi-skimmed", "Cream", "Custard"]},
-    "Molluscs":        {"icon": "🦑", "section": "Fresh",    "items": ["Squid", "Octopus", "Mussels", "Clams", "Oysters"]},
-    "Pork":            {"icon": "🐷", "section": "Fresh",    "items": ["Belly", "Loin", "Mince", "Sausages", "Ribs", "Shoulder", "Bacon"]},
-    "Round Fish":      {"icon": "🐠", "section": "Fresh",    "items": ["Salmon", "Sea bass", "Mackerel", "Trout"]},
-    "Turkey":          {"icon": "🦃", "section": "Fresh",    "items": ["Breast", "Whole bird", "Mince", "Crown"]},
+    "Beef":                {"icon": "🐄", "section": "Fresh", "items": ["Brisket", "Chuck", "Diced", "Fillet", "Flank", "Mince", "Ribeye", "Rump", "Sirloin", "Stewing"]},
+    "Berries":             {"icon": "🫐", "section": "Fresh", "items": ["Strawberries", "Raspberries", "Blueberries", "Blackberries", "Redcurrants", "Gooseberries"]},
+    "Butter & Creams":     {"icon": "🧈", "section": "Fresh", "items": ["Salted butter", "Unsalted butter", "Clarified butter", "Single cream", "Double cream", "Whipping cream", "Crème fraîche", "Sour cream"]},
+    "Cheese":              {"icon": "🧀", "section": "Fresh", "items": ["Cheddar", "Mozzarella", "Parmesan", "Feta", "Halloumi", "Brie", "Goat's cheese", "Stilton", "Cream cheese"]},
+    "Chicken":             {"icon": "🐔", "section": "Fresh", "items": ["Breast", "Drum stick", "Fillet", "Fronts", "Gizzard", "Heart", "Leg", "Liver", "Supremes", "Thigh", "Wing", "Whole bird"]},
+    "Citrus":              {"icon": "🍊", "section": "Fresh", "items": ["Lemons", "Limes", "Oranges", "Grapefruit", "Mandarins", "Clementines", "Kumquats"]},
+    "Crustaceans":         {"icon": "🦞", "section": "Fresh", "items": ["Prawns", "King prawns", "Langoustine", "Lobster", "Crab", "Crayfish"]},
+    "Eggs":                {"icon": "🥚", "section": "Fresh", "items": ["Whole", "Yolks", "Whites"]},
+    "Fish (other)":        {"icon": "🎣", "section": "Fresh", "items": ["Anchovy", "Cod", "Haddock", "Sardine", "Tuna"]},
+    "Flat Fish":           {"icon": "🐟", "section": "Fresh", "items": ["Sole", "Plaice", "Halibut", "Turbot"]},
+    "Fresh Herbs":         {"icon": "🌿", "section": "Fresh", "items": ["Parsley", "Coriander", "Basil", "Mint", "Chives", "Dill", "Thyme", "Rosemary", "Tarragon"]},
+    "Fruit (other)":       {"icon": "🍐", "section": "Fresh", "items": ["Apples", "Pears", "Grapes", "Pomegranate", "Figs", "Cherries", "Quince"]},
+    "Game":                {"icon": "🦌", "section": "Fresh", "items": ["Venison", "Pheasant", "Rabbit", "Duck (game)", "Partridge"]},
+    "Greens":              {"icon": "🥬", "section": "Fresh", "items": ["Spinach", "Kale", "Cabbage", "Pak choi", "Chard", "Lettuce", "Rocket", "Broccoli", "Cauliflower"]},
+    "Lamb":                {"icon": "🐑", "section": "Fresh", "items": ["Leg", "Shoulder", "Mince", "Chops", "Rack", "Diced"]},
+    "Meat Alternatives":   {"icon": "🌱", "section": "Fresh", "items": ["Tofu", "Tempeh", "Seitan", "Quorn", "Vegan mince", "Vegan sausages"]},
+    "Melons":              {"icon": "🍈", "section": "Fresh", "items": ["Watermelon", "Cantaloupe", "Honeydew", "Galia", "Charentais"]},
+    "Milk":                {"icon": "🥛", "section": "Fresh", "items": ["Whole", "Semi-skimmed", "Skimmed", "Buttermilk", "Oat milk", "Almond milk", "Soy milk"]},
+    "Molluscs":            {"icon": "🦑", "section": "Fresh", "items": ["Squid", "Octopus", "Mussels", "Clams", "Oysters", "Scallops", "Whelks"]},
+    "Mushrooms":           {"icon": "🍄", "section": "Fresh", "items": ["Button", "Chestnut", "Portobello", "Oyster", "Shiitake", "Wild", "Truffle"]},
+    "Pork":                {"icon": "🐷", "section": "Fresh", "items": ["Belly", "Loin", "Mince", "Sausages", "Ribs", "Shoulder", "Bacon"]},
+    "Roots":               {"icon": "🥕", "section": "Fresh", "items": ["Carrots", "Parsnips", "Potatoes", "Sweet potatoes", "Beetroot", "Celeriac", "Turnip", "Swede", "Radish", "Ginger"]},
+    "Round Fish":          {"icon": "🐠", "section": "Fresh", "items": ["Salmon", "Sea bass", "Mackerel", "Trout"]},
+    "Salad":               {"icon": "🥗", "section": "Fresh", "items": ["Mixed leaves", "Cos", "Iceberg", "Watercress", "Spinach (baby)", "Tomatoes", "Cucumber", "Peppers"]},
+    "Stone Fruit":         {"icon": "🍑", "section": "Fresh", "items": ["Peaches", "Nectarines", "Plums", "Apricots", "Cherries", "Mangoes", "Avocado"]},
+    "Tropical Fruit":      {"icon": "🍍", "section": "Fresh", "items": ["Pineapple", "Mango", "Papaya", "Banana", "Passion fruit", "Lychee", "Dragon fruit", "Coconut"]},
+    "Turkey":              {"icon": "🦃", "section": "Fresh", "items": ["Breast", "Whole bird", "Mince", "Crown"]},
+    "Yoghurt":             {"icon": "🥛", "section": "Fresh", "items": ["Natural", "Greek", "Greek-style", "Low-fat", "Coconut", "Soya"]},
 
     # ---------- FROZEN ----------
     "Frozen Bread":               {"icon": "🥖", "section": "Frozen", "items": ["Bread loaves", "Bread rolls", "Brioche", "Pitta", "Naan", "Wraps"]},
@@ -67,6 +83,8 @@ DEFAULT_CATALOG = {
     "Nuts":                    {"icon": "🥜", "section": "Dry", "items": ["Almonds", "Cashews", "Walnuts", "Pistachios", "Hazelnuts", "Pine nuts", "Peanuts"]},
     "Pasta And Noodles":       {"icon": "🍝", "section": "Dry", "items": ["Spaghetti", "Penne", "Fusilli", "Rigatoni", "Lasagne sheets", "Egg noodles", "Rice noodles"]},
     "Rice And Grains":         {"icon": "🌾", "section": "Dry", "items": ["Rice (white)", "Rice (brown)", "Couscous", "Quinoa", "Bulgur", "Pearl barley"]},
+    "Snacks":                  {"icon": "🍿", "section": "Dry", "items": ["Crisps", "Tortilla chips", "Popcorn", "Pretzels", "Snack bars", "Rice cakes", "Bombay mix"]},
+    "Tinned":                  {"icon": "🥫", "section": "Dry", "items": ["Chopped tomatoes", "Plum tomatoes", "Tomato purée", "Beans (baked)", "Beans (kidney)", "Chickpeas", "Tuna", "Sweetcorn", "Coconut milk", "Soup"]},
 
     # ---------- PREPARED ----------
     "Bread And Baked Goods":   {"icon": "🥖", "section": "Prepared", "items": ["Sourdough", "Focaccia", "Ciabatta", "Brioche", "Bagels", "Crumpets", "Buns"]},
@@ -80,7 +98,6 @@ DEFAULT_CATALOG = {
     "Oil And Dressing":        {"icon": "🫒", "section": "Prepared", "items": ["Olive oil", "Vegetable oil", "Rapeseed oil", "Vinaigrette", "Caesar dressing", "Honey mustard", "Balsamic dressing"]},
     "Pastry":                  {"icon": "🥐", "section": "Prepared", "items": ["Shortcrust", "Puff", "Filo", "Choux"]},
     "Prepared Crustaceans":    {"icon": "🦐", "section": "Prepared", "items": ["Cooked prawns", "King prawns", "Lobster (cooked)", "Crab meat", "Langoustine"]},
-    "Salad":                   {"icon": "🥗", "section": "Prepared", "items": ["Mixed greens", "Coleslaw", "Pasta salad", "Potato salad"]},
     "General":                 {"icon": "🥘", "section": "Prepared", "items": ["Soup", "Sauce", "Stew", "Curry", "Casserole", "Stock", "Gravy"]},
 
     # ---------- BEVERAGES ----------
