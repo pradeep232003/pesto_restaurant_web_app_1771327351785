@@ -93,6 +93,9 @@ import InPrepHome from './pages/jkhive/wastage/InPrepHome';
 import InPrepPickItem from './pages/jkhive/wastage/InPrepPickItem';
 import InPrepAmount from './pages/jkhive/wastage/InPrepAmount';
 import InPrepComment from './pages/jkhive/wastage/InPrepComment';
+import InServiceHome from './pages/jkhive/wastage/InServiceHome';
+import InServicePick from './pages/jkhive/wastage/InServicePick';
+import InServiceComment from './pages/jkhive/wastage/InServiceComment';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -234,6 +237,9 @@ const AppRouter = () => {
         <Route path="in-prep-wastage/pick" element={<InPrepPickItem />} />
         <Route path="in-prep-wastage/amount" element={<InPrepAmount />} />
         <Route path="in-prep-wastage/comment" element={<InPrepComment />} />
+        <Route path="in-service-wastage" element={<InServiceHome />} />
+        <Route path="in-service-wastage/pick" element={<InServicePick />} />
+        <Route path="in-service-wastage/comment" element={<InServiceComment />} />
         <Route path="opening" element={<JKHiveOpeningRoutine />} />
         <Route path="opening/fridge-temp" element={<JKHiveOpeningFridgeTemp />} />
         <Route path="closing" element={<JKHiveClosingRoutine />} />

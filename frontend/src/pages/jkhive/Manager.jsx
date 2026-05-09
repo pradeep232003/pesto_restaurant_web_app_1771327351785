@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Users, ShieldCheck, BarChart3, TrendingUp, TrendingDown, UtensilsCrossed, Snowflake, LineChart } from 'lucide-react';
+import { Settings, Users, ShieldCheck, BarChart3, TrendingUp, TrendingDown, UtensilsCrossed, Snowflake, LineChart, Trash2 } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -26,6 +26,7 @@ const Manager = () => {
       <SectionLabel>Analytics</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
         <Tile testId="tile-business-intelligence" comingSoon icon={LineChart} color="#007AFF" title="Business Intelligence" subtitle="Cross-site analytics" />
+        <Tile testId="tile-food-wastage"          comingSoon icon={Trash2}    color="#FF3B30" title="Food Wastage"          subtitle="Track all food loss" />
       </div>
 
       <SectionLabel>Configuration</SectionLabel>

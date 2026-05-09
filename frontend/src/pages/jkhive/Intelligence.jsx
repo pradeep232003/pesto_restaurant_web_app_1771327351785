@@ -49,16 +49,8 @@ const Intelligence = () => {
       <SectionLabel>Wastage</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
         <Tile
-          testId="tile-food-wastage"
-          comingSoon
-          icon={Trash2}
-          color="#FF3B30"
-          title="Food Wastage"
-          subtitle="Track all food loss"
-        />
-        <Tile
           testId="tile-in-service-wastage"
-          comingSoon
+          to="/jkhive/in-service-wastage"
           icon={UtensilsCrossed}
           color="#FF2D55"
           title="In-Service Wastage"

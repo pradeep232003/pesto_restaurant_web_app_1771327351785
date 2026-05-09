@@ -30,6 +30,9 @@ class WastageBody(BaseModel):
     amount: float
     unit: str
     comment: Optional[str] = ""
+    # In-service only — menu price at time of waste (auto-captured from menu).
+    price: Optional[float] = None
+    menu_item_id: Optional[str] = ""
 
 
 @router.get("")
@@ -73,6 +76,7 @@ async def summary(
         return None  # unknown / volume / count — excluded from kg total
 
     kg_today = 0.0
+    gbp_today = 0.0
     count_today = 0
     for r in rows:
         if (r.get("recorded_at") or "").startswith(today):
@@ -80,7 +84,14 @@ async def summary(
             kg = to_kg(float(r.get("amount", 0)), r.get("unit", ""))
             if kg is not None:
                 kg_today += kg
-    return {"kg_today": round(kg_today, 2), "count_today": count_today, "count_7d": len(rows)}
+            if r.get("price") is not None:
+                gbp_today += float(r.get("price") or 0) * float(r.get("amount", 1) or 1)
+    return {
+        "kg_today": round(kg_today, 2),
+        "gbp_today": round(gbp_today, 2),
+        "count_today": count_today,
+        "count_7d": len(rows),
+    }
 
 
 @router.post("")
@@ -99,6 +110,8 @@ async def record_wastage(body: WastageBody, user: dict = Depends(get_staff_or_ab
         "amount": body.amount,
         "unit": body.unit,
         "comment": body.comment or "",
+        "price": body.price,
+        "menu_item_id": body.menu_item_id or "",
         "recorded_at": datetime.now(timezone.utc).isoformat(),
         "recorded_by": user.get("email", ""),
         "recorded_by_name": user.get("name", ""),
