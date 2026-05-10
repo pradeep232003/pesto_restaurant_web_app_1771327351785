@@ -40,7 +40,7 @@ const buildTasks = (loc, data) => {
   const checklistsRunToday = (data.checklists || []).filter(c => (c.last_run_at || c.last_run_date || '').slice(0, 10) === today()).length;
   return [
     { id: 'opening',         icon: ListChecks,      color: '#FF9500', title: 'Opening checklist',
-      sub: 'Daily setup tasks',                  to: '/jkhive/opening',
+      sub: 'Daily setup tasks',                  to: '/jkhive/daily-checks',
       done: dcOpening },
     { id: 'fridge-open',     icon: Refrigerator,    color: '#34C759', title: 'Fridge / Freezer opening temps',
       sub: 'AM temp probe round',               to: '/jkhive/opening/fridge-temp',
