@@ -216,6 +216,28 @@ Automated Monday-morning email digest of the previous week's compliance matrix t
 - **Wired**: `MoreRoutines.jsx` Legionella tile (#30B0C7) now routes to `/jkhive/legionella` (was `/admin/legionella`). 5 new routes under JKHive layout.
 - Verified: Mobile Playwright E2E (login → /jkhive → routines → more → Legionella → Add record → Kitchen hot tap → hot 55 °C → cold 15 °C → Submit → "Test passed" card with both ✓ ticks).
 
+### JKHive Today's Check Hub (May 2026) - VERIFIED
+Full-width hero tile on `/jkhive` (Intelligence) plus a hub page at `/jkhive/daily-check` that consolidates the entire EHO-compliant operational day into one screen.
+
+- **Hero tile** (`DailyCheckTile.jsx`): Spans both columns in the Operate grid, sits ABOVE Daily Sales. Renders a black squircle (CheckSquare icon) + "Today's Check" + "11 routines for an EHO-ready day" subtitle + two stat blocks (orange Outstanding, green Done) with live counts. Refreshes every 60 s while idle. Shows "All checks complete for today ✓" once everything is done.
+- **Hub page** (`DailyCheck.jsx`): Lists 11 routines with status pills (DONE / PENDING). Each row shows colored icon + title + subtitle + pill + chevron — tap to jump to that routine. Top of the page mirrors the same Outstanding/Done stat cards. Sticky bottom bar with white "× Exit" pill (back to /jkhive) + black "Jump to '{first pending}' →" pill that opens the next outstanding routine in one tap. Completed rows render line-through + 70% opacity.
+- **Status detection** is automatic — for each routine the hub queries the relevant list endpoint (washers/checks, hot-cold, cooked, reheating, cooling, deliveries, checklists, daily-checks, kitchen-closedown) and counts records whose timestamp is today.
+- **Quick "no-X today" chips** inline on rows for **Bulk Cooling** ("No bulk prep today") and **Deliveries** ("No deliveries today"). Tapping flips the row to DONE without leaving the hub. Both endpoints are idempotent per location per day.
+- **New backend endpoint**: `POST /api/admin/cooking-cooling/no-bulk-prep` (mirrors the `/deliveries/no-delivery` pattern from earlier — `kind:"no_bulk_prep"` log entry, idempotent).
+- 11 routines wired:
+  1. Opening checklist → `/jkhive/opening`
+  2. Fridge / Freezer opening temps → `/jkhive/opening/fridge-temp`
+  3. Washer Temps → `/jkhive/washer-temps`
+  4. Hot / Cold Holding → `/jkhive/hot-cold-holding`
+  5. Cooked Temps → `/jkhive/cooked-temps`
+  6. Reheating → `/jkhive/reheating`
+  7. Bulk Cooling → `/jkhive/cooking-cooling` (with No-bulk-prep chip)
+  8. Deliveries → `/jkhive/delivery-records` (with No-delivery chip)
+  9. Daily Cleaning → `/jkhive/checklists`
+  10. Fridge / Freezer closing temps → `/jkhive/kitchen-closedown`
+  11. Closing checklist → `/jkhive/kitchen-closedown`
+- Verified: mobile Playwright E2E (Intelligence shows new hero with Outstanding=11/Done=0 → tap → hub renders all 11 PENDING rows + jump-next + exit pill → tap "No bulk prep today" chip → outstanding decreases to 10 → tap a row → routes to /jkhive/washer-temps).
+
 ## Prioritized Backlog
 
 ### P1 (High)

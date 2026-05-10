@@ -327,3 +327,41 @@ def run_cooling_alarm_sweep():
                 logs_collection.update_one({"id": log["id"]}, {"$set": {"alerts_sent": list(sent)}})
     except Exception as e:
         _logger.exception("cooling alarm sweep failed: %s", e)
+
+
+
+class NoBulkPrepBody(BaseModel):
+    location_id: str
+    comment: Optional[str] = ""
+
+
+@router.post("/no-bulk-prep")
+async def record_no_bulk_prep(body: NoBulkPrepBody, user: dict = Depends(get_staff_or_above)):
+    """Log that no bulk prep / cooking happened today (HACCP audit trail).
+
+    Idempotent per location per day — returns the existing record if one
+    already exists rather than creating a duplicate.
+    """
+    today_str = datetime.now(timezone.utc).date().isoformat()
+    existing = logs_collection.find_one({
+        "location_id": body.location_id,
+        "kind": "no_bulk_prep",
+        "started_at": {"$gte": today_str + "T00:00:00", "$lt": today_str + "T23:59:59"},
+    }, {"_id": 0})
+    if existing:
+        return existing
+    doc = {
+        "id": str(uuid.uuid4())[:12],
+        "location_id": body.location_id,
+        "kind": "no_bulk_prep",
+        "item_name": "No bulk prep today",
+        "item_category": "",
+        "status": "complete",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "comment": body.comment or "",
+        "recorded_by": user.get("email", ""),
+        "recorded_by_name": user.get("name", ""),
+    }
+    logs_collection.insert_one(dict(doc))
+    return {k: v for k, v in doc.items() if k != "_id"}
