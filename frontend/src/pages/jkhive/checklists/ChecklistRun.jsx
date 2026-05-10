@@ -22,9 +22,22 @@ const ChecklistRun = () => {
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
 
   useEffect(() => {
-    api.checklistGet(id, adminLocationId)
-      .then(setTpl)
-      .catch(err => alert('Failed to load: ' + err.message));
+    const todayLocal = new Date().toISOString().slice(0, 10);
+    Promise.all([
+      api.checklistGet(id, adminLocationId),
+      api.checklistRunsList(id).catch(() => []),
+    ]).then(([template, runs]) => {
+      setTpl(template);
+      // Pre-fill ticks if there is a run from today for this template+location
+      const todayRun = (runs || []).find(r =>
+        (r.submitted_at || '').slice(0, 10) === todayLocal &&
+        (!r.location_id || r.location_id === adminLocationId)
+      );
+      if (todayRun && Array.isArray(todayRun.checked_items)) {
+        setChecked(new Set(todayRun.checked_items));
+        if (todayRun.comment) setComment(todayRun.comment);
+      }
+    }).catch(err => alert('Failed to load: ' + err.message));
   }, [id, adminLocationId]);
 
   if (!tpl) return <p style={{ padding: 24, color: '#86868B', textAlign: 'center' }}>Loading…</p>;
