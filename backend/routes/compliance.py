@@ -1,6 +1,8 @@
 """
 Food Safety Compliance aggregation endpoint.
-Aggregates 9 check types across all sites for EHO compliance reporting.
+Aggregates the same routines surfaced on the JKHive Daily Check hub
+(/jkhive/daily-check) so the compliance % directly mirrors what staff
+are completing each day.
 """
 from fastapi import APIRouter, Depends, Query
 from datetime import datetime, date, timedelta
@@ -10,25 +12,28 @@ from db import (
     locations_collection,
     daily_checks_collection,
     kitchen_closedown_collection,
-    temp_logs_collection,
-    daily_cleaning_logs_collection,
-    weekly_cleaning_logs_collection,
 )
 from auth import get_admin_user
 
 router = APIRouter(prefix="/api/admin/compliance", tags=["compliance"])
 
-# Mapping of check key -> (collection, date_field, cadence, label)
+# Mapping of check key -> config.
+# Each entry mirrors a row on the JKHive Daily Check hub (10 daily checks).
+# `date_kind` is either "date" (YYYY-MM-DD string) or "timestamp" (ISO datetime
+# with a "T"), which affects how the date-range query is built.
+# `filter` (optional) is merged into the Mongo query — e.g. to scope to
+# period=opening vs period=closing on the shared routine_temps collection.
 CHECK_CONFIG = {
-    "temp_logs":        {"coll": temp_logs_collection,           "date": "date",         "cadence": "daily",  "label": "Fridge/Freezer Temperature"},
-    "daily_checks":     {"coll": daily_checks_collection,        "date": "date",         "cadence": "daily",  "label": "Daily Checks"},
-    "cooked_temp":      {"coll": db["cooked_temp_logs"],         "date": "date",         "cadence": "daily",  "label": "Cooked/Reheated Temperature"},
-    "kitchen_closedown":{"coll": kitchen_closedown_collection,   "date": "date",         "cadence": "daily",  "label": "Kitchen Closedown"},
-    "delivery_records": {"coll": db["delivery_records"],         "date": "date",         "cadence": "weekly", "label": "Delivery Records"},
-    "probe_calibration":{"coll": db["probe_calibrations"],       "date": "date",         "cadence": "weekly", "label": "Probe Calibration"},
-    "legionella":       {"coll": db["legionella_tests"],         "date": "date",         "cadence": "weekly", "label": "Legionella Water"},
-    "daily_cleaning":   {"coll": daily_cleaning_logs_collection, "date": "week_ending",  "cadence": "weekly", "label": "Daily Cleaning"},
-    "weekly_cleaning":  {"coll": weekly_cleaning_logs_collection,"date": "week_ending",  "cadence": "weekly", "label": "Weekly Deep Cleaning"},
+    "opening_checklist": {"coll": daily_checks_collection,    "date": "date",         "date_kind": "date",      "cadence": "daily", "label": "Opening checklist"},
+    "opening_temps":     {"coll": db["routine_temps"],        "date": "date",         "date_kind": "date",      "cadence": "daily", "label": "Fridge/Freezer Opening Temps", "filter": {"period": "opening"}},
+    "washer_temps":      {"coll": db["washer_checks"],        "date": "recorded_at",  "date_kind": "timestamp", "cadence": "daily", "label": "Washer Temps"},
+    "hot_cold_holding":  {"coll": db["hot_cold_sessions"],    "date": "start_time",   "date_kind": "timestamp", "cadence": "daily", "label": "Hot/Cold Holding"},
+    "reheating":         {"coll": db["reheating_logs"],       "date": "recorded_at",  "date_kind": "timestamp", "cadence": "daily", "label": "Cooking/Reheating"},
+    "bulk_cooling":      {"coll": db["cooking_cooling_logs"], "date": "started_at",   "date_kind": "timestamp", "cadence": "daily", "label": "Bulk Cooking/Cooling"},
+    "delivery_records":  {"coll": db["delivery_records"],     "date": "recorded_at",  "date_kind": "timestamp", "cadence": "daily", "label": "Deliveries"},
+    "daily_cleaning":    {"coll": db["checklist_runs"],       "date": "submitted_at", "date_kind": "timestamp", "cadence": "daily", "label": "Daily Cleaning"},
+    "closing_temps":     {"coll": db["routine_temps"],        "date": "date",         "date_kind": "date",      "cadence": "daily", "label": "Fridge/Freezer Closing Temps", "filter": {"period": "closing"}},
+    "closing_checklist": {"coll": kitchen_closedown_collection,"date": "date",        "date_kind": "date",      "cadence": "daily", "label": "Closing checklist"},
 }
 
 
@@ -51,12 +56,18 @@ def _assess_check(location_id: str, cfg: dict, start: str, end: str) -> dict:
     """Return per-check status summary for one site & check type."""
     coll = cfg["coll"]
     date_field = cfg["date"]
+    date_kind = cfg.get("date_kind", "date")
     cadence = cfg["cadence"]
 
-    entries = list(coll.find(
-        {"location_id": location_id, date_field: {"$gte": start, "$lte": end}},
-        {"_id": 0},
-    ).sort(date_field, -1))
+    # Build the Mongo query. Timestamp fields need an end-of-day cap because
+    # ISO strings like "2026-05-04T11:23:45" alphabetically exceed "2026-05-04",
+    # so `$lte: "2026-05-04"` would silently miss every record for that day.
+    range_end = end + "T23:59:59" if date_kind == "timestamp" else end
+    q = {"location_id": location_id, date_field: {"$gte": start, "$lte": range_end}}
+    if cfg.get("filter"):
+        q.update(cfg["filter"])
+
+    entries = list(coll.find(q, {"_id": 0}).sort(date_field, -1))
 
     start_d = date.fromisoformat(start)
     end_d = date.fromisoformat(end)
@@ -69,13 +80,18 @@ def _assess_check(location_id: str, cfg: dict, start: str, end: str) -> dict:
             "last_by": None, "last_passed": None,
         }
 
-    # Count distinct coverage periods (unique dates for daily; unique iso-weeks for weekly)
+    # Count distinct coverage periods (unique YYYY-MM-DD for daily; unique
+    # iso-weeks for weekly). For timestamp fields we slice the ISO string.
+    def _day_of(e):
+        v = e.get(date_field) or ""
+        return v[:10] if date_kind == "timestamp" else v
+
     if cadence == "daily":
-        periods = set(e[date_field] for e in entries if e.get(date_field))
+        periods = set(_day_of(e) for e in entries if _day_of(e))
     else:
         periods = set()
         for e in entries:
-            v = e.get(date_field)
+            v = _day_of(e)
             if not v:
                 continue
             try:
@@ -98,7 +114,8 @@ def _assess_check(location_id: str, cfg: dict, start: str, end: str) -> dict:
     # Overdue: nothing recorded in the last `threshold` days
     threshold = 2 if cadence == "daily" else 8
     today_d = date.today()
-    last_date_str = last.get(date_field)
+    last_date_raw = last.get(date_field) or ""
+    last_date_str = last_date_raw[:10] if date_kind == "timestamp" else last_date_raw
     try:
         last_d = date.fromisoformat(last_date_str) if last_date_str else None
     except Exception:
@@ -116,7 +133,7 @@ def _assess_check(location_id: str, cfg: dict, start: str, end: str) -> dict:
     return {
         "status": status, "count": len(entries), "expected": expected,
         "actual_periods": actual_periods, "pct": pct,
-        "last_date": last_date_str, "last_by": last.get("completed_by_name") or last.get("created_by_name") or last.get("completed_by") or last.get("created_by"),
+        "last_date": last_date_str, "last_by": last.get("completed_by_name") or last.get("submitted_by_name") or last.get("recorded_by_name") or last.get("created_by_name") or last.get("completed_by") or last.get("created_by"),
         "last_passed": last_passed,
     }
 
@@ -176,8 +193,10 @@ async def get_compliance_detail(
         return {"entries": []}
     coll = cfg["coll"]
     date_field = cfg["date"]
-    entries = list(coll.find(
-        {"location_id": location_id, date_field: {"$gte": start_date, "$lte": end_date}},
-        {"_id": 0},
-    ).sort(date_field, -1))
+    date_kind = cfg.get("date_kind", "date")
+    range_end = end_date + "T23:59:59" if date_kind == "timestamp" else end_date
+    q = {"location_id": location_id, date_field: {"$gte": start_date, "$lte": range_end}}
+    if cfg.get("filter"):
+        q.update(cfg["filter"])
+    entries = list(coll.find(q, {"_id": 0}).sort(date_field, -1))
     return {"check_key": check_key, "label": cfg["label"], "entries": entries}

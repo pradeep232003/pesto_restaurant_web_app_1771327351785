@@ -18,9 +18,9 @@ ADMIN_PASSWORD = "Admin123!"
 LOCATION_ID = "timperley-altrincham"
 
 EXPECTED_CHECK_KEYS = {
-    "temp_logs", "daily_checks", "cooked_temp", "kitchen_closedown",
-    "delivery_records", "probe_calibration", "legionella",
-    "daily_cleaning", "weekly_cleaning",
+    "opening_checklist", "opening_temps", "washer_temps", "hot_cold_holding",
+    "reheating", "bulk_cooling", "delivery_records",
+    "daily_cleaning", "closing_temps", "closing_checklist",
 }
 
 
@@ -54,7 +54,7 @@ class TestComplianceAuth:
         s, e = date_range
         r = requests.get(f"{BASE_URL}/api/admin/compliance/detail",
                          params={"start_date": s, "end_date": e,
-                                 "location_id": LOCATION_ID, "check_key": "daily_checks"})
+                                 "location_id": LOCATION_ID, "check_key": "opening_checklist"})
         assert r.status_code in (401, 403)
 
 
@@ -99,10 +99,10 @@ class TestComplianceDetail:
         s, e = date_range
         r = admin_session.get(f"{BASE_URL}/api/admin/compliance/detail",
                               params={"start_date": s, "end_date": e,
-                                      "location_id": LOCATION_ID, "check_key": "daily_checks"})
+                                      "location_id": LOCATION_ID, "check_key": "opening_checklist"})
         assert r.status_code == 200
         data = r.json()
-        assert data["check_key"] == "daily_checks"
+        assert data["check_key"] == "opening_checklist"
         assert "entries" in data
         assert isinstance(data["entries"], list)
 
@@ -125,7 +125,7 @@ class TestStatusTransition:
         r0 = admin_session.get(f"{BASE_URL}/api/admin/compliance",
                                params={"start_date": s, "end_date": e, "location_id": LOCATION_ID})
         assert r0.status_code == 200
-        before = r0.json()["sites"][0]["checks"]["daily_checks"]
+        before = r0.json()["sites"][0]["checks"]["opening_checklist"]
 
         # Submit a daily_check entry for today
         payload = {
@@ -143,7 +143,7 @@ class TestStatusTransition:
         # Refetch
         r1 = admin_session.get(f"{BASE_URL}/api/admin/compliance",
                                params={"start_date": s, "end_date": e, "location_id": LOCATION_ID})
-        after = r1.json()["sites"][0]["checks"]["daily_checks"]
+        after = r1.json()["sites"][0]["checks"]["opening_checklist"]
         # actual_periods after >= before; status should not be 'missing' if a record exists
         if after["count"] >= 1:
             assert after["status"] in ("partial", "complete", "overdue")
