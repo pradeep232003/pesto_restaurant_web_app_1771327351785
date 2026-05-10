@@ -1,0 +1,57 @@
+import React, { useMemo, useState } from 'react';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { useLocation2 } from '../../../contexts/LocationContext';
+import { WizardHeader, TempStepper, TempGauge } from '../cooling/_shared';
+
+/** /jkhive/legionella/cold — cold water temp gauge, pass ≤ 20 °C. */
+const LegionellaColdTemp = () => {
+  const navigate = useNavigate();
+  const { state } = useLocation();
+  const { adminLocationId, locations } = useLocation2();
+  const [temp, setTemp] = useState(15);
+  const today = new Date().toISOString().slice(0, 10);
+  const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
+
+  if (!state?.outlet || state?.hot_temp == null) {
+    return <Navigate to="/jkhive/legionella/outlet" replace />;
+  }
+
+  const inRange = temp <= 20;
+  const knobColor = inRange ? '#34C759' : '#FF3B30';
+
+  return (
+    <div style={{ paddingBottom: 110, fontFamily: 'Outfit, sans-serif' }} data-testid="legionella-cold">
+      <WizardHeader title="Legionella" locationName={locationName} dateStr={today} onBack={() => navigate(-1)} />
+
+      <div style={{ textAlign: 'center', margin: '4px 0 8px' }}>
+        <div style={{ fontSize: 96, lineHeight: 1 }}>❄️</div>
+        <p style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.01em', color: '#1D1D1F', margin: '4px 0 0' }}>
+          Cold water temperature
+        </p>
+        <p style={{ fontSize: 14, color: '#86868B', margin: '4px 0 0' }}>{state.outlet}</p>
+      </div>
+
+      <TempStepper value={temp} onChange={(v) => setTemp(Math.round(v * 10) / 10)} />
+      <TempGauge value={temp} min={0} max={30} ticks={[0, 8, 16, 20, 24, 30]} onChange={(v) => setTemp(Math.round(v * 10) / 10)} color={knobColor} />
+
+      <p style={{ fontSize: 14, color: '#1D1D1F', textAlign: 'center', marginTop: 18, lineHeight: 1.4 }}>
+        Recommended: ≤ 20 °C within 2 min of running.
+      </p>
+
+      <div style={{ position: 'fixed', left: 16, right: 16, bottom: 84, zIndex: 5 }}>
+        <button data-testid="legionella-cold-next"
+          onClick={() => navigate('/jkhive/legionella/submit', {
+            state: { outlet: state.outlet, hot_temp: state.hot_temp, cold_temp: Number(temp) },
+          })}
+          style={{
+            width: '100%', padding: '18px 16px', border: 0, borderRadius: 999,
+            background: '#1D1D1F', color: '#fff', fontSize: 17, fontWeight: 600,
+            cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+            boxShadow: '0 8px 22px rgba(0,0,0,0.25)',
+          }}>Next</button>
+      </div>
+    </div>
+  );
+};
+
+export default LegionellaColdTemp;

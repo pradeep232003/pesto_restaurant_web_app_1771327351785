@@ -187,8 +187,7 @@ Automated Monday-morning email digest of the previous week's compliance matrix t
 - **Wired**: `MoreRoutines.jsx` Washer Temps tile (#FFCC00) routes to `/jkhive/washer-temps` (no longer Coming Soon). 6 new routes added under JKHive layout in `Routes.jsx`.
 - Verified: 13/13 backend pytest + full mobile Playwright E2E (login → /jkhive → routines → more → Washer Temps → add 'Test Dishwasher' → wash 55°C green → rinse 82°C green → submit → 'Washer passed!' card with both ✓ ticks).
 
-### JKHive Specialist Routines (May 2026) - VERIFIED
-Four new specialist food-safety workflows under `/jkhive/routines/more`, each following the same Home → Pick (shared catalog) → Record + Submit + result card pattern, reusing the existing `/api/admin/cooking-cooling/catalog` endpoint (Fresh / Frozen / Dry / Prepared / Beverages) via a new `SpecialistCatalogPicker` component at `/app/frontend/src/pages/jkhive/_shared/CatalogPicker.jsx`.
+### JKHive Specialist Routines (May 2026) - VERIFIEDFour new specialist food-safety workflows under `/jkhive/routines/more`, each following the same Home → Pick (shared catalog) → Record + Submit + result card pattern, reusing the existing `/api/admin/cooking-cooling/catalog` endpoint (Fresh / Frozen / Dry / Prepared / Beverages) via a new `SpecialistCatalogPicker` component at `/app/frontend/src/pages/jkhive/_shared/CatalogPicker.jsx`.
 
 1. **Food Acidity (pH)** — `/jkhive/acidity` · backend `/api/admin/acidity` · collection `acidity_records` · pH gauge 0–7 default 4.0 · pass when `ph_value ≤ 4.6` (FSA acidified-foods rule for *C. botulinum*).
 2. **Vacuum Packing** — `/jkhive/vacuum-packing` · backend `/api/admin/vacuum-packing` · collection `vacuum_records` · pack-temp gauge -5–15 °C default 3 °C + use-by date input (required, default +5 days) + optional batch label · pass when `pack_temp ≤ 5` AND a use-by date is supplied.
@@ -201,6 +200,17 @@ Four new specialist food-safety workflows under `/jkhive/routines/more`, each fo
 
 - **Wired**: `MoreRoutines.jsx` Food Acidity (#30B0C7), Vacuum Packing (#007AFF), Food Washing (#32ADE6), Sous Vide (#AF52DE) tiles all routed (no longer Coming Soon). 12 new routes under JKHive layout.
 - Verified: 18/18 backend pytest (CRUD, pass/fail logic, `_id` excluded, 401/403 unauth, 404 unknown delete, sanitiser-specific PPM bands) + main-agent mobile Playwright E2E for Acidity (Alcopops (WKD) · pH 4.00 → "Within range" pass card) + Sous Vide home render confirmed. Vacuum/Washing share identical pattern.
+
+### JKHive Legionella Wizard (May 2026) - VERIFIED
+5-step iOS wizard at `/jkhive/legionella` for the weekly Legionella water-safety test, reusing the existing `/api/admin/legionella` backend (collection `legionella_entries`).
+
+- **Home** (`LegionellaHome.jsx`): Recent test rows with droplet icon + outlet name + "hot 55.0°C · cold 15.0°C" + PASS/FAIL pill + delete; floating bottom-right `+ Add record` pill.
+- **Pick outlet** (`LegionellaPickOutlet.jsx`): "Which water outlet?" — quick-pick chips of recent outlets at this location (deduped from history) + free-text input for new outlets. No separate registry collection needed.
+- **Hot water temp** (`LegionellaHotTemp.jsx`): 🔥 + outlet subtitle + °C stepper + gauge 20–80 °C with ticks 20/35/50/65/80, knob green when ≥ 50 °C. "Recommended: ≥ 50 °C within 1 min of running."
+- **Cold water temp** (`LegionellaColdTemp.jsx`): ❄️ + gauge 0–30 °C with ticks 0/8/16/20/24/30, knob green when ≤ 20 °C. "Recommended: ≤ 20 °C within 2 min of running."
+- **Comment & Submit** (`LegionellaCommentSubmit.jsx`): Summary card (outlet + hot/cold ✓/✗), required `Action taken` textarea **only when failing**, optional comment + "Submit Record" pill. POSTs to `/api/admin/legionella` with `date`, `test_time`, `hot_water_temp`, `cold_water_temp`, `location_of_test`, `action_taken`, `name`, `initials` (auto-derived from logged-in user). Backend computes `passed` server-side. Done card shows green/red status + per-axis ✓/✗.
+- **Wired**: `MoreRoutines.jsx` Legionella tile (#30B0C7) now routes to `/jkhive/legionella` (was `/admin/legionella`). 5 new routes under JKHive layout.
+- Verified: Mobile Playwright E2E (login → /jkhive → routines → more → Legionella → Add record → Kitchen hot tap → hot 55 °C → cold 15 °C → Submit → "Test passed" card with both ✓ ticks).
 
 ## Prioritized Backlog
 

@@ -879,6 +879,11 @@ class ApiService {
   async sousVideComplete(id, data) { return this.fetch(`/api/admin/sous-vide/${id}/complete`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async sousVideDelete(id) { return this.fetch(`/api/admin/sous-vide/${id}`, { method: 'DELETE' }); }
 
+  // ============== LEGIONELLA ==============
+  async legionellaList(locationId) { return this.fetch(`/api/admin/legionella?location_id=${encodeURIComponent(locationId)}`); }
+  async legionellaCreate(data) { return this.fetch('/api/admin/legionella', { method: 'POST', body: JSON.stringify(data) }); }
+  async legionellaDelete(id) { return this.fetch(`/api/admin/legionella/${id}`, { method: 'DELETE' }); }
+
   // ============== HOT / COLD HOLDING ==============
   async hotColdList(locationId, status) {
     const qs = new URLSearchParams({ location_id: locationId, ...(status ? { status } : {}) }).toString();

@@ -40,7 +40,7 @@ const MoreRoutines = () => {
 
       <SectionLabel>Compliance</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
-        <Tile testId="tile-legionella"       to="/admin/legionella"        icon={Droplet}       color="#30B0C7" title="Legionella"        subtitle="Weekly water test" />
+        <Tile testId="tile-legionella"       to="/jkhive/legionella"       icon={Droplet}       color="#30B0C7" title="Legionella"        subtitle="Weekly water test" />
       </div>
     </div>
   );
