@@ -55,13 +55,14 @@ const BoilingTemp = () => {
         Recommended range:<br/>100°C (+/- 1°C)
       </p>
 
-      <div style={{ position: 'fixed', left: 0, right: 0, bottom: 64, zIndex: 5 }}>
+      <div style={{ position: 'fixed', left: 16, right: 16, bottom: 84, zIndex: 5 }}>
         <button data-testid="probe-boiling-next"
           onClick={() => navigate(`/jkhive/probe-calibration/${probeId}/iced`, { state: { probe, boiling_temp: Number(temp) } })}
           style={{
-            width: '100%', padding: '20px 16px', border: 0,
-            background: '#1D1D1F', color: '#FFFFFF', fontSize: 18, fontWeight: 600,
+            width: '100%', padding: '18px 16px', border: 0, borderRadius: 999,
+            background: '#1D1D1F', color: '#FFFFFF', fontSize: 17, fontWeight: 600,
             cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+            boxShadow: '0 8px 22px rgba(0,0,0,0.25)',
           }}>Next</button>
       </div>
     </div>
