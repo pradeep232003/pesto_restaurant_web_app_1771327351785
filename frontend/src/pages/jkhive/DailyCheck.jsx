@@ -123,7 +123,7 @@ const DailyCheck = () => {
 
   return (
     <div style={{ paddingBottom: 130, fontFamily: 'Outfit, sans-serif' }} data-testid="daily-check-hub">
-      <WizardHeader title="Today's Check" locationName={locationName} dateStr={date} backTo="/jkhive" />
+      <WizardHeader title="Today's Check" locationName={locationName} dateStr={date} backTo="/jkhive/routines" />
 
       {/* Summary card */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
@@ -193,7 +193,7 @@ const DailyCheck = () => {
       {/* Sticky bottom action bar */}
       <div style={{ position: 'fixed', left: 16, right: 16, bottom: 84, zIndex: 5, display: 'flex', gap: 10 }}>
         <button data-testid="dc-exit"
-          onClick={() => navigate('/jkhive')}
+          onClick={() => navigate('/jkhive/routines')}
           style={{
             padding: '14px 18px', borderRadius: 999,
             border: '1px solid rgba(0,0,0,0.12)', background: '#FFFFFF', color: '#1D1D1F',
