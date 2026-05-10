@@ -124,9 +124,9 @@ const SousVideRecord = () => {
         <div style={{ marginTop: 40 }}>
           <WheelPicker testId="sous-vide-batch" options={BATCH_OPTS} value={batchCount} onChange={setBatchCount} />
         </div>
-        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 64, zIndex: 5 }}>
+        <div style={{ position: 'fixed', left: 16, right: 16, bottom: 84, zIndex: 5 }}>
           <button data-testid="sous-vide-batch-next" onClick={() => setStep(3)}
-            style={{ width: '100%', padding: '20px 16px', border: 0, background: '#1D1D1F', color: '#fff', fontSize: 18, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Next</button>
+            style={{ width: '100%', padding: '18px 16px', border: 0, borderRadius: 999, background: '#1D1D1F', color: '#fff', fontSize: 17, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', boxShadow: '0 8px 22px rgba(0,0,0,0.25)' }}>Next</button>
         </div>
       </div>
     );
@@ -161,9 +161,9 @@ const SousVideRecord = () => {
           Recommended: ≥ {minTemp} °C ({cookedLabel.toLowerCase()})
         </p>
 
-        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 64, zIndex: 5 }}>
+        <div style={{ position: 'fixed', left: 16, right: 16, bottom: 84, zIndex: 5 }}>
           <button data-testid="sous-vide-temp-next" onClick={() => setStep(4)}
-            style={{ width: '100%', padding: '20px 16px', border: 0, background: '#1D1D1F', color: '#fff', fontSize: 18, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>Next</button>
+            style={{ width: '100%', padding: '18px 16px', border: 0, borderRadius: 999, background: '#1D1D1F', color: '#fff', fontSize: 17, fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif', boxShadow: '0 8px 22px rgba(0,0,0,0.25)' }}>Next</button>
         </div>
       </div>
     );
@@ -195,16 +195,17 @@ const SousVideRecord = () => {
         </div>
       </div>
 
-      <div style={{ position: 'fixed', left: 0, right: 0, bottom: 64, zIndex: 5 }}>
+      <div style={{ position: 'fixed', left: 16, right: 16, bottom: 84, zIndex: 5 }}>
         <button data-testid="sous-vide-submit"
           onClick={submit}
           disabled={submitting || (hours === 0 && minutes === 0)}
           style={{
-            width: '100%', padding: '20px 16px', border: 0,
-            background: '#1D1D1F', color: '#fff', fontSize: 18, fontWeight: 600,
+            width: '100%', padding: '18px 16px', border: 0, borderRadius: 999,
+            background: '#1D1D1F', color: '#fff', fontSize: 17, fontWeight: 600,
             cursor: (submitting || (hours === 0 && minutes === 0)) ? 'not-allowed' : 'pointer',
             opacity: (submitting || (hours === 0 && minutes === 0)) ? 0.5 : 1,
             fontFamily: 'Outfit, sans-serif',
+            boxShadow: '0 8px 22px rgba(0,0,0,0.25)',
           }}>
           {submitting ? 'Starting…' : 'Start sous vide'}
         </button>
