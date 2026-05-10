@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 
 /**
@@ -7,15 +7,22 @@ import { ArrowLeft } from 'lucide-react';
  * Shows a back chevron, the page title, and a small location · date strip
  * underneath so staff working across sites cannot mistake which kitchen
  * they're recording against.
+ *
+ * If a `?back=<path>` query param is present (e.g. set by the Today's
+ * Check hub), it overrides the page's default `backTo` so the chevron
+ * returns to the calling hub instead of the routine's own home.
  */
 export const WizardHeader = ({ title, locationName, dateStr, backTo, onBack }) => {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const overrideBack = params.get('back');
+  const effectiveBack = overrideBack || backTo;
   const handleBack = (e) => {
-    if (onBack) { e.preventDefault(); onBack(); }
-    else if (!backTo) { e.preventDefault(); navigate(-1); }
+    if (onBack && !overrideBack) { e.preventDefault(); onBack(); }
+    else if (!effectiveBack) { e.preventDefault(); navigate(-1); }
   };
-  const Back = backTo
-    ? <Link to={backTo} onClick={handleBack} data-testid="wizard-back" style={{ color: '#1D1D1F' }} aria-label="Back"><ArrowLeft size={26} strokeWidth={2.6} /></Link>
+  const Back = effectiveBack
+    ? <Link to={effectiveBack} onClick={handleBack} data-testid="wizard-back" style={{ color: '#1D1D1F' }} aria-label="Back"><ArrowLeft size={26} strokeWidth={2.6} /></Link>
     : <button onClick={handleBack} data-testid="wizard-back" aria-label="Back" style={{ background: 'transparent', border: 0, padding: 0, color: '#1D1D1F', cursor: 'pointer' }}><ArrowLeft size={26} strokeWidth={2.6} /></button>;
   return (
     <div style={{ paddingTop: 4, paddingBottom: 12 }}>
