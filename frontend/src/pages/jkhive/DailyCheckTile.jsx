@@ -31,15 +31,15 @@ const DailyCheckTile = () => {
       api.checklistList(adminLocationId).catch(() => []),
       api.adminGetDailyCheck(adminLocationId, dt).catch(() => null),
       api.adminGetClosedown(adminLocationId, dt).catch(() => null),
+      api.fetch(`/api/admin/routine-temps?location_id=${encodeURIComponent(adminLocationId)}&period=opening&start_date=${dt}&end_date=${dt}`).catch(() => []),
+      api.fetch(`/api/admin/routine-temps?location_id=${encodeURIComponent(adminLocationId)}&period=closing&start_date=${dt}&end_date=${dt}`).catch(() => []),
     ]);
-    const [washers, hotCold, cooked, reheating, cooling, deliveries, checklists, dc, cd] = calls;
-    const dcOpening = ['completed', 'submitted'].includes(dc?.status);
-    const dcFridges = (dc?.fridges || []).length > 0 || dcOpening;
-    const cdComplete = ['completed', 'submitted'].includes(cd?.status);
-    const cdFridges = (cd?.fridges || []).length > 0 || cdComplete;
+    const [washers, hotCold, cooked, reheating, cooling, deliveries, checklists, dc, cd, openingTemps, closingTemps] = calls;
+    const dcOpening = !!dc;
+    const cdComplete = !!cd;
     const flags = [
       dcOpening,
-      dcFridges,
+      (openingTemps || []).length > 0,
       (washers || []).some(r => isToday(r.recorded_at)),
       (hotCold || []).some(r => isToday(r.start_time || r.recorded_at)),
       (cooked || []).some(r => isToday(r.recorded_at)),
@@ -47,7 +47,7 @@ const DailyCheckTile = () => {
       (cooling || []).some(r => isToday(r.started_at || r.recorded_at)),
       (deliveries || []).some(r => isToday(r.recorded_at)),
       (checklists || []).some(c => isToday(c.last_run_at || c.last_run_date)),
-      cdFridges,
+      (closingTemps || []).length > 0,
       cdComplete,
     ];
     const done = flags.filter(Boolean).length;

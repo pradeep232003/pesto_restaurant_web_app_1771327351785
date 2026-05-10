@@ -33,18 +33,18 @@ const today = () => new Date().toISOString().slice(0, 10);
 const isTodayIso = (iso) => (iso || '').slice(0, 10) === today();
 
 const buildTasks = (loc, data) => {
-  const dc = data.dailyCheck || {};
-  const dcStatus = dc.status || 'not_started';
-  const dcOpening = dcStatus === 'completed' || dcStatus === 'submitted';
-  const dcFridges = (dc.fridges || []).length > 0 || dcOpening;
+  const dc = data.dailyCheck || null;
+  const dcOpening = !!dc;  // any saved row counts as "done" for the day
+  const cd = data.closedown || null;
+  const cdComplete = !!cd;
   const checklistsRunToday = (data.checklists || []).filter(c => (c.last_run_at || c.last_run_date || '').slice(0, 10) === today()).length;
   return [
     { id: 'opening',         icon: ListChecks,      color: '#FF9500', title: 'Opening checklist',
-      sub: 'Daily setup tasks',                  to: '/jkhive/daily-checks',
+      sub: 'Daily setup tasks',                  to: '/jkhive/daily-checks?back=/jkhive/daily-check',
       done: dcOpening },
     { id: 'fridge-open',     icon: Refrigerator,    color: '#34C759', title: 'Fridge / Freezer opening temps',
-      sub: 'AM temp probe round',               to: '/jkhive/opening/fridge-temp',
-      done: dcFridges },
+      sub: 'AM temp probe round',               to: '/jkhive/opening/fridge-temp?back=/jkhive/daily-check',
+      done: (data.openingTemps || []).length > 0 },
     { id: 'washer',          icon: ShowerHead,      color: '#FFCC00', title: 'Washer Temps',
       sub: 'Wash & rinse cycle',                to: '/jkhive/washer-temps',
       done: (data.washers || []).some(r => isTodayIso(r.recorded_at)) },
@@ -69,11 +69,11 @@ const buildTasks = (loc, data) => {
       sub: 'Cleaning checklists',               to: '/jkhive/checklists',
       done: checklistsRunToday > 0 },
     { id: 'fridge-close',    icon: Refrigerator,    color: '#5856D6', title: 'Fridge / Freezer closing temps',
-      sub: 'PM temp probe round',               to: '/jkhive/kitchen-closedown',
-      done: (data.closedown?.fridges || []).length > 0 || data.closedown?.status === 'completed' },
+      sub: 'PM temp probe round',               to: '/jkhive/closing/fridge-temp?back=/jkhive/daily-check',
+      done: (data.closingTemps || []).length > 0 },
     { id: 'closing',         icon: ClipboardCheck,  color: '#1D1D1F', title: 'Closing checklist',
-      sub: 'End of trade tasks',                to: '/jkhive/kitchen-closedown',
-      done: data.closedown?.status === 'completed' || data.closedown?.status === 'submitted' },
+      sub: 'End of trade tasks',                to: '/jkhive/kitchen-closedown?back=/jkhive/daily-check',
+      done: cdComplete },
   ];
 };
 
@@ -99,9 +99,11 @@ const DailyCheck = () => {
       api.checklistList(adminLocationId).catch(() => []),
       api.adminGetDailyCheck(adminLocationId, date).catch(() => null),
       api.adminGetClosedown(adminLocationId, date).catch(() => null),
+      api.fetch(`/api/admin/routine-temps?location_id=${encodeURIComponent(adminLocationId)}&period=opening&start_date=${date}&end_date=${date}`).catch(() => []),
+      api.fetch(`/api/admin/routine-temps?location_id=${encodeURIComponent(adminLocationId)}&period=closing&start_date=${date}&end_date=${date}`).catch(() => []),
     ];
-    const [washers, hotCold, cooked, reheating, cooling, deliveries, checklists, dailyCheck, closedown] = await Promise.all(calls);
-    setData({ washers, hotCold, cooked, reheating, cooling, deliveries, checklists, dailyCheck, closedown });
+    const [washers, hotCold, cooked, reheating, cooling, deliveries, checklists, dailyCheck, closedown, openingTemps, closingTemps] = await Promise.all(calls);
+    setData({ washers, hotCold, cooked, reheating, cooling, deliveries, checklists, dailyCheck, closedown, openingTemps, closingTemps });
     setLoading(false);
   }, [adminLocationId, date]);
   useEffect(() => { load(); }, [load]);
