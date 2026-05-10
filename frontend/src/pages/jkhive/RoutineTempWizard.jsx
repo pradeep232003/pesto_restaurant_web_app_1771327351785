@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Minus, Check } from 'lucide-react';
 import api from '../../lib/api';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -120,36 +120,44 @@ const StepFooter = ({ stepIdx, total }) => (
 );
 
 const RoutineTempWizard = ({ period, title, backTo }) => {
-  const navigate = useNavigate();
   const { adminLocationId, locations } = useLocation2();
   const { user } = useAuth();
   const [units, setUnits] = useState([]);
   const [readings, setReadings] = useState({}); // {unit_id: temp_c}
   const [comment, setComment] = useState('');
-  const [stepIdx, setStepIdx] = useState(0);
+  const [stepIdx, setStepIdx] = useState(-1); // -1 = landing/summary, 0..n = wizard steps
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [todaysRecord, setTodaysRecord] = useState(null);
   const today = new Date().toISOString().slice(0, 10);
 
-  useEffect(() => {
+  const reload = React.useCallback(async () => {
     if (!adminLocationId) { setLoading(false); return; }
     setLoading(true);
-    api.adminGetTempUnits(adminLocationId)
-      .then(list => {
-        const fridgeFreezer = (list || []).filter(u =>
-          ['fridge', 'freezer', 'chiller'].includes(u.unit_type) &&
-          !((u.skip_periods || []).includes(period))
-        );
-        setUnits(fridgeFreezer);
-        // Seed readings to default per unit type
-        const seed = {};
-        fridgeFreezer.forEach(u => { seed[u.id] = (RANGES[u.unit_type] || RANGES.fridge).default; });
-        setReadings(seed);
-      })
-      .catch(err => alert('Failed to load fridges: ' + err.message))
-      .finally(() => setLoading(false));
-  }, [adminLocationId]);
+    try {
+      const [list, recs] = await Promise.all([
+        api.adminGetTempUnits(adminLocationId),
+        api.listRoutineTemps({ location_id: adminLocationId, period, start_date: today, end_date: today }).catch(() => []),
+      ]);
+      const fridgeFreezer = (list || []).filter(u =>
+        ['fridge', 'freezer', 'chiller'].includes(u.unit_type) &&
+        !((u.skip_periods || []).includes(period))
+      );
+      setUnits(fridgeFreezer);
+      // Seed readings to default per unit type
+      const seed = {};
+      fridgeFreezer.forEach(u => { seed[u.id] = (RANGES[u.unit_type] || RANGES.fridge).default; });
+      setReadings(seed);
+      setTodaysRecord((recs || [])[0] || null);
+    } catch (err) {
+      alert('Failed to load: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [adminLocationId, period, today]);
+
+  useEffect(() => { reload(); }, [reload]);
 
   const totalSteps = units.length + 2; // unit steps + comment + done
   const onUnitStep = stepIdx < units.length;
@@ -188,6 +196,8 @@ const RoutineTempWizard = ({ period, title, backTo }) => {
       });
       setDone(true);
       setStepIdx(i => i + 1);
+      // Refresh landing summary in the background so back-to-summary shows new temps
+      reload();
     } catch (err) { alert('Save failed: ' + err.message); }
     finally { setSubmitting(false); }
   };
@@ -222,6 +232,14 @@ const RoutineTempWizard = ({ period, title, backTo }) => {
         <span style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.01em' }}>{title}</span>
       </Link>
       <p style={{ fontSize: 12, color: '#86868B', margin: '2px 0 18px' }}>{locationName} · {today}</p>
+
+      {stepIdx === -1 && (
+        <LandingSummary
+          period={period}
+          record={todaysRecord}
+          onAddNew={() => { setDone(false); setStepIdx(0); }}
+        />
+      )}
 
       {onUnitStep && (
         <div style={{ background: '#FFFFFF', borderRadius: 24, padding: '24px 18px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
@@ -287,9 +305,10 @@ const RoutineTempWizard = ({ period, title, backTo }) => {
         </div>
       )}
 
-      <StepFooter stepIdx={stepIdx} total={totalSteps} />
+      {stepIdx >= 0 && <StepFooter stepIdx={stepIdx} total={totalSteps} />}
 
       {/* Action buttons */}
+      {stepIdx >= 0 && (
       <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
         {!onDoneStep && stepIdx > 0 && (
           <button onClick={() => setStepIdx(i => Math.max(0, i - 1))}
@@ -310,11 +329,92 @@ const RoutineTempWizard = ({ period, title, backTo }) => {
           </button>
         )}
         {onDoneStep && (
-          <button data-testid="back-home-btn" onClick={() => navigate(backTo)}
+          <button data-testid="back-home-btn" onClick={() => setStepIdx(-1)}
             style={{ flex: 1, padding: '14px 16px', borderRadius: 14, border: 0, background: '#34C759', color: '#FFFFFF', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...font }}>
             {done ? 'Done' : 'Continue'}
           </button>
         )}
+      </div>
+      )}
+    </div>
+  );
+};
+
+const LandingSummary = ({ period, record, onAddNew }) => {
+  const font = { fontFamily: 'Outfit, sans-serif' };
+  const recordedAt = record?.submitted_at ? new Date(record.submitted_at) : null;
+  const recordedBy = record?.submitted_by_name || record?.submitted_by || null;
+  const readings = record?.readings || [];
+
+  return (
+    <div data-testid="routine-temp-landing">
+      {!record ? (
+        <div style={{ background: '#FFFFFF', borderRadius: 24, padding: '36px 22px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)', textAlign: 'center' }}>
+          <div style={{ fontSize: 64, lineHeight: 1, marginBottom: 12 }}>{period === 'opening' ? '🌅' : '🌙'}</div>
+          <p style={{ fontSize: 15, color: '#1D1D1F', margin: '0 0 4px', fontWeight: 600, ...font }}>
+            No {period} temps recorded today
+          </p>
+          <p style={{ fontSize: 13, color: '#86868B', margin: 0, ...font }}>
+            Tap the button below to log a new temp round.
+          </p>
+        </div>
+      ) : (
+        <div style={{ background: '#FFFFFF', borderRadius: 24, padding: '18px 18px 6px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 999, background: '#34C759', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Check size={18} strokeWidth={2.6} color="#fff" />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: '#1D1D1F', margin: 0, ...font }}>Today's recorded temps</p>
+              {(recordedBy || recordedAt) && (
+                <p style={{ fontSize: 11, color: '#86868B', margin: '2px 0 0', ...font }}>
+                  {recordedBy ? `By ${recordedBy}` : ''}
+                  {recordedBy && recordedAt ? ' · ' : ''}
+                  {recordedAt ? recordedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {readings.map((r, idx) => {
+              const range = RANGES[r.unit_type] || RANGES.fridge;
+              const ok = range.isOk(r.temp_c);
+              const tone = ok ? '#34C759' : '#FF3B30';
+              return (
+                <div key={r.unit_id || idx} data-testid={`landing-reading-${idx}`}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: idx === 0 ? 'none' : '1px solid rgba(0,0,0,0.06)' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#1D1D1F', margin: 0, ...font }}>{r.unit_name}</p>
+                    <p style={{ fontSize: 11, color: '#86868B', margin: '2px 0 0', textTransform: 'capitalize', ...font }}>{r.unit_type}</p>
+                  </div>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: tone, fontVariantNumeric: 'tabular-nums', ...font }}>
+                    {Number(r.temp_c).toFixed(1)}°C
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {record.comment && (
+            <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 10, background: '#F5F5F7' }}>
+              <p style={{ fontSize: 12, color: '#3A3A3C', margin: 0, ...font }}>
+                <span style={{ fontWeight: 600 }}>Note:</span> {record.comment}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: 14 }}>
+        <button data-testid="add-new-temp-btn" onClick={onAddNew}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 999,
+            border: '1px solid rgba(0,0,0,0.12)', background: '#FFFFFF', color: '#1D1D1F',
+            fontSize: 13, fontWeight: 600, cursor: 'pointer', ...font,
+            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+          }}>
+          <Plus size={14} strokeWidth={2.6} /> Add New Temp
+        </button>
       </div>
     </div>
   );
