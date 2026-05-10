@@ -6,11 +6,13 @@ const WashingPick = () => {
   const navigate = useNavigate();
   return (
     <SpecialistCatalogPicker
-      title="Pick item · Washing"
+      title="Chemical Food Washing"
       backTo="/jkhive/food-washing"
       favKey="jkhive.washing.favs"
       testid="washing-pick"
-      onPick={({ category, item }) => navigate('/jkhive/food-washing/record', { state: { item_name: `${category} (${item})`, item_category: category } })}
+      onPick={({ category, item, icon }) => navigate('/jkhive/food-washing/chemical', {
+        state: { item_name: item, item_category: category, item_icon: icon || '🥬' },
+      })}
     />
   );
 };

@@ -122,7 +122,9 @@ import VacuumPick from './pages/jkhive/vacuum/VacuumPick';
 import VacuumRecord from './pages/jkhive/vacuum/VacuumRecord';
 import WashingHome from './pages/jkhive/washing/WashingHome';
 import WashingPick from './pages/jkhive/washing/WashingPick';
-import WashingRecord from './pages/jkhive/washing/WashingRecord';
+import WashingChemical from './pages/jkhive/washing/WashingChemical';
+import WashingStrength from './pages/jkhive/washing/WashingStrength';
+import WashingCommentSubmit from './pages/jkhive/washing/WashingCommentSubmit';
 import SousVideHome from './pages/jkhive/sous_vide/SousVideHome';
 import SousVidePick from './pages/jkhive/sous_vide/SousVidePick';
 import SousVideRecord from './pages/jkhive/sous_vide/SousVideRecord';
@@ -302,7 +304,9 @@ const AppRouter = () => {
         <Route path="vacuum-packing/record" element={<VacuumRecord />} />
         <Route path="food-washing" element={<WashingHome />} />
         <Route path="food-washing/pick" element={<WashingPick />} />
-        <Route path="food-washing/record" element={<WashingRecord />} />
+        <Route path="food-washing/chemical" element={<WashingChemical />} />
+        <Route path="food-washing/strength" element={<WashingStrength />} />
+        <Route path="food-washing/comment" element={<WashingCommentSubmit />} />
         <Route path="sous-vide" element={<SousVideHome />} />
         <Route path="sous-vide/pick" element={<SousVidePick />} />
         <Route path="sous-vide/record" element={<SousVideRecord />} />
@@ -360,3 +364,4 @@ const Routes = () => {
 };
 
 export default Routes;
+Routes;

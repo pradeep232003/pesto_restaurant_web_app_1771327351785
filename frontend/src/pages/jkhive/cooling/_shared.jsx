@@ -107,11 +107,11 @@ export const TempGauge = ({ value, min, max, ticks, onChange, color = '#007AFF',
         const r = 64;
         const left = (140 / 240) * 280 + Math.cos(a) * (r * 280 / 240) - 16;
         const top  = 120 * (160 / 130) - Math.sin(a) * (r * 160 / 130) - 8;
-        const isCurrent = Math.abs(t - value) < 0.5;
+        const isPassed = t <= value;
         return (
           <span key={t} style={{
             position: 'absolute', left, top, width: 32, textAlign: 'center',
-            fontSize: 13, fontWeight: 600, color: isCurrent ? color : '#1D1D1F',
+            fontSize: 13, fontWeight: 600, color: isPassed ? color : '#1D1D1F',
             fontFamily: 'Outfit, sans-serif', pointerEvents: 'none',
           }}>{t}{tickSuffix}</span>
         );

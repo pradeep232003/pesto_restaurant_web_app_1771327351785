@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/admin/food-washing", tags=["food-washing"])
 
 records = db["washing_records"]
 
-Sanitiser = Literal["chlorine", "peracetic", "other"]
+Sanitiser = Literal["chlorine", "peracetic", "acid", "other"]
 
 
 class RecordBody(BaseModel):
@@ -29,7 +29,7 @@ class RecordBody(BaseModel):
     item_icon: Optional[str] = ""
     sanitiser: Sanitiser
     ppm: float
-    contact_minutes: float
+    contact_minutes: float = 1.0
     comment: Optional[str] = ""
 
 
