@@ -160,7 +160,7 @@ const RoutineTempWizard = ({ period, title, backTo }) => {
   useEffect(() => { reload(); }, [reload]);
 
   const totalSteps = units.length + 2; // unit steps + comment + done
-  const onUnitStep = stepIdx < units.length;
+  const onUnitStep = stepIdx >= 0 && stepIdx < units.length;
   const onCommentStep = stepIdx === units.length;
   const onDoneStep = stepIdx === units.length + 1;
   const currentUnit = onUnitStep ? units[stepIdx] : null;
