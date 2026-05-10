@@ -16,7 +16,7 @@ const isToday = (iso) => (iso || '').slice(0, 10) === today();
 
 const DailyCheckTile = () => {
   const { adminLocationId } = useLocation2();
-  const [counts, setCounts] = useState({ done: 0, outstanding: 0, total: 11, loaded: false });
+  const [counts, setCounts] = useState({ done: 0, outstanding: 0, total: 10, loaded: false });
   const dt = today();
 
   const load = useCallback(async () => {
@@ -24,7 +24,6 @@ const DailyCheckTile = () => {
     const calls = await Promise.all([
       api.washerChecks(adminLocationId).catch(() => []),
       api.hotColdList(adminLocationId).catch(() => []),
-      api.cookedList(adminLocationId).catch(() => []),
       api.reheatingList(adminLocationId).catch(() => []),
       api.coolingList(adminLocationId).catch(() => []),
       api.deliveriesList(adminLocationId).catch(() => []),
@@ -34,7 +33,7 @@ const DailyCheckTile = () => {
       api.fetch(`/api/admin/routine-temps?location_id=${encodeURIComponent(adminLocationId)}&period=opening&start_date=${dt}&end_date=${dt}`).catch(() => []),
       api.fetch(`/api/admin/routine-temps?location_id=${encodeURIComponent(adminLocationId)}&period=closing&start_date=${dt}&end_date=${dt}`).catch(() => []),
     ]);
-    const [washers, hotCold, cooked, reheating, cooling, deliveries, checklists, dc, cd, openingTemps, closingTemps] = calls;
+    const [washers, hotCold, reheating, cooling, deliveries, checklists, dc, cd, openingTemps, closingTemps] = calls;
     const dcOpening = !!dc;
     const cdComplete = !!cd;
     const flags = [
@@ -42,7 +41,6 @@ const DailyCheckTile = () => {
       (openingTemps || []).length > 0,
       (washers || []).some(r => isToday(r.recorded_at)),
       (hotCold || []).some(r => isToday(r.start_time || r.recorded_at)),
-      (cooked || []).some(r => isToday(r.recorded_at)),
       (reheating || []).some(r => isToday(r.recorded_at)),
       (cooling || []).some(r => isToday(r.started_at || r.recorded_at)),
       (deliveries || []).some(r => isToday(r.recorded_at)),
@@ -72,7 +70,7 @@ const DailyCheckTile = () => {
           </div>
           <div className="flex-1">
             <p className="text-[16px] font-semibold leading-tight" style={{ color: '#1D1D1F' }}>Today's Check</p>
-            <p className="text-[12px] mt-0.5" style={{ color: '#86868B' }}>11 routines for an EHO-ready day</p>
+            <p className="text-[12px] mt-0.5" style={{ color: '#86868B' }}>10 routines for an EHO-ready day</p>
           </div>
           <ChevronRight size={18} strokeWidth={2.4} style={{ color: '#C7C7CC' }} />
         </div>

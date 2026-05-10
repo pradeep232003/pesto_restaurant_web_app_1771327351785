@@ -104,6 +104,13 @@ async def list_templates(
     ]}
     if frequency:
         base["frequency"] = frequency
+    # Pre-load the most recent run per template at this location so the
+    # Daily Check hub & home tile can detect "ran today" without an N+1.
+    latest_runs = {}
+    for r in runs.find({"location_id": location_id}, {"_id": 0, "template_id": 1, "submitted_at": 1}).sort("submitted_at", -1):
+        tid = r.get("template_id")
+        if tid and tid not in latest_runs:
+            latest_runs[tid] = r.get("submitted_at", "")
     out = []
     for tpl in templates.find(base, {"_id": 0}).sort("title", 1):
         items = _normalize_items(tpl.get("items"))
@@ -111,6 +118,7 @@ async def list_templates(
         # already-filtered count so the card label is accurate.
         tpl["items"] = items
         tpl["visible_items_count"] = len(_filter_items_for_site(items, location_id))
+        tpl["last_run_at"] = latest_runs.get(tpl.get("id"), "")
         out.append(tpl)
     return out
 
