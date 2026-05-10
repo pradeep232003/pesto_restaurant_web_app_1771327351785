@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Snowflake, ArrowLeft, Bell, BellOff, Trash2, RefreshCw, CalendarX } from 'lucide-react';
+import { Plus, Snowflake, ArrowLeft, Bell, BellOff, Trash2, RefreshCw, CalendarX, Check } from 'lucide-react';
 import api from '../../../lib/api';
 import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader } from './_shared';
@@ -321,6 +321,37 @@ const CoolingHome = () => {
           </p>
           <div data-testid="cooling-history-today" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {completedToday.map(it => {
+              if (it.kind === 'no_bulk_prep') {
+                return (
+                  <div key={it.id} data-testid={`cooling-no-bulk-prep-${it.id}`}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+                      background: '#FFFFFF', borderRadius: 16,
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                    }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 999, background: 'rgba(52,199,89,0.16)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Check size={16} strokeWidth={2.8} color="#1B7A35" />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: '#1D1D1F', margin: 0 }}>No bulk prep today</p>
+                      <p style={{ fontSize: 11, color: '#86868B', margin: '2px 0 0' }}>
+                        Logged{it.recorded_by_name ? ` by ${it.recorded_by_name}` : ''}
+                        {it.completed_at ? ` · ${it.completed_at.slice(11, 16)}` : ''}
+                      </p>
+                    </div>
+                    <button
+                      data-testid={`cooling-delete-${it.id}`}
+                      onClick={(e) => handleDelete(it, e)}
+                      aria-label="Undo no bulk prep"
+                      style={{
+                        width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: 'transparent', border: 0, cursor: 'pointer', color: '#FF3B30',
+                      }}>
+                      <Trash2 size={16} strokeWidth={2.2} />
+                    </button>
+                  </div>
+                );
+              }
               const passed = (it.end_temp_c ?? 0) <= (it.target_temp_c ?? 8);
               const passColor = passed ? '#34C759' : '#FF3B30';
               const time = (it.completed_at || '').slice(11, 16);
