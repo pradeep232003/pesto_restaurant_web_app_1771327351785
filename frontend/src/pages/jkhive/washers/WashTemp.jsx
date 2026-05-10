@@ -5,8 +5,9 @@ import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader, TempStepper, TempGauge } from '../cooling/_shared';
 
 /**
- * /jkhive/washer-temps/:washerId/wash
- * Wash-cycle temp: gauge 30→70°C, default 55°C, recommended ≥ 55°C.
+ * /jkhive/washer-temps/:washerId/wash — IMG_6720.
+ * Wash-cycle temp: gauge 45 → 90 °C with ticks 45/54/63/72/81/90.
+ * Pass when value ≥ 55 °C; below that the active arc and knob render red.
  */
 const WashTemp = () => {
   const navigate = useNavigate();
@@ -33,34 +34,35 @@ const WashTemp = () => {
 
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'Outfit, sans-serif' }} data-testid="washer-wash">
-      <WizardHeader title={washer.name} locationName={locationName} dateStr={today} onBack={() => navigate('/jkhive/washer-temps')} />
+      <WizardHeader title="Record Washer Temperatures" locationName={locationName} dateStr={today} onBack={() => navigate('/jkhive/washer-temps')} />
 
-      <div style={{ textAlign: 'center', margin: '4px 0 8px' }}>
-        <div style={{ fontSize: 96, lineHeight: 1 }}>🫧</div>
-        <p style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.01em', color: '#1D1D1F', margin: '4px 0 0' }}>
-          Wash Cycle Temperature
-        </p>
-      </div>
+      <h2 style={{
+        fontSize: 38, fontWeight: 800, lineHeight: 1.05, letterSpacing: '-0.02em',
+        color: '#1D1D1F', margin: '12px 16px 28px',
+      }}>
+        Temperature during wash cycle:
+      </h2>
 
       <TempStepper value={temp} onChange={setTemp} />
 
       <TempGauge
-        value={temp} min={30} max={70} ticks={[30, 40, 50, 55, 60, 70]}
+        value={temp} min={45} max={90} ticks={[45, 54, 63, 72, 81, 90]}
         onChange={setTemp}
         color={knobColor}
       />
 
       <p style={{ fontSize: 14, color: '#1D1D1F', textAlign: 'center', marginTop: 18, lineHeight: 1.4 }}>
-        Recommended:<br/>≥ 55°C
+        Recommended range:<br/>55°C or higher
       </p>
 
-      <div style={{ position: 'fixed', left: 0, right: 0, bottom: 64, zIndex: 5 }}>
+      <div style={{ position: 'fixed', left: 16, right: 16, bottom: 84, zIndex: 5 }}>
         <button data-testid="washer-wash-next"
           onClick={() => navigate(`/jkhive/washer-temps/${washerId}/rinse`, { state: { washer, wash_temp: Number(temp) } })}
           style={{
-            width: '100%', padding: '20px 16px', border: 0,
-            background: '#1D1D1F', color: '#FFFFFF', fontSize: 18, fontWeight: 600,
+            width: '100%', padding: '18px 16px', border: 0, borderRadius: 999,
+            background: '#1D1D1F', color: '#FFFFFF', fontSize: 17, fontWeight: 600,
             cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+            boxShadow: '0 8px 22px rgba(0,0,0,0.25)',
           }}>Next</button>
       </div>
     </div>

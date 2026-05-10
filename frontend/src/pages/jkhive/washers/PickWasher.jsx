@@ -25,7 +25,7 @@ const PickWasher = () => {
   if (!adminLocationId) {
     return (
       <div style={{ padding: 24, fontFamily: 'Outfit, sans-serif' }}>
-        <WizardHeader title="Select a Washer" locationName="—" dateStr={today} backTo="/jkhive/routines/more" />
+      <WizardHeader title="Select Washer" locationName="—" dateStr={today} backTo="/jkhive/routines/more" />
         <p style={{ color: '#FF9500' }}>Pick a location from JKHive home first.</p>
       </div>
     );
@@ -33,7 +33,7 @@ const PickWasher = () => {
 
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'Outfit, sans-serif' }} data-testid="washer-pick">
-      <WizardHeader title="Select a Washer" locationName={locationName} dateStr={today} backTo="/jkhive/routines/more" />
+      <WizardHeader title="Select Washer" locationName={locationName} dateStr={today} backTo="/jkhive/routines/more" />
 
       {loading && <p style={{ color: '#86868B', textAlign: 'center', padding: 18 }}>Loading…</p>}
 

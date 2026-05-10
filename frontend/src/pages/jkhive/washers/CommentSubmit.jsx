@@ -68,7 +68,7 @@ const CommentSubmit = () => {
 
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'Outfit, sans-serif' }} data-testid="washer-comment">
-      <WizardHeader title={state.washer.name} locationName={locationName} dateStr={today} onBack={() => navigate(-1)} />
+      <WizardHeader title="Record Washer Temperatures" locationName={locationName} dateStr={today} onBack={() => navigate(-1)} />
 
       <div style={{ display: 'flex', justifyContent: 'center', margin: '60px 0 24px' }}>
         <div style={{ width: 96, height: 96, borderRadius: 24, background: 'rgba(0,122,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -92,13 +92,14 @@ const CommentSubmit = () => {
         }} />
       <p style={{ fontSize: 12, color: '#86868B', textAlign: 'right', marginTop: 6 }}>{comment.length}/250</p>
 
-      <div style={{ position: 'fixed', left: 0, right: 0, bottom: 64, zIndex: 5 }}>
+      <div style={{ position: 'fixed', left: 16, right: 16, bottom: 84, zIndex: 5 }}>
         <button data-testid="washer-submit-btn" onClick={submit} disabled={submitting}
           style={{
-            width: '100%', padding: '20px 16px', border: 0,
-            background: '#1D1D1F', color: '#FFFFFF', fontSize: 18, fontWeight: 600,
+            width: '100%', padding: '18px 16px', border: 0, borderRadius: 999,
+            background: '#1D1D1F', color: '#FFFFFF', fontSize: 17, fontWeight: 600,
             cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1,
             fontFamily: 'Outfit, sans-serif',
+            boxShadow: '0 8px 22px rgba(0,0,0,0.25)',
           }}>{submitting ? 'Submitting…' : 'Submit Record'}</button>
       </div>
     </div>
