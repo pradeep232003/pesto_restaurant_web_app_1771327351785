@@ -52,7 +52,7 @@ const buildTasks = (loc, data) => {
       sub: 'Service temperatures',              to: '/jkhive/hot-cold-holding?back=/jkhive/daily-check',
       done: (data.hotCold || []).some(r => isTodayIso(r.start_time || r.recorded_at)) },
     { id: 'cooked',          icon: ChefHat,         color: '#FF9500', title: 'Cooked Temps',
-      sub: 'Probe at end of cook',              to: '/jkhive/cooked-temps?back=/jkhive/daily-check',
+      sub: 'Probe at end of cook',              to: '/jkhive/cooked-temp?back=/jkhive/daily-check',
       done: (data.cooked || []).some(r => isTodayIso(r.recorded_at)) },
     { id: 'reheating',       icon: Soup,            color: '#FF6B35', title: 'Reheating',
       sub: 'Reheat ≥75 °C log',                 to: '/jkhive/reheating?back=/jkhive/daily-check',
