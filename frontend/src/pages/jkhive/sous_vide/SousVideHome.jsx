@@ -30,7 +30,7 @@ const SousVideHome = () => {
       <WizardHeader title="Sous Vide" locationName={locationName} dateStr={today} backTo="/jkhive/routines/more" />
 
       <p style={{ fontSize: 13, color: '#86868B', marginBottom: 14 }}>
-        Pass when actual core temp ≥ target AND elapsed time ≥ target programme.
+        Pass when bath temp ≥ 63 °C (pre-cooked) or 54 °C (raw) AND duration &gt; 0.
       </p>
 
       {loading && <p style={{ color: '#86868B', textAlign: 'center', padding: 18 }}>Loading…</p>}
@@ -46,7 +46,7 @@ const SousVideHome = () => {
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#1D1D1F' }}>{r.item_name}</p>
               <p style={{ margin: '2px 0 0', fontSize: 12, color: '#86868B' }}>
-                Tgt {r.target_temp}°C / {r.target_minutes}m → {Number(r.actual_temp).toFixed(1)}°C / {r.actual_minutes}m · {new Date(r.recorded_at).toLocaleString()}
+                {r.raw_or_cooked} · ×{r.batch_count} · {Number(r.bath_temp).toFixed(1)}°C · {r.duration_hours}h {r.duration_minutes}m · {new Date(r.recorded_at).toLocaleString()}
               </p>
             </div>
             <span style={{
