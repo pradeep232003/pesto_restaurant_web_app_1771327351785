@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Truck, Trash2 } from 'lucide-react';
+import { Plus, Truck, Trash2, CalendarX } from 'lucide-react';
 import api from '../../../lib/api';
 import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader } from '../cooling/_shared';
@@ -8,9 +8,12 @@ import { categoryEmoji } from '../cooling/CoolingHome';
 
 /**
  * /jkhive/delivery-records — landing screen for goods-in deliveries.
- * Lists today's records and a sticky "Add new delivery" button.
+ * Lists today's records and a sticky "Add new delivery" button + a
+ * secondary "No deliveries today" pill that posts a single audit-trail
+ * record (idempotent per location per day).
  */
 const statusFor = (it) => {
+  if (it.kind === 'no_delivery') return { label: 'NO DELIVERY', color: '#86868B' };
   if (it.frozen_pass) return { label: 'FROZEN OK', color: '#34C759' };
   if (it.chilled_pass) return { label: 'CHILLED OK', color: '#34C759' };
   return { label: 'OUT OF RANGE', color: '#FF3B30' };
@@ -21,6 +24,7 @@ const DeliveriesHome = () => {
   const { adminLocationId, locations } = useLocation2();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [logging, setLogging] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
 
@@ -33,6 +37,22 @@ const DeliveriesHome = () => {
       .finally(() => setLoading(false));
   };
   useEffect(load, [adminLocationId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const hasNoDelivery = items.some(it => it.kind === 'no_delivery');
+  const hasRealDeliveries = items.some(it => it.kind !== 'no_delivery');
+
+  const logNoDelivery = async () => {
+    if (hasRealDeliveries) {
+      alert("You can't mark 'no deliveries today' once a delivery has been recorded.");
+      return;
+    }
+    setLogging(true);
+    try {
+      await api.deliveriesNoDelivery(adminLocationId);
+      load();
+    } catch (err) { alert('Failed: ' + err.message); }
+    finally { setLogging(false); }
+  };
 
   const handleDelete = async (it, e) => {
     e.stopPropagation();
@@ -82,12 +102,16 @@ const DeliveriesHome = () => {
                     borderLeft: `4px solid ${s.color}`,
                   }}>
                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, padding: '12px 12px 12px 14px', minWidth: 0 }}>
-                    <span style={{ fontSize: 28 }}>{categoryEmoji(it.item_category)}</span>
+                    <span style={{ fontSize: 28 }}>
+                      {it.kind === 'no_delivery' ? '🚫' : categoryEmoji(it.item_category)}
+                    </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 14, fontWeight: 700, color: '#1D1D1F', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.item_name}</p>
                       <p style={{ fontSize: 11, color: '#86868B', margin: '2px 0 0' }}>
-                        {it.supplier_name} · <b style={{ color: s.color }}>{Number(it.temp_c).toFixed(1)}°C</b>
-                        {time ? ` · ${time}` : ''}
+                        {it.kind === 'no_delivery'
+                          ? `Logged by ${it.recorded_by_name || it.recorded_by || '—'}${time ? ` · ${time}` : ''}`
+                          : <>{it.supplier_name} · <b style={{ color: s.color }}>{Number(it.temp_c).toFixed(1)}°C</b>{time ? ` · ${time}` : ''}</>
+                        }
                       </p>
                     </div>
                     <span style={{
@@ -114,17 +138,36 @@ const DeliveriesHome = () => {
 
       <button data-testid="add-new-delivery"
         onClick={() => navigate('/jkhive/delivery-records/supplier')}
-        disabled={!adminLocationId}
+        disabled={!adminLocationId || hasNoDelivery}
         style={{
-          position: 'fixed', left: 16, right: 16, bottom: 96, maxWidth: 600, margin: '0 auto',
+          position: 'fixed', left: 16, right: 16, bottom: 150, maxWidth: 600, margin: '0 auto',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           padding: '18px 16px', borderRadius: 999, border: 0,
           background: '#1D1D1F', color: '#FFFFFF', fontSize: 17, fontWeight: 600,
-          cursor: 'pointer', opacity: adminLocationId ? 1 : 0.5,
+          cursor: (!adminLocationId || hasNoDelivery) ? 'not-allowed' : 'pointer',
+          opacity: (!adminLocationId || hasNoDelivery) ? 0.4 : 1,
           fontFamily: 'Outfit, sans-serif',
           boxShadow: '0 6px 18px rgba(0,0,0,0.18)', zIndex: 5,
         }}>
         <Plus size={20} strokeWidth={2.6} /> Add new delivery
+      </button>
+
+      <button data-testid="log-no-delivery"
+        onClick={logNoDelivery}
+        disabled={!adminLocationId || logging || hasNoDelivery || hasRealDeliveries}
+        style={{
+          position: 'fixed', left: 16, right: 16, bottom: 96, maxWidth: 600, margin: '0 auto',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          padding: '14px 16px', borderRadius: 999,
+          border: '1px solid rgba(0,0,0,0.12)',
+          background: '#FFFFFF', color: '#1D1D1F', fontSize: 15, fontWeight: 600,
+          cursor: (!adminLocationId || logging || hasNoDelivery || hasRealDeliveries) ? 'not-allowed' : 'pointer',
+          opacity: (!adminLocationId || logging || hasNoDelivery || hasRealDeliveries) ? 0.5 : 1,
+          fontFamily: 'Outfit, sans-serif',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.06)', zIndex: 5,
+        }}>
+        <CalendarX size={18} strokeWidth={2.4} />
+        {hasNoDelivery ? 'No deliveries logged ✓' : 'No deliveries today'}
       </button>
     </div>
   );

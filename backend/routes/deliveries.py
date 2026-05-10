@@ -52,6 +52,11 @@ class RecordBody(BaseModel):
     comment: Optional[str] = ""
 
 
+class NoDeliveryBody(BaseModel):
+    location_id: str
+    comment: Optional[str] = ""
+
+
 def _migrate(doc: dict) -> dict:
     """Back-compat: legacy suppliers had a single `location_id`. Convert to sites array on read."""
     if "sites" not in doc:
@@ -147,6 +152,7 @@ async def record_delivery(body: RecordBody, user: dict = Depends(get_staff_or_ab
     doc = {
         "id": str(uuid.uuid4())[:12],
         "location_id": body.location_id,
+        "kind": "delivery",
         "supplier_id": body.supplier_id,
         "supplier_name": (sup or {}).get("name", "Unknown"),
         "item_name": body.item_name,
@@ -154,6 +160,41 @@ async def record_delivery(body: RecordBody, user: dict = Depends(get_staff_or_ab
         "temp_c": body.temp_c,
         "chilled_pass": chilled_pass,
         "frozen_pass": frozen_pass,
+        "comment": body.comment or "",
+        "recorded_at": datetime.now(timezone.utc).isoformat(),
+        "recorded_by": user.get("email", ""),
+        "recorded_by_name": user.get("name", ""),
+    }
+    records.insert_one(dict(doc))
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+
+@router.post("/no-delivery")
+async def record_no_delivery(body: NoDeliveryBody, user: dict = Depends(get_staff_or_above)):
+    """Log that no goods-in delivery was received today (HACCP audit trail).
+
+    Idempotent per location per day — returns the existing record if one already
+    exists for today rather than creating a duplicate.
+    """
+    today_str = datetime.now(timezone.utc).date().isoformat()
+    existing = records.find_one({
+        "location_id": body.location_id,
+        "kind": "no_delivery",
+        "recorded_at": {"$gte": today_str + "T00:00:00", "$lt": today_str + "T23:59:59"},
+    }, {"_id": 0})
+    if existing:
+        return existing
+    doc = {
+        "id": str(uuid.uuid4())[:12],
+        "location_id": body.location_id,
+        "kind": "no_delivery",
+        "supplier_id": "",
+        "supplier_name": "—",
+        "item_name": "No deliveries received",
+        "item_category": "",
+        "temp_c": None,
+        "chilled_pass": None,
+        "frozen_pass": None,
         "comment": body.comment or "",
         "recorded_at": datetime.now(timezone.utc).isoformat(),
         "recorded_by": user.get("email", ""),

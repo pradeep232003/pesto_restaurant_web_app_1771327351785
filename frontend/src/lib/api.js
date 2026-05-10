@@ -815,6 +815,7 @@ class ApiService {
   async deliveriesList(locationId) { return this.fetch(`/api/admin/deliveries?location_id=${encodeURIComponent(locationId)}`); }
   async deliveriesRecord(data) { return this.fetch('/api/admin/deliveries', { method: 'POST', body: JSON.stringify(data) }); }
   async deliveriesDelete(id) { return this.fetch(`/api/admin/deliveries/${id}`, { method: 'DELETE' }); }
+  async deliveriesNoDelivery(locationId) { return this.fetch('/api/admin/deliveries/no-delivery', { method: 'POST', body: JSON.stringify({ location_id: locationId, comment: '' }) }); }
 
   // ============== INVENTORY ==============
   async inventoryAddStock(data) { return this.fetch('/api/admin/inventory/stock', { method: 'POST', body: JSON.stringify(data) }); }
