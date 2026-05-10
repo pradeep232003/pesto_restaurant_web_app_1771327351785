@@ -125,6 +125,7 @@ import WashingRecord from './pages/jkhive/washing/WashingRecord';
 import SousVideHome from './pages/jkhive/sous_vide/SousVideHome';
 import SousVidePick from './pages/jkhive/sous_vide/SousVidePick';
 import SousVideRecord from './pages/jkhive/sous_vide/SousVideRecord';
+import SousVideComplete from './pages/jkhive/sous_vide/SousVideComplete';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -298,6 +299,7 @@ const AppRouter = () => {
         <Route path="sous-vide" element={<SousVideHome />} />
         <Route path="sous-vide/pick" element={<SousVidePick />} />
         <Route path="sous-vide/record" element={<SousVideRecord />} />
+        <Route path="sous-vide/:id/complete" element={<SousVideComplete />} />
         <Route path="opening" element={<JKHiveOpeningRoutine />} />
         <Route path="opening/fridge-temp" element={<JKHiveOpeningFridgeTemp />} />
         <Route path="closing" element={<JKHiveClosingRoutine />} />

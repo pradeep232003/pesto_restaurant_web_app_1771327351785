@@ -871,8 +871,12 @@ class ApiService {
   async foodWashDelete(id) { return this.fetch(`/api/admin/food-washing/${id}`, { method: 'DELETE' }); }
 
   // ============== SOUS VIDE ==============
-  async sousVideList(locationId) { return this.fetch(`/api/admin/sous-vide?location_id=${encodeURIComponent(locationId)}`); }
+  async sousVideList(locationId, status) {
+    const qs = new URLSearchParams({ location_id: locationId, ...(status ? { status } : {}) }).toString();
+    return this.fetch(`/api/admin/sous-vide?${qs}`);
+  }
   async sousVideRecord(data) { return this.fetch('/api/admin/sous-vide', { method: 'POST', body: JSON.stringify(data) }); }
+  async sousVideComplete(id, data) { return this.fetch(`/api/admin/sous-vide/${id}/complete`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async sousVideDelete(id) { return this.fetch(`/api/admin/sous-vide/${id}`, { method: 'DELETE' }); }
 
   // ============== HOT / COLD HOLDING ==============
