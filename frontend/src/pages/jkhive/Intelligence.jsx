@@ -1,7 +1,6 @@
 import React from 'react';
 import { Shield, Package, Trash2, ChefHat, Salad, BarChart3, Sparkles, DollarSign, UtensilsCrossed, FileCheck, ClipboardCheck, FolderOpen, Award } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
-import DailyCheckTile from './DailyCheckTile';
 import { useAuth } from '../../contexts/AuthContext';
 
 const Intelligence = () => {
@@ -29,7 +28,6 @@ const Intelligence = () => {
 
       <SectionLabel>Operate</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
-        <DailyCheckTile />
         <Tile
           testId="tile-daily-sales"
           to="/jkhive/daily-sales"
