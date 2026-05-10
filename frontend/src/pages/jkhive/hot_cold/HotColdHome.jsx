@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Trash2 } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Trash2, CheckCircle2 } from 'lucide-react';
 import api from '../../../lib/api';
 import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader } from '../cooling/_shared';
@@ -9,8 +9,11 @@ import { categoryEmoji } from '../cooling/CoolingHome';
 /** /jkhive/hot-cold-holding — list active sessions (IMG_6713 / IMG_6717). */
 const HotColdHome = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const backTo = searchParams.get('back') || '/jkhive/routines/more';
   const { adminLocationId, locations } = useLocation2();
   const [rows, setRows] = useState([]);
+  const [completedToday, setCompletedToday] = useState([]);
   const [loading, setLoading] = useState(true);
   const today = new Date().toISOString().slice(0, 10);
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
@@ -19,8 +22,12 @@ const HotColdHome = () => {
     if (!adminLocationId) { setLoading(false); return; }
     setLoading(true);
     try {
-      const list = await api.hotColdList(adminLocationId, 'active');
-      setRows(list || []);
+      const [active, complete] = await Promise.all([
+        api.hotColdList(adminLocationId, 'active'),
+        api.hotColdList(adminLocationId, 'complete'),
+      ]);
+      setRows(active || []);
+      setCompletedToday((complete || []).filter(s => (s.start_time || '').slice(0, 10) === today));
     } catch (err) { alert('Failed to load: ' + err.message); }
     finally { setLoading(false); }
   };
@@ -41,12 +48,12 @@ const HotColdHome = () => {
 
   return (
     <div style={{ paddingBottom: 130, fontFamily: 'Outfit, sans-serif' }} data-testid="hot-cold-home">
-      <WizardHeader title="Currently Hot/Cold Holding" locationName={locationName} dateStr={today} backTo="/jkhive/routines/more" />
+      <WizardHeader title="Currently Hot/Cold Holding" locationName={locationName} dateStr={today} backTo={backTo} />
 
       {!adminLocationId && <p style={{ color: '#FF9500', textAlign: 'center', padding: 18 }}>Pick a location from JKHive home first.</p>}
       {adminLocationId && loading && <p style={{ color: '#86868B', textAlign: 'center', padding: 18 }}>Loading…</p>}
 
-      {adminLocationId && !loading && rows.length === 0 && (
+      {adminLocationId && !loading && rows.length === 0 && completedToday.length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 16px 0' }}>
           <div style={{ fontSize: 96, lineHeight: 1, marginBottom: 18 }}>🛋️</div>
           <p style={{ fontSize: 16, color: '#1D1D1F', margin: 0, lineHeight: 1.4 }}>
@@ -59,6 +66,17 @@ const HotColdHome = () => {
       {adminLocationId && !loading && rows.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {rows.map(s => <SessionCard key={s.id} s={s} onComplete={() => completeNow(s)} onDelete={() => remove(s)} onAddCheck={() => navigate(`/jkhive/hot-cold-holding/${s.id}/check`, { state: { session: s } })} />)}
+        </div>
+      )}
+
+      {adminLocationId && !loading && completedToday.length > 0 && (
+        <div style={{ marginTop: rows.length > 0 ? 24 : 8 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 4px 8px' }}>
+            Completed today
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {completedToday.map(s => <CompletedRow key={s.id} s={s} />)}
+          </div>
         </div>
       )}
 
@@ -164,6 +182,25 @@ const SlotCell = ({ label, temp, pass, active, disabled, onClick }) => {
         {has ? `${Number(temp).toFixed(1)}°C` : '—'}
       </p>
     </button>
+  );
+};
+
+const CompletedRow = ({ s }) => {
+  const start = s.start_time ? new Date(s.start_time) : null;
+  const end = s.end_time ? new Date(s.end_time) : null;
+  const fmt = (d) => d ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+  return (
+    <div data-testid={`completed-${s.id}`}
+      style={{ background: '#FFFFFF', borderRadius: 14, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', opacity: 0.85 }}>
+      <span style={{ fontSize: 24 }}>{s.item_icon || (s.mode === 'hot' ? '🌡️' : '❄️')}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 14, fontWeight: 600, color: '#1D1D1F', margin: 0 }}>{s.item_name}</p>
+        <p style={{ fontSize: 11, color: '#86868B', margin: '2px 0 0', textTransform: 'capitalize' }}>
+          {s.mode} · {fmt(start)} – {fmt(end)}
+        </p>
+      </div>
+      <CheckCircle2 size={18} color="#34C759" strokeWidth={2.4} />
+    </div>
   );
 };
 

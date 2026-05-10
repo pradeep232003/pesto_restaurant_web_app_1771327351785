@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useNavigate, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { ClipboardCheck, Check, X, ChevronDown, Plus, Pencil, Trash2, Globe, MapPin, Save, ArrowLeft } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -11,6 +11,8 @@ const AdminDailyChecks = () => {
   const { locations, adminLocationId: selectedLocation, setAdminLocationId: setSelectedLocation } = useLocation2();
   const routerLocation = useLocation();
   const isJkhive = routerLocation.pathname.startsWith('/jkhive');
+  const [searchParams] = useSearchParams();
+  const backTo = searchParams.get('back') || '/jkhive/routines';
 
   const now = new Date();
   const today = now.toISOString().split('T')[0];
@@ -186,7 +188,7 @@ const AdminDailyChecks = () => {
   return (
     <div className={isJkhive ? "px-4 sm:px-6 lg:px-8 pt-2 pb-32 max-w-5xl mx-auto" : "p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto"} data-testid="admin-daily-checks-page">
       {isJkhive ? (
-        <Link to="/jkhive/routines" data-testid="back-to-jkhive" className="inline-flex items-center gap-1.5 -ml-1 px-1 py-1 mb-1 rounded-lg active:scale-95" style={{ color: '#1D1D1F', ...font }}>
+        <Link to={backTo} data-testid="back-to-jkhive" className="inline-flex items-center gap-1.5 -ml-1 px-1 py-1 mb-1 rounded-lg active:scale-95" style={{ color: '#1D1D1F', ...font }}>
           <ArrowLeft size={20} strokeWidth={2.4} style={{ color: '#007AFF' }} />
           <span className="text-xl sm:text-2xl font-semibold tracking-tight">Daily Checks</span>
         </Link>
