@@ -63,16 +63,17 @@ const AcidityHome = () => {
         ))}
       </div>
 
-      <div style={{ position: 'fixed', left: 0, right: 0, bottom: 64, zIndex: 5 }}>
+      <div style={{ position: 'fixed', right: 16, bottom: 80, zIndex: 5 }}>
         <button data-testid="acidity-add-btn"
           onClick={() => navigate('/jkhive/acidity/pick')}
           style={{
-            width: '100%', padding: '20px 16px', border: 0,
-            background: '#1D1D1F', color: '#FFFFFF', fontSize: 18, fontWeight: 600,
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            padding: '14px 22px', borderRadius: 999, border: 0,
+            background: '#1D1D1F', color: '#FFFFFF', fontSize: 16, fontWeight: 600,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
             fontFamily: 'Outfit, sans-serif',
+            boxShadow: '0 8px 22px rgba(0,0,0,0.25)',
           }}>
-          <Plus size={20} strokeWidth={2.6} /> Add pH Record
+          <Plus size={18} strokeWidth={2.6} /> Add record
         </button>
       </div>
     </div>
