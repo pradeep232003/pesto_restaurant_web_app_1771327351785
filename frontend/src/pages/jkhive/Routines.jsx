@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Sunrise, Sunset, Snowflake, ListChecks, Flame, Truck, ChefHat, MoreHorizontal } from 'lucide-react';
+import { Sunrise, Sunset, Snowflake, ListChecks, Flame, Truck, MoreHorizontal } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 import DailyCheckTile from './DailyCheckTile';
 import api from '../../lib/api';
@@ -69,7 +69,6 @@ const Routines = () => {
         <Tile testId="tile-reheating"           to="/jkhive/reheating"         icon={Flame}       color="#FF3B30" title="Reheating"          subtitle="≥ 75°C reheat log" />
         <Tile testId="tile-deliveries"          to="/jkhive/delivery-records"  icon={Truck}       color="#8E8E93" title="Deliveries"         subtitle="Goods-in records"
               badge={deliveriesTodayCount} badgeColor="#0A84C9" />
-        <Tile testId="tile-cooking"             to="/jkhive/cooked-temp"       icon={ChefHat}     color="#FF2D55" title="Cooking"            subtitle="Cooked-temp log" />
         <Tile testId="tile-other-routines"      to="/jkhive/routines/more"     icon={MoreHorizontal} color="#3A3A3C" title="Other"           subtitle="Probe, holding, more…" />
       </div>
     </div>

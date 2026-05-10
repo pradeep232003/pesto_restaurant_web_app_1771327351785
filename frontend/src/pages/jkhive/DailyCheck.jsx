@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronRight, Check, Clock, ArrowRight, X,
-  ListChecks, Refrigerator, ShowerHead, Flame, ChefHat,
+  ListChecks, Refrigerator, ShowerHead, Flame,
   Soup, Snowflake, Truck, Sparkles, ClipboardCheck,
 } from 'lucide-react';
 import api from '../../lib/api';
@@ -51,16 +51,12 @@ const buildTasks = (loc, data) => {
     { id: 'hot-cold',        icon: Flame,           color: '#FF3B30', title: 'Hot / Cold Holding',
       sub: 'Service temperatures',              to: '/jkhive/hot-cold-holding?back=/jkhive/daily-check',
       done: (data.hotCold || []).some(r => isTodayIso(r.start_time || r.recorded_at)) },
-    { id: 'cooked',          icon: ChefHat,         color: '#FF9500', title: 'Cooked Temps',
-      sub: 'Probe at end of cook',              to: '/jkhive/cooked-temp?back=/jkhive/daily-check',
-      done: (data.cooked || []).some(r => isTodayIso(r.recorded_at)) },
-    { id: 'reheating',       icon: Soup,            color: '#FF6B35', title: 'Reheating',
+    { id: 'reheating',       icon: Soup,            color: '#FF6B35', title: 'Cooking/Reheating',
       sub: 'Reheat ≥75 °C log',                 to: '/jkhive/reheating?back=/jkhive/daily-check',
       done: (data.reheating || []).some(r => isTodayIso(r.recorded_at)) },
-    { id: 'bulk-cooling',    icon: Snowflake,       color: '#5AC8FA', title: 'Bulk Cooling',
+    { id: 'bulk-cooling',    icon: Snowflake,       color: '#5AC8FA', title: 'Bulk Cooking/Cooling',
       sub: 'Cool < 90 min · or "no bulk prep"', to: '/jkhive/cooking-cooling?back=/jkhive/daily-check',
-      done: (data.cooling || []).some(r => isTodayIso(r.started_at || r.recorded_at)),
-      quickAction: { label: 'No bulk prep today', call: () => api.coolingNoBulkPrep(loc) } },
+      done: (data.cooling || []).some(r => isTodayIso(r.started_at || r.recorded_at)) },
     { id: 'deliveries',      icon: Truck,           color: '#0A84C9', title: 'Deliveries',
       sub: 'Goods-in temps · or "no delivery"', to: '/jkhive/delivery-records?back=/jkhive/daily-check',
       done: (data.deliveries || []).some(r => isTodayIso(r.recorded_at)),
@@ -92,7 +88,6 @@ const DailyCheck = () => {
     const calls = [
       api.washerChecks(adminLocationId).catch(() => []),
       api.hotColdList(adminLocationId).catch(() => []),
-      api.cookedList(adminLocationId).catch(() => []),
       api.reheatingList(adminLocationId).catch(() => []),
       api.coolingList(adminLocationId).catch(() => []),
       api.deliveriesList(adminLocationId).catch(() => []),
@@ -102,8 +97,8 @@ const DailyCheck = () => {
       api.fetch(`/api/admin/routine-temps?location_id=${encodeURIComponent(adminLocationId)}&period=opening&start_date=${date}&end_date=${date}`).catch(() => []),
       api.fetch(`/api/admin/routine-temps?location_id=${encodeURIComponent(adminLocationId)}&period=closing&start_date=${date}&end_date=${date}`).catch(() => []),
     ];
-    const [washers, hotCold, cooked, reheating, cooling, deliveries, checklists, dailyCheck, closedown, openingTemps, closingTemps] = await Promise.all(calls);
-    setData({ washers, hotCold, cooked, reheating, cooling, deliveries, checklists, dailyCheck, closedown, openingTemps, closingTemps });
+    const [washers, hotCold, reheating, cooling, deliveries, checklists, dailyCheck, closedown, openingTemps, closingTemps] = await Promise.all(calls);
+    setData({ washers, hotCold, reheating, cooling, deliveries, checklists, dailyCheck, closedown, openingTemps, closingTemps });
     setLoading(false);
   }, [adminLocationId, date]);
   useEffect(() => { load(); }, [load]);

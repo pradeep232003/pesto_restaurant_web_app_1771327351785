@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Snowflake, ArrowLeft, Bell, BellOff, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Snowflake, ArrowLeft, Bell, BellOff, Trash2, RefreshCw, CalendarX } from 'lucide-react';
 import api from '../../../lib/api';
 import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader } from './_shared';
@@ -16,6 +16,7 @@ const CoolingHome = () => {
   const [items, setItems] = useState([]);
   const [completedToday, setCompletedToday] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [logging, setLogging] = useState(false);
   const [pushState, setPushState] = useState('idle'); // idle | enabled | denied | unsupported
   const today = new Date().toISOString().slice(0, 10);
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
@@ -187,6 +188,22 @@ const CoolingHome = () => {
   // Show the big empty card only when BOTH lists (in-progress + today's
   // completed) are empty — otherwise it confused users who'd just submitted.
   const showEmptyState = adminLocationId && !loading && items.length === 0 && completedToday.length === 0;
+
+  const hasNoBulkPrep = completedToday.some(it => it.kind === 'no_bulk_prep');
+  const hasRealPrep = items.length > 0 || completedToday.some(it => it.kind !== 'no_bulk_prep');
+
+  const logNoBulkPrep = async () => {
+    if (hasRealPrep) {
+      alert("You can't mark 'no bulk prep today' once a cooking record has been started.");
+      return;
+    }
+    setLogging(true);
+    try {
+      await api.coolingNoBulkPrep(adminLocationId);
+      await loadData();
+    } catch (err) { alert('Failed: ' + err.message); }
+    finally { setLogging(false); }
+  };
 
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'Outfit, sans-serif' }} data-testid="cooling-home">
@@ -366,19 +383,38 @@ const CoolingHome = () => {
       <button
         data-testid="add-new-cooling"
         onClick={() => navigate('/jkhive/cooking-cooling/new')}
-        disabled={!adminLocationId}
+        disabled={!adminLocationId || hasNoBulkPrep}
         style={{
-          position: 'fixed', left: 16, right: 16, bottom: 96, maxWidth: 600, margin: '0 auto',
+          position: 'fixed', left: 16, right: 16, bottom: 150, maxWidth: 600, margin: '0 auto',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           padding: '18px 16px', borderRadius: 999, border: 0,
           background: '#1D1D1F', color: '#FFFFFF', fontSize: 17, fontWeight: 600,
-          cursor: 'pointer', opacity: adminLocationId ? 1 : 0.5,
+          cursor: (!adminLocationId || hasNoBulkPrep) ? 'not-allowed' : 'pointer',
+          opacity: (!adminLocationId || hasNoBulkPrep) ? 0.4 : 1,
           fontFamily: 'Outfit, sans-serif',
           boxShadow: '0 6px 18px rgba(0,0,0,0.18)', zIndex: 5,
         }}
       >
         <Plus size={20} strokeWidth={2.6} />
-        Add new cooling
+        Add new cooking
+      </button>
+
+      <button data-testid="log-no-bulk-prep"
+        onClick={logNoBulkPrep}
+        disabled={!adminLocationId || logging || hasNoBulkPrep || hasRealPrep}
+        style={{
+          position: 'fixed', left: 16, right: 16, bottom: 96, maxWidth: 600, margin: '0 auto',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          padding: '14px 16px', borderRadius: 999,
+          border: '1px solid rgba(0,0,0,0.12)',
+          background: '#FFFFFF', color: '#1D1D1F', fontSize: 15, fontWeight: 600,
+          cursor: (!adminLocationId || logging || hasNoBulkPrep || hasRealPrep) ? 'not-allowed' : 'pointer',
+          opacity: (!adminLocationId || logging || hasNoBulkPrep || hasRealPrep) ? 0.5 : 1,
+          fontFamily: 'Outfit, sans-serif',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.06)', zIndex: 5,
+        }}>
+        <CalendarX size={18} strokeWidth={2.4} />
+        {hasNoBulkPrep ? 'No bulk prep logged ✓' : 'No bulk prep today'}
       </button>
     </div>
   );
