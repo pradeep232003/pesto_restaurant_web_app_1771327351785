@@ -1,19 +1,19 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { Check } from 'lucide-react';
-import api from '../../../lib/api';
 import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader, TempStepper, TempGauge } from '../cooling/_shared';
 
-/** /jkhive/acidity/record — pH gauge 0→7 + comment + submit. */
+/**
+ * /jkhive/acidity/record — IMG_6724.
+ * pH gauge 0 → 14 with ticks 0/2.8/5.6/8.4/11.2/14, default 7.0, step 0.1.
+ * Pass when pH ≤ 4.6 (FSA acidified-foods rule). Header is the routine
+ * label "Record Food Acidity"; body shows item icon + name.
+ */
 const AcidityRecord = () => {
   const navigate = useNavigate();
   const { state } = useLocation();
   const { adminLocationId, locations } = useLocation2();
-  const [ph, setPh] = useState(4.0);
-  const [comment, setComment] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(null);
+  const [ph, setPh] = useState(7.0);
   const today = new Date().toISOString().slice(0, 10);
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
 
@@ -22,65 +22,35 @@ const AcidityRecord = () => {
   const inRange = ph <= 4.6;
   const knobColor = inRange ? '#34C759' : '#FF3B30';
 
-  const submit = async () => {
-    setSubmitting(true);
-    try {
-      const res = await api.acidityRecord({
-        location_id: adminLocationId,
-        item_name: state.item_name,
-        item_category: state.item_category,
-        ph_value: Number(ph),
-        comment,
-      });
-      setDone(res);
-    } catch (e) { alert('Submit failed: ' + e.message); }
-    finally { setSubmitting(false); }
-  };
-
-  if (done) {
-    return (
-      <div style={{ padding: '24px 12px', fontFamily: 'Outfit, sans-serif' }} data-testid="acidity-done">
-        <div style={{ background: '#FFFFFF', borderRadius: 24, padding: '36px 22px', textAlign: 'center', marginTop: 80 }}>
-          <div style={{ width: 72, height: 72, borderRadius: 999, background: done.passed ? '#34C759' : '#FF3B30', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-            <Check size={36} strokeWidth={2.6} color="#fff" />
-          </div>
-          <h2 style={{ fontSize: 24, fontWeight: 800, margin: '0 0 6px' }}>{done.passed ? 'Within range' : 'Out of range'}</h2>
-          <p style={{ fontSize: 14, color: '#3A3A3C', margin: '0 0 18px' }}>
-            {state.item_name} · pH {Number(done.ph_value).toFixed(2)} (target ≤ {done.target_ph})
-          </p>
-          <button data-testid="acidity-done-back" onClick={() => navigate('/jkhive/acidity', { replace: true })}
-            style={{ width: '100%', padding: '14px 16px', borderRadius: 999, border: 0, background: '#1D1D1F', color: '#fff', fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>Done</button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div style={{ paddingBottom: 130, fontFamily: 'Outfit, sans-serif' }} data-testid="acidity-record">
-      <WizardHeader title={state.item_name} locationName={locationName} dateStr={today} onBack={() => navigate(-1)} />
+    <div style={{ paddingBottom: 110, fontFamily: 'Outfit, sans-serif' }} data-testid="acidity-record">
+      <WizardHeader title="Record Food Acidity" locationName={locationName} dateStr={today} onBack={() => navigate(-1)} />
 
-      <div style={{ textAlign: 'center', margin: '4px 0 8px' }}>
-        <div style={{ fontSize: 96, lineHeight: 1 }}>🧪</div>
-        <p style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.01em', margin: '4px 0 0' }}>pH Reading</p>
+      <div style={{ textAlign: 'center', margin: '12px 0 8px' }}>
+        <div style={{ fontSize: 110, lineHeight: 1 }}>{state.item_icon || '🧪'}</div>
+        <p style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.01em', color: '#1D1D1F', margin: '8px 0 18px' }}>
+          {state.item_name}
+        </p>
       </div>
 
       <TempStepper value={ph} onChange={(v) => setPh(Math.round(v * 10) / 10)} suffix="pH" />
 
-      <TempGauge value={ph} min={0} max={7} ticks={[0, 1, 2, 3, 4, 5, 6, 7]} onChange={(v) => setPh(Math.round(v * 10) / 10)} color={knobColor} />
+      <TempGauge
+        value={ph} min={0} max={14} ticks={[0, 2.8, 5.6, 8.4, 11.2, 14]}
+        onChange={(v) => setPh(Math.round(v * 10) / 10)}
+        color={knobColor}
+        tickSuffix=""
+      />
 
-      <p style={{ fontSize: 14, textAlign: 'center', marginTop: 18, lineHeight: 1.4 }}>
-        Recommended: pH ≤ 4.6
-      </p>
-
-      <textarea data-testid="acidity-comment" value={comment} onChange={e => setComment(e.target.value.slice(0, 250))} rows={3}
-        placeholder="Optional comment (batch, supplier, brix, etc.)"
-        style={{ marginTop: 18, width: '100%', padding: 14, fontSize: 15, border: '1px solid rgba(0,0,0,0.18)', borderRadius: 14, background: '#fff', resize: 'vertical', outline: 'none', fontFamily: 'Outfit, sans-serif' }} />
-
-      <div style={{ position: 'fixed', left: 0, right: 0, bottom: 64, zIndex: 5 }}>
-        <button data-testid="acidity-submit" onClick={submit} disabled={submitting}
-          style={{ width: '100%', padding: '20px 16px', border: 0, background: '#1D1D1F', color: '#fff', fontSize: 18, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1, fontFamily: 'Outfit, sans-serif' }}>
-          {submitting ? 'Submitting…' : 'Submit pH Record'}
-        </button>
+      <div style={{ position: 'fixed', left: 16, right: 16, bottom: 84, zIndex: 5 }}>
+        <button data-testid="acidity-next"
+          onClick={() => navigate('/jkhive/acidity/comment', { state: { ...state, ph_value: Number(ph) } })}
+          style={{
+            width: '100%', padding: '18px 16px', border: 0, borderRadius: 999,
+            background: '#1D1D1F', color: '#fff', fontSize: 17, fontWeight: 600,
+            cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+            boxShadow: '0 8px 22px rgba(0,0,0,0.25)',
+          }}>Next</button>
       </div>
     </div>
   );

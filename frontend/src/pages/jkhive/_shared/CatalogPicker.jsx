@@ -99,7 +99,7 @@ export const SpecialistCatalogPicker = ({ title, backTo, favKey, testid = 'catal
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {searchResults.length === 0 && <p style={{ color: '#86868B', textAlign: 'center', padding: 16 }}>No matches.</p>}
           {searchResults.map((r, i) => (
-            <button key={i} onClick={() => onPick({ category: r.category, item: r.item })}
+            <button key={i} onClick={() => onPick({ category: r.category, item: r.item, icon: r.icon })}
               data-testid={`${testid}-search-${i}`}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
@@ -136,7 +136,7 @@ export const SpecialistCatalogPicker = ({ title, backTo, favKey, testid = 'catal
                   <div style={{ padding: '4px 12px 16px' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                       {c.items.map(itm => (
-                        <button key={itm} onClick={() => onPick({ category: c.name, item: itm })}
+                        <button key={itm} onClick={() => onPick({ category: c.name, item: itm, icon: c.icon })}
                           data-testid={`${testid}-item-${c.name}-${itm}`}
                           style={{
                             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,

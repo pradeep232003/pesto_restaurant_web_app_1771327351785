@@ -39,7 +39,7 @@ export const WizardHeader = ({ title, locationName, dateStr, backTo, onBack }) =
  * (0°, 6°, 12°, 18°, 24°, 30° by default) and a draggable knob.
  * Matches IMG_6674.
  */
-export const TempGauge = ({ value, min, max, ticks, onChange, color = '#007AFF' }) => {
+export const TempGauge = ({ value, min, max, ticks, onChange, color = '#007AFF', tickSuffix = '°' }) => {
   const pct = Math.max(0, Math.min(1, (value - min) / (max - min)));
   const angle = -180 + pct * 180;
   const ref = React.useRef(null);
@@ -113,7 +113,7 @@ export const TempGauge = ({ value, min, max, ticks, onChange, color = '#007AFF' 
             position: 'absolute', left, top, width: 32, textAlign: 'center',
             fontSize: 13, fontWeight: 600, color: isCurrent ? color : '#1D1D1F',
             fontFamily: 'Outfit, sans-serif', pointerEvents: 'none',
-          }}>{t}°</span>
+          }}>{t}{tickSuffix}</span>
         );
       })}
 

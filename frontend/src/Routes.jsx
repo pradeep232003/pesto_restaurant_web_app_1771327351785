@@ -116,6 +116,7 @@ import WasherCommentSubmit from './pages/jkhive/washers/CommentSubmit';
 import AcidityHome from './pages/jkhive/acidity/AcidityHome';
 import AcidityPick from './pages/jkhive/acidity/AcidityPick';
 import AcidityRecord from './pages/jkhive/acidity/AcidityRecord';
+import AcidityCommentSubmit from './pages/jkhive/acidity/AcidityCommentSubmit';
 import VacuumHome from './pages/jkhive/vacuum/VacuumHome';
 import VacuumPick from './pages/jkhive/vacuum/VacuumPick';
 import VacuumRecord from './pages/jkhive/vacuum/VacuumRecord';
@@ -295,6 +296,7 @@ const AppRouter = () => {
         <Route path="acidity" element={<AcidityHome />} />
         <Route path="acidity/pick" element={<AcidityPick />} />
         <Route path="acidity/record" element={<AcidityRecord />} />
+        <Route path="acidity/comment" element={<AcidityCommentSubmit />} />
         <Route path="vacuum-packing" element={<VacuumHome />} />
         <Route path="vacuum-packing/pick" element={<VacuumPick />} />
         <Route path="vacuum-packing/record" element={<VacuumRecord />} />
