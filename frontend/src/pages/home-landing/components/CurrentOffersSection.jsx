@@ -1,10 +1,15 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useLocation2 } from '../../../contexts/LocationContext';
 
 /**
  * Current Offers — short-form marketing strip on the home page.
- * Renders each active offer as a poster card. Keep the markup minimal so
- * staff can swap the image (or add more) without touching styling.
+ *
+ * Each entry may optionally declare `locations: [<slug>, …]` to restrict
+ * the offer to those sites. An empty/missing `locations` field means the
+ * offer runs at every location. The filter only kicks in once the customer
+ * has chosen a cafe (via the location picker) — until then, every offer is
+ * shown so customers can still discover them.
  */
 const OFFERS = [
   {
@@ -14,9 +19,27 @@ const OFFERS = [
     title: 'Coffee + Cake — £5',
     caption: 'In store every day. While stocks last.',
   },
+  {
+    id: 'sunday-roast',
+    image: '/offers/sunday-roast.png',
+    alt: "Jolly's Kafe — Sunday Roast £11.50 at Willowmere and Oakmere",
+    title: 'Sunday Roast — £11.50',
+    caption: 'Every Sunday at Willowmere & Oakmere. Walk-ins welcome.',
+    locations: ['willowmere-middlewich', 'oakmere-handforth'],
+  },
 ];
 
 const CurrentOffersSection = () => {
+  const { selectedCafeLocation } = useLocation2();
+  const selectedId = selectedCafeLocation?.id;
+
+  // If the customer has picked a cafe, filter out offers that don't run there.
+  const offers = selectedId
+    ? OFFERS.filter(o => !o.locations || o.locations.length === 0 || o.locations.includes(selectedId))
+    : OFFERS;
+
+  if (offers.length === 0) return null;
+
   return (
     <section
       data-testid="current-offers-section"
@@ -41,18 +64,18 @@ const CurrentOffersSection = () => {
             className="mt-3 text-sm sm:text-base"
             style={{ color: '#5A5A5F', fontFamily: 'Outfit, sans-serif' }}
           >
-            Treat yourself — available across every Jolly's Kafe.
+            Treat yourself — handpicked specials at your local Jolly's Kafe.
           </p>
         </div>
 
         <div className={`grid gap-6 sm:gap-8 ${
-          OFFERS.length === 1
+          offers.length === 1
             ? 'grid-cols-1 sm:max-w-md sm:mx-auto'
-            : OFFERS.length === 2
+            : offers.length === 2
               ? 'grid-cols-1 sm:grid-cols-2 lg:max-w-4xl lg:mx-auto'
               : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
         }`}>
-          {OFFERS.map((o, idx) => (
+          {offers.map((o, idx) => (
             <motion.article
               key={o.id}
               data-testid={`offer-card-${o.id}`}
