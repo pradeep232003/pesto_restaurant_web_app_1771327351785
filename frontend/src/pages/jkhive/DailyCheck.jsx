@@ -8,6 +8,7 @@ import {
 import api from '../../lib/api';
 import { useLocation2 } from '../../contexts/LocationContext';
 import { WizardHeader } from './cooling/_shared';
+import { isRoutineApplicable } from './_routineCatalog';
 
 /**
  * /jkhive/daily-check — operational hub.
@@ -39,34 +40,34 @@ const buildTasks = (loc, data) => {
   const cdComplete = !!cd;
   const checklistsRunToday = (data.checklists || []).filter(c => (c.last_run_at || c.last_run_date || '').slice(0, 10) === today()).length;
   return [
-    { id: 'opening',         icon: ListChecks,      color: '#FF9500', title: 'Opening checklist',
+    { id: 'opening',         routineKey: 'opening_checklist',  icon: ListChecks,      color: '#FF9500', title: 'Opening checklist',
       sub: 'Daily setup tasks',                  to: '/jkhive/daily-checks?back=/jkhive/daily-check',
       done: dcOpening },
-    { id: 'fridge-open',     icon: Refrigerator,    color: '#34C759', title: 'Fridge / Freezer opening temps',
+    { id: 'fridge-open',     routineKey: 'opening_temps',      icon: Refrigerator,    color: '#34C759', title: 'Fridge / Freezer opening temps',
       sub: 'AM temp probe round',               to: '/jkhive/opening/fridge-temp?back=/jkhive/daily-check',
       done: (data.openingTemps || []).length > 0 },
-    { id: 'washer',          icon: ShowerHead,      color: '#FFCC00', title: 'Washer Temps',
+    { id: 'washer',          routineKey: 'washer_temps',       icon: ShowerHead,      color: '#FFCC00', title: 'Washer Temps',
       sub: 'Wash & rinse cycle',                to: '/jkhive/washer-temps?back=/jkhive/daily-check',
       done: (data.washers || []).some(r => isTodayIso(r.recorded_at)) },
-    { id: 'hot-cold',        icon: Flame,           color: '#FF3B30', title: 'Hot / Cold Holding',
+    { id: 'hot-cold',        routineKey: 'hot_cold_holding',   icon: Flame,           color: '#FF3B30', title: 'Hot / Cold Holding',
       sub: 'Service temperatures',              to: '/jkhive/hot-cold-holding?back=/jkhive/daily-check',
       done: (data.hotCold || []).some(r => isTodayIso(r.start_time || r.recorded_at)) },
-    { id: 'reheating',       icon: Soup,            color: '#FF6B35', title: 'Cooking/Reheating',
+    { id: 'reheating',       routineKey: 'reheating',          icon: Soup,            color: '#FF6B35', title: 'Cooking/Reheating',
       sub: 'Reheat ≥75 °C log',                 to: '/jkhive/reheating?back=/jkhive/daily-check',
       done: (data.reheating || []).some(r => isTodayIso(r.recorded_at)) },
-    { id: 'bulk-cooling',    icon: Snowflake,       color: '#5AC8FA', title: 'Bulk Cooking/Cooling',
+    { id: 'bulk-cooling',    routineKey: 'bulk_cooling',       icon: Snowflake,       color: '#5AC8FA', title: 'Bulk Cooking/Cooling',
       sub: 'Cool < 90 min · or "no bulk prep"', to: '/jkhive/cooking-cooling?back=/jkhive/daily-check',
       done: (data.cooling || []).some(r => isTodayIso(r.started_at || r.recorded_at)) },
-    { id: 'deliveries',      icon: Truck,           color: '#0A84C9', title: 'Deliveries',
+    { id: 'deliveries',      routineKey: 'delivery_records',   icon: Truck,           color: '#0A84C9', title: 'Deliveries',
       sub: 'Goods-in temps · or "no delivery"', to: '/jkhive/delivery-records?back=/jkhive/daily-check',
       done: (data.deliveries || []).some(r => isTodayIso(r.recorded_at)) },
-    { id: 'cleaning',        icon: Sparkles,        color: '#32ADE6', title: 'Daily Cleaning',
+    { id: 'cleaning',        routineKey: 'daily_cleaning',     icon: Sparkles,        color: '#32ADE6', title: 'Daily Cleaning',
       sub: 'Cleaning checklists',               to: '/jkhive/checklists?back=/jkhive/daily-check',
       done: checklistsRunToday > 0 },
-    { id: 'fridge-close',    icon: Refrigerator,    color: '#5856D6', title: 'Fridge / Freezer closing temps',
+    { id: 'fridge-close',    routineKey: 'closing_temps',      icon: Refrigerator,    color: '#5856D6', title: 'Fridge / Freezer closing temps',
       sub: 'PM temp probe round',               to: '/jkhive/closing/fridge-temp?back=/jkhive/daily-check',
       done: (data.closingTemps || []).length > 0 },
-    { id: 'closing',         icon: ClipboardCheck,  color: '#1D1D1F', title: 'Closing checklist',
+    { id: 'closing',         routineKey: 'closing_checklist',  icon: ClipboardCheck,  color: '#1D1D1F', title: 'Closing checklist',
       sub: 'End of trade tasks',                to: '/jkhive/kitchen-closedown?back=/jkhive/daily-check',
       done: cdComplete },
   ];
@@ -102,7 +103,12 @@ const DailyCheck = () => {
   }, [adminLocationId, date]);
   useEffect(() => { load(); }, [load]);
 
-  const tasks = useMemo(() => buildTasks(adminLocationId, data), [adminLocationId, data]);
+  const currentLoc = useMemo(() => locations.find(l => l.id === adminLocationId), [locations, adminLocationId]);
+  const applicableRoutines = currentLoc?.applicable_routines || [];
+  const tasks = useMemo(() => {
+    const all = buildTasks(adminLocationId, data);
+    return all.filter(t => isRoutineApplicable(applicableRoutines, t.routineKey));
+  }, [adminLocationId, data, applicableRoutines]);
   const done = tasks.filter(t => t.done).length;
   const outstanding = tasks.length - done;
   const firstPending = tasks.find(t => !t.done);

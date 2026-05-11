@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { CheckSquare, Clock, ChevronRight, Check } from 'lucide-react';
 import api from '../../lib/api';
 import { useLocation2 } from '../../contexts/LocationContext';
+import { isRoutineApplicable } from './_routineCatalog';
 
 /**
  * Wide "Today's Check" hero card for /jkhive Intelligence.
@@ -15,7 +16,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 const isToday = (iso) => (iso || '').slice(0, 10) === today();
 
 const DailyCheckTile = () => {
-  const { adminLocationId } = useLocation2();
+  const { adminLocationId, locations } = useLocation2();
   const [counts, setCounts] = useState({ done: 0, outstanding: 0, total: 10, loaded: false });
   const dt = today();
 
@@ -36,21 +37,25 @@ const DailyCheckTile = () => {
     const [washers, hotCold, reheating, cooling, deliveries, checklists, dc, cd, openingTemps, closingTemps] = calls;
     const dcOpening = !!dc;
     const cdComplete = !!cd;
-    const flags = [
-      dcOpening,
-      (openingTemps || []).length > 0,
-      (washers || []).some(r => isToday(r.recorded_at)),
-      (hotCold || []).some(r => isToday(r.start_time || r.recorded_at)),
-      (reheating || []).some(r => isToday(r.recorded_at)),
-      (cooling || []).some(r => isToday(r.started_at || r.recorded_at)),
-      (deliveries || []).some(r => isToday(r.recorded_at)),
-      (checklists || []).some(c => isToday(c.last_run_at || c.last_run_date)),
-      (closingTemps || []).length > 0,
-      cdComplete,
+    const loc = (locations || []).find(l => l.id === adminLocationId);
+    const applicable = loc?.applicable_routines || [];
+    // Each entry: [routineKey, doneFlag]
+    const candidates = [
+      ['opening_checklist', dcOpening],
+      ['opening_temps',     (openingTemps || []).length > 0],
+      ['washer_temps',      (washers || []).some(r => isToday(r.recorded_at))],
+      ['hot_cold_holding',  (hotCold || []).some(r => isToday(r.start_time || r.recorded_at))],
+      ['reheating',         (reheating || []).some(r => isToday(r.recorded_at))],
+      ['bulk_cooling',      (cooling || []).some(r => isToday(r.started_at || r.recorded_at))],
+      ['delivery_records',  (deliveries || []).some(r => isToday(r.recorded_at))],
+      ['daily_cleaning',    (checklists || []).some(c => isToday(c.last_run_at || c.last_run_date))],
+      ['closing_temps',     (closingTemps || []).length > 0],
+      ['closing_checklist', cdComplete],
     ];
+    const flags = candidates.filter(([k]) => isRoutineApplicable(applicable, k)).map(([, v]) => v);
     const done = flags.filter(Boolean).length;
     setCounts({ done, outstanding: flags.length - done, total: flags.length, loaded: true });
-  }, [adminLocationId, dt]);
+  }, [adminLocationId, dt, locations]);
 
   useEffect(() => {
     load();
@@ -70,7 +75,7 @@ const DailyCheckTile = () => {
           </div>
           <div className="flex-1">
             <p className="text-[16px] font-semibold leading-tight" style={{ color: '#1D1D1F' }}>Today's Check</p>
-            <p className="text-[12px] mt-0.5" style={{ color: '#86868B' }}>10 routines for an EHO-ready day</p>
+            <p className="text-[12px] mt-0.5" style={{ color: '#86868B' }}>{counts.loaded ? `${counts.total} routines for an EHO-ready day` : '10 routines for an EHO-ready day'}</p>
           </div>
           <ChevronRight size={18} strokeWidth={2.4} style={{ color: '#C7C7CC' }} />
         </div>

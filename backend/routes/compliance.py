@@ -157,7 +157,10 @@ async def get_compliance(
     for loc in locs:
         checks = {}
         per_site_scores = []
+        applicable = loc.get("applicable_routines") or []  # empty = all routines apply
         for key, cfg in CHECK_CONFIG.items():
+            if applicable and key not in applicable:
+                continue  # this routine is not used at this site
             result = _assess_check(loc["id"], cfg, start_date, end_date)
             result["label"] = cfg["label"]
             result["cadence"] = cfg["cadence"]
@@ -168,6 +171,7 @@ async def get_compliance(
         site_pct = round(100 * sum(per_site_scores) / len(per_site_scores)) if per_site_scores else 0
         site_rows.append({
             "location_id": loc["id"], "location_name": loc["name"],
+            "applicable_routines": applicable,
             "compliance_pct": site_pct, "checks": checks,
         })
 

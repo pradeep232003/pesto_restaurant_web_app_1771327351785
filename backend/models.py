@@ -25,6 +25,7 @@ class LocationCreate(BaseModel):
     phone: Optional[str] = ""
     google_place_id: Optional[str] = ""
     google_api_key: Optional[str] = ""
+    applicable_routines: Optional[List[str]] = None
 
 class LocationUpdate(BaseModel):
     name: Optional[str] = None
@@ -36,6 +37,7 @@ class LocationUpdate(BaseModel):
     phone: Optional[str] = None
     google_place_id: Optional[str] = None
     google_api_key: Optional[str] = None
+    applicable_routines: Optional[List[str]] = None
 
 
 # ============== MENU MODELS ==============
