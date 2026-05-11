@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../../components/ui/Header';
 import HeroSection from './components/HeroSection';
+import CurrentOffersSection from './components/CurrentOffersSection';
 import MenuPreviewSection from './components/MenuPreviewSection';
 import WhyChooseUsSection from './components/WhyChooseUsSection';
 import GoogleReviewsSection from './components/GoogleReviewsSection';
@@ -73,6 +74,7 @@ const HomeLanding = () => {
 
       <main className="pt-16">
         <HeroSection onViewMenu={handleViewMenu} onOrderNow={handleOrderOnline} />
+        <CurrentOffersSection />
         <MenuPreviewSection onViewMenu={handleViewMenu} />
         <WhyChooseUsSection />
         <GoogleReviewsSection />
