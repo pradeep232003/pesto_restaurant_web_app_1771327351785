@@ -17,6 +17,7 @@ import AdminDashboard from './pages/admin-dashboard';
 import AdminMenuManagement from './pages/admin-menu';
 import AdminOrders from './pages/admin-orders';
 import AdminSiteSettings from './pages/admin-site-settings';
+import AdminOffers from './pages/admin-offers';
 import AdminUsers from './pages/admin-users';
 import AdminDailySales from './pages/admin-daily-sales';
 import AdminSalesSummary from './pages/admin-sales-summary';
@@ -210,6 +211,7 @@ const AppRouter = () => {
       <Route path="/admin/menu" element={<AdminRoute><AdminMenuManagement /></AdminRoute>} />
       <Route path="/admin/orders" element={<AdminRoute><AdminOrders /></AdminRoute>} />
       <Route path="/admin/site-settings" element={<AdminRoute><AdminSiteSettings /></AdminRoute>} />
+      <Route path="/admin/offers" element={<AdminRoute><AdminOffers /></AdminRoute>} />
       <Route path="/admin/residents" element={<AdminRoute><ResidentBalance /></AdminRoute>} />
       <Route path="/admin/residents/:residentId" element={<AdminRoute><ResidentHistory /></AdminRoute>} />
       <Route path="/admin/transactions" element={<AdminRoute><TransactionReport /></AdminRoute>} />

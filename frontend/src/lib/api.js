@@ -955,6 +955,36 @@ class ApiService {
   async adminGetComplianceDigestRecipients() {
     return this.fetch('/api/admin/compliance-digest/recipients');
   }
+
+  // ===== Offers =====
+  async listOffers(locationId) {
+    const qs = locationId ? `?location_id=${encodeURIComponent(locationId)}` : '';
+    return this.fetch(`/api/offers${qs}`);
+  }
+  async adminListOffers() { return this.fetch('/api/admin/offers'); }
+  async adminCreateOffer(data) {
+    return this.fetch('/api/admin/offers', { method: 'POST', body: JSON.stringify(data) });
+  }
+  async adminUpdateOffer(id, data) {
+    return this.fetch(`/api/admin/offers/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+  async adminDeleteOffer(id) {
+    return this.fetch(`/api/admin/offers/${id}`, { method: 'DELETE' });
+  }
+  async adminUploadOfferImage(file) {
+    const url = `${API_BASE_URL}/api/admin/offers/upload-image`;
+    const form = new FormData();
+    form.append('file', file);
+    const headers = {};
+    const t = localStorage.getItem('access_token');
+    if (t) headers['Authorization'] = `Bearer ${t}`;
+    const res = await fetch(url, {
+      method: 'POST', body: form, headers,
+      credentials: API_BASE_URL ? 'include' : 'same-origin',
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || 'Upload failed');
+    return res.json();
+  }
 }
 
 export const api = new ApiService();

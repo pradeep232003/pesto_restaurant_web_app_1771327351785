@@ -107,6 +107,7 @@ from routes.vacuum_packing import router as vacuum_packing_router
 from routes.food_washing import router as food_washing_router
 from routes.sous_vide import router as sous_vide_router
 from routes.push import router as push_router
+from routes.offers import router as offers_router
 
 app.include_router(auth_router)
 app.include_router(locations_router)
@@ -148,6 +149,7 @@ app.include_router(vacuum_packing_router)
 app.include_router(food_washing_router)
 app.include_router(sous_vide_router)
 app.include_router(push_router)
+app.include_router(offers_router)
 
 # ============== PUBLIC ENDPOINTS ==============
 

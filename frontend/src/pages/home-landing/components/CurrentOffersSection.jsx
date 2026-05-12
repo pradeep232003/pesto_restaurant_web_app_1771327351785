@@ -1,42 +1,23 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import api, { resolveImageUrl } from '../../../lib/api';
 import { useLocation2 } from '../../../contexts/LocationContext';
 
 /**
- * Current Offers — short-form marketing strip on the home page.
- *
- * Each entry may optionally declare `locations: [<slug>, …]` to restrict
- * the offer to those sites. An empty/missing `locations` field means the
- * offer runs at every location. The filter only kicks in once the customer
- * has chosen a cafe (via the location picker) — until then, every offer is
- * shown so customers can still discover them.
+ * Current Offers — marketing strip on the home page.
+ * Reads from /api/offers (admin-managed via /admin/offers).
+ * The backend already filters by active + date range; we just pass the
+ * selected cafe so location-restricted offers can be hidden too.
  */
-const OFFERS = [
-  {
-    id: 'coffee-cake-5',
-    image: '/offers/coffee-cake.png',
-    alt: "Jolly's Kafe — Coffee + Cake for only £5",
-    title: 'Coffee + Cake — £5',
-    caption: 'In store every day. While stocks last.',
-  },
-  {
-    id: 'sunday-roast',
-    image: '/offers/sunday-roast.png',
-    alt: "Jolly's Kafe — Sunday Roast £11.50 at Willowmere and Oakmere",
-    title: 'Sunday Roast — £11.50',
-    caption: 'Every Sunday at Willowmere & Oakmere. Walk-ins welcome.',
-    locations: ['willowmere-middlewich', 'oakmere-handforth'],
-  },
-];
-
 const CurrentOffersSection = () => {
   const { selectedCafeLocation } = useLocation2();
-  const selectedId = selectedCafeLocation?.id;
+  const [offers, setOffers] = useState([]);
 
-  // If the customer has picked a cafe, filter out offers that don't run there.
-  const offers = selectedId
-    ? OFFERS.filter(o => !o.locations || o.locations.length === 0 || o.locations.includes(selectedId))
-    : OFFERS;
+  useEffect(() => {
+    api.listOffers(selectedCafeLocation?.id)
+      .then(rows => setOffers(rows || []))
+      .catch(() => setOffers([]));
+  }, [selectedCafeLocation?.id]);
 
   if (offers.length === 0) return null;
 
@@ -75,7 +56,11 @@ const CurrentOffersSection = () => {
               ? 'grid-cols-1 sm:grid-cols-2 lg:max-w-4xl lg:mx-auto'
               : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
         }`}>
-          {offers.map((o, idx) => (
+          {offers.map((o, idx) => {
+            const src = o.image_url?.startsWith('/api/')
+              ? resolveImageUrl(o.image_url)
+              : o.image_url;
+            return (
             <motion.article
               key={o.id}
               data-testid={`offer-card-${o.id}`}
@@ -86,14 +71,16 @@ const CurrentOffersSection = () => {
               className="group relative overflow-hidden rounded-3xl shadow-sm hover:shadow-xl transition-shadow duration-300"
               style={{ background: '#FFFFFF' }}
             >
-              <div className="overflow-hidden bg-[#1a1410]">
-                <img
-                  src={o.image}
-                  alt={o.alt}
-                  loading="lazy"
-                  className="w-full h-auto object-contain transition-transform duration-500 group-hover:scale-[1.02]"
-                />
-              </div>
+              {src && (
+                <div className="overflow-hidden bg-[#1a1410]">
+                  <img
+                    src={src}
+                    alt={o.title}
+                    loading="lazy"
+                    className="w-full h-auto object-contain transition-transform duration-500 group-hover:scale-[1.02]"
+                  />
+                </div>
+              )}
               <div className="p-5">
                 <h3
                   className="text-lg font-semibold"
@@ -101,15 +88,18 @@ const CurrentOffersSection = () => {
                 >
                   {o.title}
                 </h3>
-                <p
-                  className="mt-1 text-sm"
-                  style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}
-                >
-                  {o.caption}
-                </p>
+                {o.caption && (
+                  <p
+                    className="mt-1 text-sm"
+                    style={{ color: '#86868B', fontFamily: 'Outfit, sans-serif' }}
+                  >
+                    {o.caption}
+                  </p>
+                )}
               </div>
             </motion.article>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
