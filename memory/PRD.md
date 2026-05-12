@@ -242,6 +242,7 @@ Full-width hero tile on `/jkhive` (Intelligence) plus a hub page at `/jkhive/dai
 
 ### P1 (High)
 - Stripe integration for card top-ups
+- **Click & Collect with WhatsApp notifications (planned, multi-phase)** — see spec below
 
 ### P2 (Medium)
 - Kitchen display board (auto-updating orders on screen)
@@ -250,3 +251,51 @@ Full-width hero tile on `/jkhive` (Intelligence) plus a hub page at `/jkhive/dai
 ### P3 (Low)
 - Multiple admin users with roles (DONE - role system implemented)
 - Loyalty rewards program
+
+---
+
+## Future feature spec: Click & Collect + WhatsApp Notifications
+
+**User decisions (locked):**
+- Acknowledgement device: **staff phones only** (no shared tablet)
+- WhatsApp setup: **5 separate Business numbers**, one per cafe, under one shared Meta Business account
+- Pickup time: **both ASAP + 15-min slot picker** (customer chooses)
+- Order cut-off: **configurable per cafe** in `/admin/site-settings` (e.g. "stop taking orders X min before close")
+- SMS fallback for missed pushes: **TBD** (user did not confirm yes/no — re-ask before Phase 1 build)
+
+**Phase 1 — Click & Collect MVP (3–4 days)**
+- Customer: menu → cart → pickup-time picker (ASAP or slot) → Stripe Checkout → confirmation screen with 4-digit collection code
+- Stripe webhook → creates order in MongoDB (`source: "online"`, `payment_status: "paid"`)
+- Staff: web-push (reusing existing VAPID) → JKHive `/admin/orders/new` view → chime on loop (Web Audio API) → screen pulses red → "Accept ✓" button
+- First-to-accept claims order; secondary silent push to others ("accepted by X")
+- State machine: NEW → ACCEPTED → READY → COLLECTED, each timestamped with staff name
+- Escalation: 3 min unacked → manager push; 5 min → manager SMS/WhatsApp (TBD)
+- Per-cafe: "open for orders" toggle, cut-off config, chime sound choice, manager phone number
+- iOS-PWA-install prompt for staff on first sign-in (required for chime to work on iOS 16.4+)
+
+**Phase 2 — WhatsApp customer notifications (2 days, blocked on Meta verification)**
+- 4 message templates (admin-submitted to Meta for approval):
+  1. Order Confirmed (+ 4-digit code)
+  2. Order Ready for Collection
+  3. Order Waiting (customer hasn't arrived 10 min after READY)
+  4. Refund Issued
+- Per-cafe outbound routing (Timperley orders use Timperley WA number, etc.)
+- Inbound webhook → "Where is my order?" relays to that cafe's staff push channel
+
+**Phase 3 — Polish (1 day)**
+- "Where's my order?" live status page (customer self-serve)
+- Auto-pause orders outside opening hours (uses each cafe's existing opening hours)
+- Daily orders summary email to managers
+- Per-cafe acknowledgement-timeout config
+
+**Pre-requisites the user must complete before Phase 2:**
+1. Meta Business Account verification (Companies House doc + 5 phone numbers)
+2. Phone numbers ready & not on personal WhatsApp
+3. Display name approval per cafe (~24 hours per name)
+4. Message template approval (one-time, after I draft the text)
+
+**Architecture notes for the next dev session:**
+- Reuse existing VAPID web-push infra (`/app/backend/routes/push.py`)
+- Reuse Stripe test key already in pod env
+- New collections: `orders` (already exists, extend with `pickup_time`, `collection_code`, `acceptance_log[]`), `cafe_order_settings` (cut-off, chime, manager phone)
+- WhatsApp Cloud API integration: integration_playbook_expert_v2 should be invoked before writing any WA code
