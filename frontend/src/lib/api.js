@@ -985,6 +985,48 @@ class ApiService {
     if (!res.ok) throw new Error((await res.json()).detail || 'Upload failed');
     return res.json();
   }
+
+  // ===== Friday Feast =====
+  async getFridayMenu(locationId) {
+    const qs = locationId ? `?location_id=${encodeURIComponent(locationId)}` : '';
+    return this.fetch(`/api/friday-menu${qs}`);
+  }
+  async fridayCheckout(payload) {
+    return this.fetch('/api/friday-menu/checkout', { method: 'POST', body: JSON.stringify(payload) });
+  }
+  async fridayCheckoutStatus(sessionId) {
+    return this.fetch(`/api/friday-menu/status/${sessionId}`);
+  }
+  async adminListFridayMenus() { return this.fetch('/api/admin/friday-menus'); }
+  async adminCreateFridayMenu(data) {
+    return this.fetch('/api/admin/friday-menus', { method: 'POST', body: JSON.stringify(data) });
+  }
+  async adminUpdateFridayMenu(id, data) {
+    return this.fetch(`/api/admin/friday-menus/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+  async adminDeleteFridayMenu(id) {
+    return this.fetch(`/api/admin/friday-menus/${id}`, { method: 'DELETE' });
+  }
+  async adminUploadFridayImage(file) {
+    const url = `${API_BASE_URL}/api/admin/friday-menus/upload-image`;
+    const form = new FormData();
+    form.append('file', file);
+    const headers = {};
+    const t = localStorage.getItem('access_token');
+    if (t) headers['Authorization'] = `Bearer ${t}`;
+    const res = await fetch(url, {
+      method: 'POST', body: form, headers,
+      credentials: API_BASE_URL ? 'include' : 'same-origin',
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || 'Upload failed');
+    return res.json();
+  }
+  async adminListFridayOrders(week, locationId) {
+    const qs = [];
+    if (week) qs.push(`week=${encodeURIComponent(week)}`);
+    if (locationId) qs.push(`location_id=${encodeURIComponent(locationId)}`);
+    return this.fetch(`/api/admin/friday-orders${qs.length ? '?' + qs.join('&') : ''}`);
+  }
 }
 
 export const api = new ApiService();
