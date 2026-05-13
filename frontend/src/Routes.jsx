@@ -216,6 +216,7 @@ const AppRouter = () => {
       <Route path="/admin/site-settings" element={<AdminRoute><AdminSiteSettings /></AdminRoute>} />
       <Route path="/admin/offers" element={<AdminRoute><AdminOffers /></AdminRoute>} />
       <Route path="/admin/friday-menu" element={<AdminRoute><AdminFridayMenu /></AdminRoute>} />
+      <Route path="/admin/friday-feast" element={<AdminRoute><AdminFridayMenu /></AdminRoute>} />
       <Route path="/friday-feast" element={<FridayFeast />} />
       <Route path="/friday-feast/confirmed" element={<FridayFeastConfirmed />} />
       <Route path="/admin/residents" element={<AdminRoute><ResidentBalance /></AdminRoute>} />

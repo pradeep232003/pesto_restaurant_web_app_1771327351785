@@ -319,7 +319,7 @@ const AdminDashboard = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {[
           { to: '/admin/menu', icon: Plus, label: 'Add Menu Item', desc: 'Create a new dish', color: '#1D1D1F' },
-          { to: '/admin/friday-menu', icon: Calendar, label: 'Friday Feast', desc: 'Weekly pre-order menu', color: '#8B1E3F' },
+          { to: '/admin/friday-feast', icon: Calendar, label: 'Friday Feast', desc: 'Weekly pre-order menu', color: '#8B1E3F' },
           { to: '/admin/offers', icon: Tag, label: 'Current Offers', desc: 'Posters & promos', color: '#A33A5A' },
           { to: '/admin/site-settings', icon: Settings, label: 'Site Settings', desc: 'Hours & ordering', color: '#FF9500' },
         ].map(a => (
