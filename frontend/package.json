@@ -24,9 +24,22 @@
       "build",
       "serve"
     ],
-    "warning": "🚨 CRITICAL: DO NOT REMOVE OR MODIFY ABOVE DEPENDENCIES - Required for app functionality"
+    "warning": "\ud83d\udea8 CRITICAL: DO NOT REMOVE OR MODIFY ABOVE DEPENDENCIES - Required for app functionality"
   },
   "dependencies": {
+    "@capacitor/android": "7",
+    "@capacitor/app": "7",
+    "@capacitor/camera": "7",
+    "@capacitor/cli": "7",
+    "@capacitor/core": "7",
+    "@capacitor/device": "7",
+    "@capacitor/haptics": "7",
+    "@capacitor/ios": "7",
+    "@capacitor/local-notifications": "7",
+    "@capacitor/preferences": "7",
+    "@capacitor/push-notifications": "7",
+    "@capacitor/splash-screen": "7",
+    "@capacitor/status-bar": "7",
     "@dhiwise/component-tagger": "^1.0.10",
     "@radix-ui/react-slot": "^1.2.3",
     "@react-oauth/google": "^0.13.4",
@@ -62,7 +75,12 @@
   "scripts": {
     "start": "vite --host 0.0.0.0 --port 3000",
     "build": "vite build --sourcemap",
-    "serve": "vite preview"
+    "serve": "vite preview",
+    "cap:sync": "yarn build && cap sync",
+    "cap:build:ios": "yarn build && cap sync ios && cap open ios",
+    "cap:build:android": "yarn build && cap sync android && cap open android",
+    "cap:add:ios": "cap add ios",
+    "cap:add:android": "cap add android"
   },
   "eslintConfig": {
     "extends": [

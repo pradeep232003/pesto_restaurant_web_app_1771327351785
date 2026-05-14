@@ -172,6 +172,15 @@ const AdminOnly = ({ children }) => {
 const AppRouter = () => {
   const location = useLocation();
 
+  // Native app (Capacitor): force-redirect all non-JKHive routes to /jkhive.
+  // The app is shipped to the iOS/Android stores as the JKHive staff tool
+  // only; customer-facing routes (homepage, menu, ordering, etc.) are
+  // intentionally not accessible inside the native shell.
+  const isNativeShell = typeof window !== 'undefined' && (window).Capacitor?.isNativePlatform?.();
+  if (isNativeShell && !location.pathname.startsWith('/jkhive') && !location.pathname.startsWith('/admin-login')) {
+    return <Navigate to="/jkhive" replace />;
+  }
+
   // Check URL fragment synchronously for session_id (Google OAuth callback - legacy)
   if (location.hash?.includes('session_id=')) {
     return <GoogleAuthCallback />;

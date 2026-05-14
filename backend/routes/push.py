@@ -156,3 +156,40 @@ def send_push_to_user(email: str, payload: dict) -> int:
         if _send(sub, payload):
             sent += 1
     return sent
+
+
+
+# ============== NATIVE (iOS / Android) PUSH TOKEN STORAGE ==============
+# These tokens come from Capacitor's @capacitor/push-notifications plugin.
+# Currently we only store them; actual APNs/FCM dispatch will be wired in
+# Phase 4 once the user has provisioned the APNs key + FCM project. The
+# storage step is intentionally up-front so installing JKHive on a phone
+# already starts collecting tokens — no data is lost while you finish setup.
+
+native_tokens = db["native_push_tokens"]
+
+
+class NativeTokenRegister(BaseModel):
+    token: str
+    platform: str  # "ios" | "android"
+
+
+@router.post("/api/push/native-register")
+async def native_register(data: NativeTokenRegister, user: dict = Depends(get_staff_or_above)):
+    """Idempotently store a native device token for the signed-in staff member."""
+    if not data.token:
+        raise HTTPException(400, "Token required")
+    if data.platform not in ("ios", "android"):
+        raise HTTPException(400, "platform must be ios or android")
+    native_tokens.update_one(
+        {"token": data.token},
+        {"$set": {
+            "token": data.token,
+            "platform": data.platform,
+            "user_email": user.get("email"),
+            "user_id": user.get("id"),
+            "registered_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    return {"registered": True}
