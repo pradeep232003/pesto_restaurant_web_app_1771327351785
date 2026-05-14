@@ -40,7 +40,7 @@ const HeroSection = ({ onViewMenu, onOrderNow }) => {
           className="text-xl sm:text-2xl lg:text-3xl font-light max-w-3xl mx-auto mb-4 leading-snug"
           style={{ color: '#1D1D1F', fontFamily: 'Outfit, sans-serif' }}
         >
-          Our passion is in our food.
+          Our passion is our food.
         </motion.p>
 
         <motion.p
