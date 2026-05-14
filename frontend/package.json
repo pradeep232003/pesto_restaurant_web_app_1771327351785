@@ -80,7 +80,8 @@
     "cap:build:ios": "yarn build && cap sync ios && cap open ios",
     "cap:build:android": "yarn build && cap sync android && cap open android",
     "cap:add:ios": "cap add ios",
-    "cap:add:android": "cap add android"
+    "cap:add:android": "cap add android",
+    "cap:generate-assets": "capacitor-assets generate --iconBackgroundColor \"#FFFFFF\" --iconBackgroundColorDark \"#0D2818\" --splashBackgroundColor \"#FFFFFF\" --splashBackgroundColorDark \"#0D2818\""
   },
   "eslintConfig": {
     "extends": [
@@ -101,6 +102,7 @@
     ]
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@tailwindcss/aspect-ratio": "^0.4.2",
     "@tailwindcss/container-queries": "^0.1.1",
     "@tailwindcss/line-clamp": "^0.1.0",

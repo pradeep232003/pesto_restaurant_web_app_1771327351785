@@ -68,6 +68,22 @@ yarn cap:add:android
 
 Commit these generated folders to your repo so future builds reuse them.
 
+### Generate app icons & splash screens (after `cap:add`)
+
+The source assets are already in `/frontend/resources/` (`icon.png`,
+`icon-foreground.png`, `icon-background.png`, `splash.png`, `splash-dark.png`).
+After `cap:add:ios` and `cap:add:android` have created the native folders,
+run:
+
+```bash
+yarn cap:generate-assets
+```
+
+This produces every required size (12 iOS icon variants + 5 Android density
+buckets + iPhone/iPad splash screens + dark-mode variants) and drops them
+into the right places in `/ios/` and `/android/`. Run it again any time you
+update the source images.
+
 ### Build the web bundle + sync to native
 
 ```bash
