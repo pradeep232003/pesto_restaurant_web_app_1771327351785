@@ -73,7 +73,10 @@ const PickWasher = () => {
                       background: c.passed ? 'rgba(52,199,89,0.15)' : 'rgba(255,149,0,0.15)',
                       padding: '2px 8px', borderRadius: 999, fontVariantNumeric: 'tabular-nums',
                     }}>
-                    {`W ${Number(c.wash_temp).toFixed(0)}° · R ${Number(c.rinse_temp).toFixed(0)}°`}
+                    {[
+                      c.wash_temp != null ? `W ${Number(c.wash_temp).toFixed(0)}°` : null,
+                      c.rinse_temp != null ? `R ${Number(c.rinse_temp).toFixed(0)}°` : null,
+                    ].filter(Boolean).join(' · ')}
                   </span>
                 ) : (
                   <span style={{ fontSize: 11, color: '#C7C7CC' }}>Not recorded</span>

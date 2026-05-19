@@ -801,6 +801,9 @@ class ApiService {
   async reheatingList(locationId) { return this.fetch(`/api/admin/reheating?location_id=${encodeURIComponent(locationId)}`); }
   async reheatingRecord(data) { return this.fetch('/api/admin/reheating', { method: 'POST', body: JSON.stringify(data) }); }
   async reheatingDelete(id) { return this.fetch(`/api/admin/reheating/${id}`, { method: 'DELETE' }); }
+  async reheatingNoReheating(locationId) {
+    return this.fetch('/api/admin/reheating/no-reheating', { method: 'POST', body: JSON.stringify({ location_id: locationId }) });
+  }
 
   // ============== COOKED (CORE TEMP) ==============
   async cookedList(locationId) { return this.fetch(`/api/admin/cooked?location_id=${encodeURIComponent(locationId)}`); }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { Thermometer, Plus, Trash2, Check, Download, Clock, Settings, ArrowLeft } from 'lucide-react';
+import { Thermometer, Plus, Trash2, Check, Download, Clock, Settings, ArrowLeft, Pencil, X } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -43,6 +43,20 @@ const AdminTempMonitor = () => {
 
   const [showTimeSettings, setShowTimeSettings] = useState(false);
   const [editTimeSlots, setEditTimeSlots] = useState([]);
+
+  // Inline rename state for the unit list (admin only).
+  const [renameId, setRenameId] = useState(null);
+  const [renameValue, setRenameValue] = useState('');
+
+  const handleRenameUnit = async (id) => {
+    const v = renameValue.trim();
+    if (!v) { setRenameId(null); return; }
+    try {
+      await api.adminUpdateTempUnit(id, { name: v });
+      setRenameId(null); setRenameValue('');
+      fetchUnits();
+    } catch (err) { alert(err.message); }
+  };
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !isStaff)) navigate('/admin-login');
@@ -275,12 +289,41 @@ const AdminTempMonitor = () => {
                     return (
                       <div key={u.id} className="p-4 rounded-2xl" style={{ background: '#FFFFFF', border: anyBad ? '2px solid #FF3B30' : '1px solid rgba(0,0,0,0.04)' }}>
                         <div className="flex items-center justify-between mb-3">
-                          <div>
-                            <p className="text-sm font-semibold" style={{ color: '#1D1D1F', ...font }}>{u.name}</p>
-                            <p className="text-[11px]" style={{ color: '#86868B' }}>{u.unit_type.charAt(0).toUpperCase() + u.unit_type.slice(1)} · {limit.label}</p>
+                          <div className="flex-1 min-w-0">
+                            {renameId === u.id ? (
+                              <div className="flex items-center gap-1.5">
+                                <input data-testid={`rename-input-${u.id}`} autoFocus type="text" value={renameValue}
+                                  onChange={e => setRenameValue(e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Enter') handleRenameUnit(u.id); if (e.key === 'Escape') setRenameId(null); }}
+                                  className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg text-sm font-semibold outline-none"
+                                  style={{ background: '#F5F5F7', border: '1.5px solid #007AFF', color: '#1D1D1F', ...font }} />
+                                <button data-testid={`rename-save-${u.id}`} onClick={() => handleRenameUnit(u.id)}
+                                  className="p-1.5 rounded-lg active:scale-95" style={{ color: '#34C759' }}>
+                                  <Check size={16} strokeWidth={2.6} />
+                                </button>
+                                <button onClick={() => setRenameId(null)}
+                                  className="p-1.5 rounded-lg active:scale-95" style={{ color: '#86868B' }}>
+                                  <X size={16} strokeWidth={2.6} />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-1.5">
+                                  <p data-testid={`unit-name-${u.id}`} className="text-sm font-semibold truncate" style={{ color: '#1D1D1F', ...font }}>{u.name}</p>
+                                  {isAdmin && (
+                                    <button data-testid={`rename-${u.id}`}
+                                      onClick={() => { setRenameId(u.id); setRenameValue(u.name); }}
+                                      aria-label="Rename" className="p-1 rounded active:scale-95" style={{ color: '#86868B' }}>
+                                      <Pencil size={12} />
+                                    </button>
+                                  )}
+                                </div>
+                                <p className="text-[11px]" style={{ color: '#86868B' }}>{u.unit_type.charAt(0).toUpperCase() + u.unit_type.slice(1)} · {limit.label}</p>
+                              </>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            {isAdmin && <button onClick={() => handleDeleteUnit(u.id)} className="p-1.5 rounded-lg" style={{ color: '#C7C7CC' }}><Trash2 size={13} /></button>}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {isAdmin && renameId !== u.id && <button onClick={() => handleDeleteUnit(u.id)} className="p-1.5 rounded-lg" style={{ color: '#C7C7CC' }}><Trash2 size={13} /></button>}
                             <Thermometer size={18} style={{ color: anyBad ? '#FF3B30' : '#86868B' }} />
                           </div>
                         </div>

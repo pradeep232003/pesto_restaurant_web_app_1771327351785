@@ -29,8 +29,11 @@ class WasherUpdate(BaseModel):
 class CheckBody(BaseModel):
     location_id: str
     washer_id: str
-    wash_temp: float
-    rinse_temp: float
+    # Both temperatures are optional — different sites record different
+    # cycles. We just require at least one to be provided (validated in the
+    # endpoint). UK 1995 regs: wash ≥ 55°C, rinse ≥ 82°C.
+    wash_temp: Optional[float] = None
+    rinse_temp: Optional[float] = None
     comment: Optional[str] = ""
 
 
@@ -100,8 +103,14 @@ async def record_check(body: CheckBody, user: dict = Depends(get_staff_or_above)
     washer = washers.find_one({"id": body.washer_id}, {"_id": 0})
     if not washer:
         raise HTTPException(404, "Washer not found")
-    wash_pass = body.wash_temp >= 55.0
-    rinse_pass = body.rinse_temp >= 81.0
+    if body.wash_temp is None and body.rinse_temp is None:
+        raise HTTPException(400, "Provide at least one temperature (wash or rinse)")
+    wash_pass = (body.wash_temp >= 55.0) if body.wash_temp is not None else None
+    rinse_pass = (body.rinse_temp >= 81.0) if body.rinse_temp is not None else None
+    # Overall pass requires every recorded cycle to have passed; cycles not
+    # recorded at all don't count against the pass.
+    relevant = [p for p in (wash_pass, rinse_pass) if p is not None]
+    overall_pass = bool(relevant) and all(relevant)
     doc = {
         "id": str(uuid.uuid4())[:12],
         "location_id": body.location_id,
@@ -111,7 +120,7 @@ async def record_check(body: CheckBody, user: dict = Depends(get_staff_or_above)
         "rinse_temp": body.rinse_temp,
         "wash_pass": wash_pass,
         "rinse_pass": rinse_pass,
-        "passed": wash_pass and rinse_pass,
+        "passed": overall_pass,
         "comment": body.comment or "",
         "recorded_at": datetime.now(timezone.utc).isoformat(),
         "recorded_by": user.get("email", ""),

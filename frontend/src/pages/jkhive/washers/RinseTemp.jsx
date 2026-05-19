@@ -17,12 +17,13 @@ const RinseTemp = () => {
   const today = new Date().toISOString().slice(0, 10);
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
 
-  if (!state?.washer || state?.wash_temp == null) {
+  if (!state?.washer || state?.wash_temp === undefined) {
     return <Navigate to={`/jkhive/washer-temps/${washerId}/wash`} replace />;
   }
 
   const inRange = temp >= 81;
   const knobColor = inRange ? '#34C759' : '#FF3B30';
+  const canSkipRinse = state.wash_temp !== null; // need at least one cycle recorded
 
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'Outfit, sans-serif' }} data-testid="washer-rinse">
@@ -47,7 +48,7 @@ const RinseTemp = () => {
         Recommended range:<br/>81°C or higher
       </p>
 
-      <div style={{ position: 'fixed', left: 16, right: 16, bottom: 84, zIndex: 5 }}>
+      <div style={{ position: 'fixed', left: 16, right: 16, bottom: 84, zIndex: 5, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <button data-testid="washer-rinse-next"
           onClick={() => navigate(`/jkhive/washer-temps/${washerId}/comment`, {
             state: { washer: state.washer, wash_temp: state.wash_temp, rinse_temp: Number(temp) },
@@ -58,6 +59,17 @@ const RinseTemp = () => {
             cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
             boxShadow: '0 8px 22px rgba(0,0,0,0.25)',
           }}>Next</button>
+        {canSkipRinse && (
+          <button data-testid="washer-rinse-skip"
+            onClick={() => navigate(`/jkhive/washer-temps/${washerId}/comment`, {
+              state: { washer: state.washer, wash_temp: state.wash_temp, rinse_temp: null },
+            })}
+            style={{
+              background: 'transparent', border: 0, color: '#007AFF', fontSize: 14,
+              fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+              padding: '4px 8px',
+            }}>Skip rinse cycle</button>
+        )}
       </div>
     </div>
   );

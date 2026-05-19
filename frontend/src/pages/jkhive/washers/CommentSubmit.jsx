@@ -17,7 +17,8 @@ const CommentSubmit = () => {
   const today = new Date().toISOString().slice(0, 10);
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
 
-  if (!state?.washer || state?.wash_temp == null || state?.rinse_temp == null) {
+  // Allow either-or-both: only redirect away if BOTH temps are missing.
+  if (!state?.washer || (state?.wash_temp == null && state?.rinse_temp == null)) {
     return <Navigate to={`/jkhive/washer-temps/${washerId}/wash`} replace />;
   }
 
@@ -38,6 +39,11 @@ const CommentSubmit = () => {
 
   if (done) {
     const pass = done.passed;
+    const wash = state.wash_temp;
+    const rinse = state.rinse_temp;
+    const parts = [];
+    if (wash != null) parts.push(`Wash ${Number(wash).toFixed(1)}°C (${done.wash_pass ? '✓' : '✗'})`);
+    if (rinse != null) parts.push(`Rinse ${Number(rinse).toFixed(1)}°C (${done.rinse_pass ? '✓' : '✗'})`);
     return (
       <div style={{ padding: '24px 12px', fontFamily: 'Outfit, sans-serif' }} data-testid="washer-done">
         <div style={{ background: '#FFFFFF', borderRadius: 24, padding: '36px 22px', textAlign: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.04)', marginTop: 80 }}>
@@ -48,7 +54,7 @@ const CommentSubmit = () => {
             {pass ? 'Washer passed!' : 'Record saved'}
           </h2>
           <p style={{ fontSize: 14, color: '#3A3A3C', margin: '0 0 18px' }}>
-            {state.washer.name} · Wash {Number(state.wash_temp).toFixed(1)}°C ({done.wash_pass ? '✓' : '✗'}) · Rinse {Number(state.rinse_temp).toFixed(1)}°C ({done.rinse_pass ? '✓' : '✗'})
+            {state.washer.name} · {parts.join(' · ')}
           </p>
           {!pass && (
             <p style={{ fontSize: 13, color: '#FF3B30', margin: '0 0 18px' }}>

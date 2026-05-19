@@ -55,7 +55,7 @@ const WashTemp = () => {
         Recommended range:<br/>55°C or higher
       </p>
 
-      <div style={{ position: 'fixed', left: 16, right: 16, bottom: 84, zIndex: 5 }}>
+      <div style={{ position: 'fixed', left: 16, right: 16, bottom: 84, zIndex: 5, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <button data-testid="washer-wash-next"
           onClick={() => navigate(`/jkhive/washer-temps/${washerId}/rinse`, { state: { washer, wash_temp: Number(temp) } })}
           style={{
@@ -64,6 +64,13 @@ const WashTemp = () => {
             cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
             boxShadow: '0 8px 22px rgba(0,0,0,0.25)',
           }}>Next</button>
+        <button data-testid="washer-wash-skip"
+          onClick={() => navigate(`/jkhive/washer-temps/${washerId}/rinse`, { state: { washer, wash_temp: null, skipped_wash: true } })}
+          style={{
+            background: 'transparent', border: 0, color: '#007AFF', fontSize: 14,
+            fontWeight: 600, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+            padding: '4px 8px',
+          }}>Skip wash cycle</button>
       </div>
     </div>
   );
