@@ -299,7 +299,21 @@ const AdminCompliance = () => {
                       </td>
                       {displayedChecks?.map(c => {
                         const check = site.checks[c.key];
-                        const meta = STATUS_META[check.status];
+                        // When a site doesn't include this routine (per its
+                        // location.applicable_routines), the backend omits the
+                        // key. Show "N/A" instead of crashing.
+                        if (!check) {
+                          const meta = STATUS_META.not_required;
+                          return (
+                            <td key={c.key} className="px-2 py-2 text-center" data-testid={`cell-${site.location_id}-${c.key}`}>
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium"
+                                style={{ background: meta.bg, color: meta.fg, ...font }}>
+                                {meta.label}
+                              </span>
+                            </td>
+                          );
+                        }
+                        const meta = STATUS_META[check.status] || STATUS_META.missing;
                         const Ico = meta.icon;
                         return (
                           <td key={c.key} className="px-2 py-2 text-center">
@@ -349,10 +363,19 @@ const AdminCompliance = () => {
                   <tbody>
                     {data.check_types.map(c => {
                       const ch = site.checks[c.key];
+                      if (!ch) {
+                        return (
+                          <tr key={c.key}>
+                            <td className="border p-1">{c.label}</td>
+                            <td className="border p-1">N/A</td>
+                            <td className="border p-1">—</td>
+                          </tr>
+                        );
+                      }
                       return (
                         <tr key={c.key}>
                           <td className="border p-1">{c.label}</td>
-                          <td className="border p-1">{STATUS_META[ch.status].label}</td>
+                          <td className="border p-1">{(STATUS_META[ch.status] || STATUS_META.missing).label}</td>
                           <td className="border p-1">{ch.actual_periods}/{ch.expected} ({ch.pct}%)</td>
                         </tr>
                       );
