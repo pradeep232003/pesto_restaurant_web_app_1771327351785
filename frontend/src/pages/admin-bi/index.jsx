@@ -253,7 +253,8 @@ const AdminBI = () => {
           </div>
         ) : byLoc.length === 0 ? (
           <div className="p-10 text-center">
-            <p className="text-sm" style={{ color: '#86868B', ...font }}>No sales entries in this period.</p>
+            <p className="text-sm mb-1" style={{ color: '#1D1D1F', ...font }}>No sales entries in this period.</p>
+            <p className="text-xs" style={{ color: '#86868B', ...font }}>Try widening the date range or selecting a different location.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">

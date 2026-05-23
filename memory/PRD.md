@@ -238,6 +238,16 @@ Full-width hero tile on `/jkhive` (Intelligence) plus a hub page at `/jkhive/dai
   11. Closing checklist → `/jkhive/kitchen-closedown`
 - Verified: mobile Playwright E2E (Intelligence shows new hero with Outstanding=11/Done=0 → tap → hub renders all 11 PENDING rows + jump-next + exit pill → tap "No bulk prep today" chip → outstanding decreases to 10 → tap a row → routes to /jkhive/washer-temps).
 
+### Business Intelligence (BI) + Menu Recipe Mapping (May 2026) - VERIFIED
+Owner-only operational analytics layer. Adds three pieces:
+- **Recipe field on menu items** (`/app/backend/models.py` — `RecipeLine` model). Each menu item carries `recipe: List[{ingredient, qty, unit, unit_cost}]`. Recipe editor lives inside the Edit-Item modal (`/app/frontend/src/pages/admin-menu/components/AdminMenuItemModal.jsx`) with add/remove rows + live Total recipe cost + Food Cost % pill (green ≤25% / orange 26-35% / red >35%) against the item's price.
+- **Staff hourly rate** (`/app/backend/routes/staff.py` — `hourly_rate: float`). Surfaced in `/admin/staff` add/edit drawer (Hourly Rate £) + table column (£/hr).
+- **BI dashboard** at `/admin/bi` (`/app/frontend/src/pages/admin-bi/index.jsx`). Super-admin only via new `SuperAdminRoute` guard in `Routes.jsx`. Backend endpoint `GET /api/admin/bi` (`/app/backend/routes/bi.py`) aggregates Revenue, Labour £/% (staff_hours × hourly_rate, name-matched lowercase), Est Food Cost £/% (recipe-weighted avg per location × revenue), Gross Margin £/%, per-location breakdown (click row → staff cards), menu coverage chip. Secondary `GET /api/admin/bi/menu-cost` lists each item with recipe cost, food % pill, margin.
+- **Date presets**: Last 7 / Last 30 (default) / Last 90 / MTD + custom date pickers + location filter.
+- **Dashboard tile**: dark gradient `Business Intelligence` link on `/admin` visible to super_admin only.
+- Inventory auto-deduction explicitly deferred per user choice 3c. Waste £ tracking deferred per user choice 4c.
+- 7/7 backend pytest passed, frontend E2E confirmed.
+
 ## Prioritized Backlog
 
 ### P1 (High)
