@@ -42,6 +42,14 @@ class LocationUpdate(BaseModel):
 
 # ============== MENU MODELS ==============
 
+class RecipeLine(BaseModel):
+    """One ingredient line in a menu item's recipe (for food-cost % calc)."""
+    ingredient: str
+    qty: float = 0.0
+    unit: str = ""           # g, ml, ea, etc.
+    unit_cost: float = 0.0   # £ per unit
+
+
 class MenuItem(BaseModel):
     id: str
     location_id: str
@@ -61,6 +69,7 @@ class MenuItem(BaseModel):
     review_count: int = 0
     prep_time: int = 0
     is_available: bool = True
+    recipe: List[RecipeLine] = []
 
 class MenuItemCreate(BaseModel):
     location_id: str
@@ -78,6 +87,7 @@ class MenuItemCreate(BaseModel):
     featured: bool = False
     prep_time: int = 0
     is_available: bool = True
+    recipe: List[RecipeLine] = []
 
 class MenuItemUpdate(BaseModel):
     name: Optional[str] = None
@@ -94,6 +104,7 @@ class MenuItemUpdate(BaseModel):
     featured: Optional[bool] = None
     prep_time: Optional[int] = None
     is_available: Optional[bool] = None
+    recipe: Optional[List[RecipeLine]] = None
 
 
 # ============== AUTH MODELS ==============

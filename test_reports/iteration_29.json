@@ -1,0 +1,33 @@
+{
+  "summary": "Tested BI layer + Menu Recipe mapping + Staff hourly_rate. Backend all 7 pytest cases passed (BI overview shape/KPIs, auth gating, date+location filters, menu-cost, PUT recipe persists + reflects in BI, staff hourly_rate CRUD). Frontend BI dashboard renders correctly with all 4 KPI cards, date preset, location filter, menu cost toggle, and recipe editor in Admin Menu modal. Staff page hourly-rate column visibility could not be confirmed via inner_text and needs spot-check.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AdminStaff", "issue": "Body inner_text did not include '£/hr' or 'Hourly Rate' on /admin/staff page after load. Could be staff list empty, async render, or the column/field is missing. Worth manual verification.", "selector": "/admin/staff", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin/bi", "issues": ["With 'Last 7 days' preset (default for new period state), the per-location table shows 'No sales entries' because the existing seed daily_sales rows are older than 7 days. Consider defaulting preset to 30 or 90 days, or showing an empty-state hint pointing user to widen range."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_bi.py", "/app/test_reports/pytest/pytest_bi.xml"],
+  "action_items": [
+    "Verify /admin/staff page actually shows 'Hourly Rate (£)' field in add/edit drawer and '£/hr' column in the staff table (test only inspected inner_text snapshot).",
+    "Consider seeding at least one daily_sales row inside the last 7 days OR shipping the BI default preset as '30 days' to avoid empty-state on first view (already coded as '30' in state but applyPreset('7') was clicked in test).",
+    "Cloudflare bot-challenge intermittently blocks the preview URL after rapid navigations during automated testing (does not affect end-users)."
+  ],
+  "critical_code_review_comments": [
+    "bi.py: synchronous pymongo calls inside async FastAPI handlers (find/find_one). Functional but not strictly async — acceptable but flag for future refactor.",
+    "bi.py uses case-insensitive lowercase staff name match between staff_members.name and daily_sales.staff_hours[].name. If name spellings differ (e.g., 'John S.' vs 'John Smith'), labour cost will be 0. Consider using staff_id linkage in DailySales entries longer term.",
+    "menu cost endpoint includes location_id filter but does not enforce a date range; that's fine since recipes are time-invariant.",
+    "/admin/bi default preset id state is '30' but startDate/endDate are initialised via daysAgoISO(29). They stay in sync, good."
+  ],
+  "updated_files": ["/app/backend/tests/test_bi.py"],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "~90%"},
+  "test_credentials": "admin@jollys.com / Admin123! (super_admin)",
+  "seed_data_creation": "Created and deleted TEST_BIStaff via /api/admin/staff (cleaned up). Added recipe lines to one Timperley menu item with ingredient names prefixed TEST_ for traceability — recipe persists across runs but lines are clearly tagged.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend BI tests cover happy paths and recipe-cost reflection. The TestRecipePersistence test mutates a real menu item's recipe (does not roll back). Staff page UI (hourly_rate column visibility) and post-logout SuperAdminRoute redirect could not be visually verified due to Cloudflare bot-challenge during the test run. Code inspection confirms SuperAdminRoute returns <Navigate to='/admin' replace/> when user.role !== 'super_admin'.",
+  "rca of the issue": "N/A — no critical issues."
+}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { UtensilsCrossed, ClipboardList, ClipboardCheck, Store, Plus, Settings, ArrowUpRight, ArrowRight, Thermometer, DollarSign, Power, Flame, Truck, Gauge, Droplet, Sparkles, Shield, MapPin, Check, Tag, Calendar } from 'lucide-react';
+import { UtensilsCrossed, ClipboardList, ClipboardCheck, Store, Plus, Settings, ArrowUpRight, ArrowRight, Thermometer, DollarSign, Power, Flame, Truck, Gauge, Droplet, Sparkles, Shield, MapPin, Check, Tag, Calendar, TrendingUp } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -29,7 +29,7 @@ const StatCard = ({ icon: IconComp, label, value, color, to }) => (
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, isStaff, isAdmin, loading: authLoading } = useAuth();
+  const { isAuthenticated, isStaff, isAdmin, isSuperAdmin, loading: authLoading } = useAuth();
   const { locations, adminLocationId, setAdminLocationId } = useLocation2();
   const activeLocations = locations.filter(l => l.is_active);
   const currentLocation = activeLocations.find(l => l.id === adminLocationId);
@@ -183,6 +183,24 @@ const AdminDashboard = () => {
                 <span className="text-[11px] font-semibold shrink-0" style={{ color: s.compliance_pct >= 90 ? '#34C759' : s.compliance_pct >= 60 ? '#FF9500' : '#FF3B30', fontFamily: 'Outfit, sans-serif' }}>{s.compliance_pct}%</span>
               </div>
             ))}
+          </div>
+        </Link>
+      )}
+
+      {/* Business Intelligence (super_admin only) */}
+      {isSuperAdmin && (
+        <Link to="/admin/bi" data-testid="bi-widget" className="block p-5 rounded-2xl transition-all hover:-translate-y-0.5" style={{ background: 'linear-gradient(135deg, #1D1D1F 0%, #2C2C2E 100%)' }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.12)' }}>
+                <TrendingUp size={18} color="#34C759" strokeWidth={1.8} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: '#FFFFFF', fontFamily: 'Outfit, sans-serif' }}>Business Intelligence</p>
+                <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.6)', fontFamily: 'Outfit, sans-serif' }}>Labour %, Food Cost %, Margin · owner only</p>
+              </div>
+            </div>
+            <ArrowRight size={16} color="#FFFFFF" strokeWidth={2} />
           </div>
         </Link>
       )}

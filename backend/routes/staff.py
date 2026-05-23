@@ -26,6 +26,7 @@ class StaffMember(BaseModel):
     address: str = ""
     employee_no: str = ""
     start_date: str = ""    # YYYY-MM-DD
+    hourly_rate: float = 0.0
 
 
 class StaffMemberUpdate(BaseModel):
@@ -37,6 +38,7 @@ class StaffMemberUpdate(BaseModel):
     address: Optional[str] = None
     employee_no: Optional[str] = None
     start_date: Optional[str] = None
+    hourly_rate: Optional[float] = None
 
 
 @router.get("")

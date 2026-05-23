@@ -41,6 +41,7 @@ import AdminDailyCleaning from './pages/admin-daily-cleaning';
 import AdminWeeklyCleaning from './pages/admin-weekly-cleaning';
 import AdminCompliance from './pages/admin-compliance';
 import AdminStaff from './pages/admin-staff';
+import AdminBI from './pages/admin-bi';
 import JKHiveLayout from './pages/jkhive/Layout';
 import JKHiveIntelligence from './pages/jkhive/Intelligence';
 import JKHiveRoutines from './pages/jkhive/Routines';
@@ -158,6 +159,16 @@ const AdminRoute = ({ children }) => (
   <AdminLayout>{children}</AdminLayout>
 );
 
+/** Super-admin guard wrapping AdminLayout — used for BI and other owner-only pages. */
+const SuperAdminRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user || user.role !== 'super_admin') {
+    return <Navigate to="/admin" replace />;
+  }
+  return <AdminLayout>{children}</AdminLayout>;
+};
+
 /** Admin guard that does NOT wrap in AdminLayout — for pages already inside another layout. */
 const AdminOnly = ({ children }) => {
   const { user, loading } = useAuth();
@@ -250,6 +261,7 @@ const AppRouter = () => {
       <Route path="/admin/weekly-cleaning" element={<AdminRoute><AdminWeeklyCleaning /></AdminRoute>} />
       <Route path="/admin/compliance" element={<AdminRoute><AdminCompliance /></AdminRoute>} />
       <Route path="/admin/staff" element={<AdminRoute><AdminStaff /></AdminRoute>} />
+      <Route path="/admin/bi" element={<SuperAdminRoute><AdminBI /></SuperAdminRoute>} />
 
       {/* JKHive — unified mobile-first hub (any authenticated user) */}
       <Route path="/jkhive" element={<JKHiveLayout />}>

@@ -87,6 +87,7 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
     prepTime: '15',
     isAvailable: true,
     showImage: true,
+    recipe: [],
   });
   const [errors, setErrors] = useState({});
 
@@ -108,6 +109,12 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
         prepTime: item?.prep_time ? String(item?.prep_time) : '15',
         isAvailable: item?.is_available !== false,
         showImage: item?.show_image !== false,
+        recipe: (item?.recipe || []).map(r => ({
+          ingredient: r?.ingredient || '',
+          qty: r?.qty != null ? String(r.qty) : '',
+          unit: r?.unit || '',
+          unit_cost: r?.unit_cost != null ? String(r.unit_cost) : '',
+        })),
       });
     }
   }, [item]);
@@ -129,6 +136,14 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
       tags: form?.tags?.split(',')?.map(t => t?.trim())?.filter(Boolean),
       showImage: form?.showImage,
       imageFile: form?.imageFile,
+      recipe: (form?.recipe || [])
+        .map(r => ({
+          ingredient: (r?.ingredient || '').trim(),
+          qty: parseFloat(r?.qty) || 0,
+          unit: (r?.unit || '').trim(),
+          unit_cost: parseFloat(r?.unit_cost) || 0,
+        }))
+        .filter(r => r.ingredient),
     });
   };
 
@@ -351,6 +366,125 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
               placeholder="e.g. spicy, popular, seasonal"
               className="w-full px-4 py-2.5 rounded-lg border border-border bg-background text-foreground font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors duration-200"
             />
+          </div>
+
+          {/* Recipe (ingredients) */}
+          <div className="border-t border-border pt-5">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <label className="block text-sm font-body font-semibold text-foreground">Recipe (ingredients & cost)</label>
+                <p className="text-xs text-muted-foreground mt-0.5">Used to calculate Food Cost % in Business Intelligence.</p>
+              </div>
+              <button
+                type="button"
+                data-testid="recipe-add-line-btn"
+                onClick={() => setForm(prev => ({
+                  ...prev,
+                  recipe: [...(prev?.recipe || []), { ingredient: '', qty: '', unit: 'g', unit_cost: '' }],
+                }))}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-all"
+              >
+                <Icon name="Plus" size={12} /> Add ingredient
+              </button>
+            </div>
+
+            {(form?.recipe?.length || 0) === 0 ? (
+              <p className="text-xs text-muted-foreground italic py-3 text-center bg-muted/40 rounded-lg">No ingredients yet — Food Cost % will be 0 for this item.</p>
+            ) : (
+              <div className="space-y-2">
+                {form.recipe.map((line, idx) => {
+                  const lineCost = (parseFloat(line.qty) || 0) * (parseFloat(line.unit_cost) || 0);
+                  return (
+                    <div key={idx} className="grid grid-cols-12 gap-2 items-center" data-testid={`recipe-line-${idx}`}>
+                      <input
+                        type="text"
+                        placeholder="Ingredient"
+                        value={line.ingredient}
+                        onChange={(e) => setForm(prev => ({
+                          ...prev,
+                          recipe: prev.recipe.map((r, i) => i === idx ? { ...r, ingredient: e.target.value } : r),
+                        }))}
+                        className="col-span-4 px-2 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        data-testid={`recipe-ingredient-${idx}`}
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="Qty"
+                        value={line.qty}
+                        onChange={(e) => setForm(prev => ({
+                          ...prev,
+                          recipe: prev.recipe.map((r, i) => i === idx ? { ...r, qty: e.target.value } : r),
+                        }))}
+                        className="col-span-2 px-2 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        data-testid={`recipe-qty-${idx}`}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Unit"
+                        value={line.unit}
+                        onChange={(e) => setForm(prev => ({
+                          ...prev,
+                          recipe: prev.recipe.map((r, i) => i === idx ? { ...r, unit: e.target.value } : r),
+                        }))}
+                        className="col-span-2 px-2 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        data-testid={`recipe-unit-${idx}`}
+                      />
+                      <div className="col-span-3 relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">£/u</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={line.unit_cost}
+                          onChange={(e) => setForm(prev => ({
+                            ...prev,
+                            recipe: prev.recipe.map((r, i) => i === idx ? { ...r, unit_cost: e.target.value } : r),
+                          }))}
+                          className="w-full pl-8 pr-2 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          data-testid={`recipe-unitcost-${idx}`}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => ({
+                          ...prev,
+                          recipe: prev.recipe.filter((_, i) => i !== idx),
+                        }))}
+                        className="col-span-1 inline-flex justify-center items-center w-9 h-9 rounded-lg text-destructive hover:bg-destructive/10 transition-all"
+                        data-testid={`recipe-remove-${idx}`}
+                        title="Remove ingredient"
+                      >
+                        <Icon name="Trash2" size={14} />
+                      </button>
+                      <div className="col-span-12 text-right text-[11px] text-muted-foreground -mt-1 pr-12">
+                        Line cost: £{lineCost.toFixed(2)}
+                      </div>
+                    </div>
+                  );
+                })}
+                {(() => {
+                  const totalCost = (form.recipe || []).reduce((s, r) => s + (parseFloat(r.qty) || 0) * (parseFloat(r.unit_cost) || 0), 0);
+                  const price = parseFloat(form.price) || 0;
+                  const fcPct = price > 0 ? (totalCost / price) * 100 : 0;
+                  return (
+                    <div className="flex items-center justify-between bg-muted/40 px-3 py-2.5 rounded-lg" data-testid="recipe-summary">
+                      <span className="text-xs font-semibold text-foreground">Total recipe cost</span>
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="font-mono font-bold text-foreground">£{totalCost.toFixed(2)}</span>
+                        {price > 0 && (
+                          <span className={`px-2 py-0.5 rounded-full font-semibold ${fcPct > 35 ? 'bg-red-100 text-red-700' : fcPct > 25 ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+                            FC {fcPct.toFixed(1)}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
 
           {/* Toggles */}

@@ -776,6 +776,16 @@ class ApiService {
   async adminUpdateStaff(id, data) { return this.fetch(`/api/admin/staff/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async adminDeleteStaff(id) { return this.fetch(`/api/admin/staff/${id}`, { method: 'DELETE' }); }
 
+  // ============== BUSINESS INTELLIGENCE (super_admin only) ==============
+  async adminBIOverview({ start_date, end_date, location_id } = {}) {
+    const qs = new URLSearchParams(Object.entries({ start_date, end_date, location_id }).filter(([, v]) => v)).toString();
+    return this.fetch(`/api/admin/bi${qs ? '?' + qs : ''}`);
+  }
+  async adminBIMenuCost({ location_id } = {}) {
+    const qs = location_id ? `?location_id=${encodeURIComponent(location_id)}` : '';
+    return this.fetch(`/api/admin/bi/menu-cost${qs}`);
+  }
+
   // ============== ROUTINE TEMPS (opening / closing) ==============
   async submitRoutineTemp(data) { return this.fetch('/api/admin/routine-temps', { method: 'POST', body: JSON.stringify(data) }); }
   async listRoutineTemps(filters = {}) {

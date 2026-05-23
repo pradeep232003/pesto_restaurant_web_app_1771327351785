@@ -104,6 +104,7 @@ const AdminMenuManagement = () => {
         prep_time: parseInt(formData?.prepTime) || 15,
         is_available: formData?.isAvailable !== false,
         show_image: formData?.showImage !== false,
+        recipe: formData?.recipe || [],
       };
 
       let savedItem;

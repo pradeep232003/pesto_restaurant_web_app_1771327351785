@@ -4,7 +4,7 @@ import { Users, ArrowLeft, Plus, Pencil, Trash2, Check, X } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 
-const EMPTY = { name: '', forename: '', surname: '', ni_number: '', dob: '', address: '', employee_no: '', start_date: '' };
+const EMPTY = { name: '', forename: '', surname: '', ni_number: '', dob: '', address: '', employee_no: '', start_date: '', hourly_rate: '' };
 
 const FIELDS = [
   { key: 'name',         label: 'Name',        type: 'text',  required: true, placeholder: 'Full name (for matching)' },
@@ -15,6 +15,7 @@ const FIELDS = [
   { key: 'address',      label: 'Address',     type: 'textarea' },
   { key: 'employee_no',  label: 'Employee No', type: 'text' },
   { key: 'start_date',   label: 'Start Date',  type: 'date' },
+  { key: 'hourly_rate',  label: 'Hourly Rate (£)', type: 'number', placeholder: '12.50' },
 ];
 
 const AdminStaff = () => {
@@ -47,8 +48,9 @@ const AdminStaff = () => {
     if (!form.name?.trim()) { alert('Name is required'); return; }
     setSaving(true);
     try {
-      if (editing === 'new') await api.adminCreateStaff(form);
-      else await api.adminUpdateStaff(editing.id, form);
+      const payload = { ...form, hourly_rate: form.hourly_rate === '' || form.hourly_rate == null ? 0 : parseFloat(form.hourly_rate) || 0 };
+      if (editing === 'new') await api.adminCreateStaff(payload);
+      else await api.adminUpdateStaff(editing.id, payload);
       await fetchStaff();
       closeForm();
     } catch (err) { alert('Save failed: ' + err.message); }
@@ -108,6 +110,7 @@ const AdminStaff = () => {
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>NI Number</th>
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>DoB</th>
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>Start Date</th>
+                  <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>£/hr</th>
                   <th className="px-3 py-2.5 text-right text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>Actions</th>
                 </tr>
               </thead>
@@ -124,6 +127,7 @@ const AdminStaff = () => {
                     <td className="px-3 py-2.5 text-sm" style={{ color: '#1D1D1F', ...font }}>{s.ni_number || '—'}</td>
                     <td className="px-3 py-2.5 text-sm" style={{ color: '#1D1D1F', ...font }}>{s.dob || '—'}</td>
                     <td className="px-3 py-2.5 text-sm" style={{ color: '#1D1D1F', ...font }}>{s.start_date || '—'}</td>
+                    <td className="px-3 py-2.5 text-sm" style={{ color: '#1D1D1F', ...font }} data-testid={`staff-hourly-${s.id}`}>{s.hourly_rate > 0 ? `£${Number(s.hourly_rate).toFixed(2)}` : '—'}</td>
                     <td className="px-3 py-2.5 text-right">
                       <button data-testid={`edit-staff-${s.id}`} onClick={() => openEdit(s)}
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs active:scale-95 mr-2"
