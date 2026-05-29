@@ -1,11 +1,20 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams, useLocation, Navigate } from 'react-router-dom';
-import { MessageSquare, Check } from 'lucide-react';
+import { MessageSquare, Check, AlertTriangle } from 'lucide-react';
 import api from '../../../lib/api';
 import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader } from '../cooling/_shared';
 
-/** /jkhive/washer-temps/:washerId/comment — submit washer record. */
+const RINSE_MIN_C = 82;
+const WASH_MIN_C  = 55;
+
+/** /jkhive/washer-temps/:washerId/comment — submit washer record.
+ *
+ *  HACCP guard: when either recorded temp falls below the safe threshold
+ *  (wash < 55°C  OR  rinse < 82°C) we REQUIRE the operator to write a
+ *  comment of ≥ 3 characters so we have an audit-trail note explaining the
+ *  out-of-range reading (e.g. "machine cold-started, ran a 2nd cycle").
+ */
 const CommentSubmit = () => {
   const navigate = useNavigate();
   const { washerId } = useParams();
@@ -22,7 +31,14 @@ const CommentSubmit = () => {
     return <Navigate to={`/jkhive/washer-temps/${washerId}/wash`} replace />;
   }
 
+  const washBelow  = state.wash_temp  != null && Number(state.wash_temp)  < WASH_MIN_C;
+  const rinseBelow = state.rinse_temp != null && Number(state.rinse_temp) < RINSE_MIN_C;
+  const commentRequired = washBelow || rinseBelow;
+  const commentTrimmed = comment.trim();
+  const submitBlocked  = commentRequired && commentTrimmed.length < 3;
+
   const submit = async () => {
+    if (submitBlocked) return;
     setSubmitting(true);
     try {
       const res = await api.washerRecord({
@@ -30,7 +46,7 @@ const CommentSubmit = () => {
         washer_id: washerId,
         wash_temp: state.wash_temp,
         rinse_temp: state.rinse_temp,
-        comment,
+        comment: commentTrimmed,
       });
       setDone(res);
     } catch (err) { alert('Submit failed: ' + err.message); }
@@ -77,36 +93,77 @@ const CommentSubmit = () => {
       <WizardHeader title="Record Washer Temperatures" locationName={locationName} dateStr={today} onBack={() => navigate(-1)} />
 
       <div style={{ display: 'flex', justifyContent: 'center', margin: '60px 0 24px' }}>
-        <div style={{ width: 96, height: 96, borderRadius: 24, background: 'rgba(0,122,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <MessageSquare size={56} strokeWidth={1.8} color="#0A84C9" />
+        <div style={{ width: 96, height: 96, borderRadius: 24, background: commentRequired ? 'rgba(255,59,48,0.10)' : 'rgba(0,122,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {commentRequired
+            ? <AlertTriangle size={56} strokeWidth={1.8} color="#FF3B30" />
+            : <MessageSquare size={56} strokeWidth={1.8} color="#0A84C9" />}
         </div>
       </div>
 
       <h2 style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.02em', color: '#1D1D1F', margin: '0 0 4px', textAlign: 'center' }}>
-        Add a comment?
+        {commentRequired ? 'Comment required' : 'Add a comment?'}
       </h2>
-      <p style={{ fontSize: 14, color: '#86868B', margin: '0 0 18px', textAlign: 'center' }}>(This is optional)</p>
+      <p style={{ fontSize: 14, color: commentRequired ? '#A82218' : '#86868B', margin: '0 0 18px', textAlign: 'center' }}>
+        {commentRequired ? 'Reading below safe range — please explain' : '(This is optional)'}
+      </p>
+
+      {commentRequired && (
+        <div data-testid="washer-comment-required-banner"
+          style={{
+            display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px',
+            background: 'rgba(255,59,48,0.08)', borderRadius: 14, marginBottom: 14,
+            border: '1px solid rgba(255,59,48,0.18)',
+          }}>
+          <AlertTriangle size={16} strokeWidth={2.4} color="#A82218" style={{ marginTop: 2, flexShrink: 0 }} />
+          <div style={{ fontSize: 13, color: '#1D1D1F', lineHeight: 1.4 }}>
+            {washBelow && (
+              <p style={{ margin: '0 0 4px' }}>
+                Wash recorded at <b>{Number(state.wash_temp).toFixed(1)}°C</b> (below {WASH_MIN_C}°C minimum).
+              </p>
+            )}
+            {rinseBelow && (
+              <p style={{ margin: 0 }}>
+                Rinse recorded at <b>{Number(state.rinse_temp).toFixed(1)}°C</b> (below {RINSE_MIN_C}°C minimum).
+              </p>
+            )}
+            <p style={{ margin: '6px 0 0', color: '#86868B', fontSize: 12 }}>
+              For the EHO audit trail, please note what happened (e.g. cold start, re-ran cycle, engineer called).
+            </p>
+          </div>
+        </div>
+      )}
 
       <textarea data-testid="washer-comment-input"
         value={comment} onChange={e => setComment(e.target.value.slice(0, 250))}
         rows={4}
+        placeholder={commentRequired ? 'e.g. Machine cold-started, ran 2nd cycle — temps now OK' : ''}
         style={{
           width: '100%', padding: 14, fontSize: 15,
-          border: '1px solid rgba(0,0,0,0.18)', borderRadius: 14,
-          background: '#FFFFFF', color: '#1D1D1F', resize: 'vertical', outline: 'none',
+          border: `1px solid ${commentRequired && submitBlocked ? 'rgba(255,59,48,0.5)' : 'rgba(0,0,0,0.18)'}`,
+          borderRadius: 14, background: '#FFFFFF', color: '#1D1D1F', resize: 'vertical', outline: 'none',
           fontFamily: 'Outfit, sans-serif',
         }} />
-      <p style={{ fontSize: 12, color: '#86868B', textAlign: 'right', marginTop: 6 }}>{comment.length}/250</p>
+      <p style={{ fontSize: 12, color: '#86868B', textAlign: 'right', marginTop: 6 }}>
+        {commentRequired && submitBlocked && (
+          <span data-testid="washer-comment-min-hint" style={{ color: '#FF3B30', marginRight: 8 }}>
+            min 3 characters required
+          </span>
+        )}
+        {comment.length}/250
+      </p>
 
       <div style={{ position: 'fixed', left: 16, right: 16, bottom: 84, zIndex: 5 }}>
-        <button data-testid="washer-submit-btn" onClick={submit} disabled={submitting}
+        <button data-testid="washer-submit-btn" onClick={submit} disabled={submitting || submitBlocked}
           style={{
             width: '100%', padding: '18px 16px', border: 0, borderRadius: 999,
             background: '#1D1D1F', color: '#FFFFFF', fontSize: 17, fontWeight: 600,
-            cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1,
+            cursor: (submitting || submitBlocked) ? 'not-allowed' : 'pointer',
+            opacity: (submitting || submitBlocked) ? 0.4 : 1,
             fontFamily: 'Outfit, sans-serif',
             boxShadow: '0 8px 22px rgba(0,0,0,0.25)',
-          }}>{submitting ? 'Submitting…' : 'Submit Record'}</button>
+          }}>
+          {submitting ? 'Submitting…' : submitBlocked ? 'Add a comment to continue' : 'Submit Record'}
+        </button>
       </div>
     </div>
   );
