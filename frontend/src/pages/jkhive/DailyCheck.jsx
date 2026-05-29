@@ -39,6 +39,12 @@ const buildTasks = (loc, data) => {
   const cd = data.closedown || null;
   const cdComplete = !!cd;
   const checklistsRunToday = (data.checklists || []).filter(c => (c.last_run_at || c.last_run_date || '').slice(0, 10) === today()).length;
+  // Hot/Cold Holding: done only when BOTH hot AND cold have been logged today
+  // (either a real session OR a "no hot/cold holding today" idempotent record).
+  const hcToday = (data.hotCold || []).filter(r => isTodayIso(r.start_time || r.recorded_at));
+  const hotLogged  = hcToday.some(r => r.mode === 'hot');
+  const coldLogged = hcToday.some(r => r.mode === 'cold');
+  const hotColdDone = hotLogged && coldLogged;
   return [
     { id: 'opening',         routineKey: 'opening_checklist',  icon: ListChecks,      color: '#FF9500', title: 'Opening checklist',
       sub: 'Daily setup tasks',                  to: '/jkhive/daily-checks?back=/jkhive/daily-check',
@@ -50,8 +56,11 @@ const buildTasks = (loc, data) => {
       sub: 'Wash & rinse cycle',                to: '/jkhive/washer-temps?back=/jkhive/daily-check',
       done: (data.washers || []).some(r => isTodayIso(r.recorded_at)) },
     { id: 'hot-cold',        routineKey: 'hot_cold_holding',   icon: Flame,           color: '#FF3B30', title: 'Hot / Cold Holding',
-      sub: 'Service temperatures',              to: '/jkhive/hot-cold-holding?back=/jkhive/daily-check',
-      done: (data.hotCold || []).some(r => isTodayIso(r.start_time || r.recorded_at)) },
+      sub: hotColdDone
+        ? 'Service temperatures'
+        : `${hotLogged ? '✓' : '○'} Hot · ${coldLogged ? '✓' : '○'} Cold`,
+      to: '/jkhive/hot-cold-holding/mode?back=/jkhive/daily-check',
+      done: hotColdDone },
     { id: 'reheating',       routineKey: 'reheating',          icon: Soup,            color: '#FF6B35', title: 'Cooking/Reheating',
       sub: 'Reheat ≥75 °C log',                 to: '/jkhive/reheating?back=/jkhive/daily-check',
       done: (data.reheating || []).some(r => isTodayIso(r.recorded_at)) },

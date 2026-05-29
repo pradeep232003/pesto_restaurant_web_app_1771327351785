@@ -120,3 +120,55 @@ async def delete_session(session_id: str, user: dict = Depends(get_staff_or_abov
     if res.deleted_count == 0:
         raise HTTPException(404, "Not found")
     return {"deleted": True}
+
+
+class NoModeBody(BaseModel):
+    location_id: str
+    mode: Mode   # 'hot' or 'cold'
+
+
+@router.post("/no-mode")
+async def log_no_holding(body: NoModeBody, user: dict = Depends(get_staff_or_above)):
+    """
+    Log an idempotent "no hot/cold holding today" entry so the daily-check
+    hub can mark hot-cold as DONE without leaving an actual holding session.
+
+    Idempotent per (location_id, mode, today). A second call returns the
+    existing row instead of creating a duplicate.
+    """
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    existing = sessions.find_one(
+        {
+            "location_id": body.location_id,
+            "mode": body.mode,
+            "kind": "no_holding",
+            "start_time": {"$gte": today, "$lt": today + "T99"},
+        },
+        {"_id": 0},
+    )
+    if existing:
+        return existing
+
+    now = datetime.now(timezone.utc).isoformat()
+    label = "No hot holding today" if body.mode == "hot" else "No cold holding today"
+    doc = {
+        "id": str(uuid.uuid4())[:12],
+        "location_id": body.location_id,
+        "mode": body.mode,
+        "kind": "no_holding",
+        "item_name": label,
+        "item_category": "",
+        "item_icon": "🚫",
+        "start_temp": None,
+        "start_pass": None,
+        "start_time": now,
+        "status": "complete",
+        "end_time": now,
+        "checks": [],
+        "comment": "",
+        "started_by": user.get("email", ""),
+        "started_by_name": user.get("name", ""),
+        "completed_by": user.get("email", ""),
+    }
+    sessions.insert_one(dict(doc))
+    return {k: v for k, v in doc.items() if k != "_id"}

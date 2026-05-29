@@ -908,6 +908,7 @@ class ApiService {
   async hotColdCheck(id, data) { return this.fetch(`/api/admin/hot-cold/sessions/${id}/check`, { method: 'POST', body: JSON.stringify(data) }); }
   async hotColdComplete(id, data) { return this.fetch(`/api/admin/hot-cold/sessions/${id}/complete`, { method: 'POST', body: JSON.stringify(data) }); }
   async hotColdDelete(id) { return this.fetch(`/api/admin/hot-cold/sessions/${id}`, { method: 'DELETE' }); }
+  async hotColdNoMode(locationId, mode) { return this.fetch('/api/admin/hot-cold/no-mode', { method: 'POST', body: JSON.stringify({ location_id: locationId, mode }) }); }
 
   // ============== CHECKLISTS ==============
   async checklistList(locationId, frequency) {
