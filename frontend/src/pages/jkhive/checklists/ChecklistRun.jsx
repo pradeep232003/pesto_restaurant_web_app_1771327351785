@@ -86,9 +86,32 @@ const ChecklistRun = () => {
     <div style={{ paddingBottom: 110, fontFamily: 'Outfit, sans-serif' }} data-testid="checklist-run">
       <WizardHeader title={tpl.title} locationName={locationName} dateStr={today} backTo="/jkhive/checklists" />
 
-      <p style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#86868B', margin: '6px 4px 8px' }}>
-        {checked.size}/{total} done · {tpl.frequency}
-      </p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '6px 4px 10px' }}>
+        <p style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#86868B', margin: 0 }}>
+          {checked.size}/{total} done · {tpl.frequency}
+        </p>
+        {total > 0 && (
+          <button
+            data-testid="checklist-all-done"
+            onClick={() => setChecked(all ? new Set() : new Set((tpl.items || []).map((_, i) => i)))}
+            style={{
+              padding: '6px 14px', borderRadius: 999, cursor: 'pointer',
+              border: '1px solid rgba(0,0,0,0.12)',
+              background: all ? '#FFFFFF' : '#1D1D1F',
+              color: all ? '#1D1D1F' : '#FFFFFF',
+              fontSize: 12, fontWeight: 700, letterSpacing: '0.02em',
+              fontFamily: 'Outfit, sans-serif',
+              display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+            }}>
+            {all ? 'Clear' : (
+              <>
+                <Check size={13} strokeWidth={2.8} />
+                All Done
+              </>
+            )}
+          </button>
+        )}
+      </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
         {(tpl.items || []).map((it, idx) => {
