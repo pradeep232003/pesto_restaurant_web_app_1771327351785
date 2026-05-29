@@ -22,21 +22,58 @@ const ChecklistRun = () => {
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
 
   useEffect(() => {
-    const todayLocal = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+
+    // Compute the start of the persistence window based on frequency.
+    // daily   → today (YYYY-MM-DD)
+    // weekly  → Monday 00:00 of the current ISO week through Sunday 23:59
+    // monthly → 1st of the current month through end of month
+    const startOfDayLocalISO = () => now.toISOString().slice(0, 10);
+    const startOfWeekLocalISO = () => {
+      const d = new Date(now);
+      const day = d.getDay(); // Sun=0..Sat=6
+      const diff = day === 0 ? 6 : day - 1; // back to Monday
+      d.setDate(d.getDate() - diff);
+      d.setHours(0, 0, 0, 0);
+      return d.toISOString();
+    };
+    const startOfMonthLocalISO = () => {
+      const d = new Date(now.getFullYear(), now.getMonth(), 1);
+      return d.toISOString();
+    };
+
     Promise.all([
       api.checklistGet(id, adminLocationId),
       api.checklistRunsList(id).catch(() => []),
-    ]).then(([template, runs]) => {
+    ]).then(([template, allRuns]) => {
       setTpl(template);
-      // Pre-fill ticks if there is a run from today for this template+location
-      const todayRun = (runs || []).find(r =>
-        (r.submitted_at || '').slice(0, 10) === todayLocal &&
-        (!r.location_id || r.location_id === adminLocationId)
-      );
-      if (todayRun && Array.isArray(todayRun.checked_items)) {
-        setChecked(new Set(todayRun.checked_items));
-        if (todayRun.comment) setComment(todayRun.comment);
+
+      const freq = template?.frequency || 'daily';
+      let windowStart;
+      if (freq === 'weekly')        windowStart = startOfWeekLocalISO();
+      else if (freq === 'monthly')  windowStart = startOfMonthLocalISO();
+      else                          windowStart = startOfDayLocalISO();
+
+      // Filter runs in the current window for this location.
+      // Union every `checked_items` array across those runs so a Monday tick
+      // stays visible on Wednesday. Reset happens automatically when the
+      // window rolls over (new week / new month / new day).
+      const inWindow = (allRuns || []).filter(r => {
+        if (r.location_id && r.location_id !== adminLocationId) return false;
+        const sa = r.submitted_at || '';
+        if (freq === 'daily') return sa.slice(0, 10) === windowStart;
+        return sa >= windowStart;
+      });
+      const union = new Set();
+      let lastComment = '';
+      for (const r of inWindow) {
+        if (Array.isArray(r.checked_items)) {
+          for (const i of r.checked_items) union.add(i);
+        }
+        if (r.comment) lastComment = r.comment;
       }
+      if (union.size > 0) setChecked(union);
+      if (lastComment) setComment(lastComment);
     }).catch(err => alert('Failed to load: ' + err.message));
   }, [id, adminLocationId]);
 
