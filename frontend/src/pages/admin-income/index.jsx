@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Plus, Trash2, Filter, Calendar, Pencil, Check, X, Download } from 'lucide-react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { TrendingUp, Plus, Trash2, Filter, Calendar, Pencil, Check, X, Download, ArrowLeft } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -8,6 +8,8 @@ import * as XLSX from 'xlsx';
 
 const AdminIncome = () => {
   const navigate = useNavigate();
+  const routerLocation = useLocation();
+  const isJkhive = routerLocation.pathname.startsWith('/jkhive');
   const { user, isAuthenticated, isAdmin, loading: authLoading } = useAuth();
   const { locations } = useLocation2();
 
@@ -118,6 +120,11 @@ const AdminIncome = () => {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto" data-testid="admin-income-page">
+      {isJkhive && (
+        <Link to="/jkhive/manager" data-testid="jkhive-income-back" className="inline-flex items-center gap-1.5 text-xs font-medium mb-3 active:scale-95" style={{ color: '#007AFF', ...font }}>
+          <ArrowLeft size={13} /> Manager
+        </Link>
+      )}
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: '#1D1D1F', ...font }}>Income</h1>
