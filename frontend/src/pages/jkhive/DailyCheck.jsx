@@ -66,7 +66,12 @@ const buildTasks = (loc, data) => {
       done: (data.reheating || []).some(r => isTodayIso(r.recorded_at)) },
     { id: 'bulk-cooling',    routineKey: 'bulk_cooling',       icon: Snowflake,       color: '#5AC8FA', title: 'Bulk Cooking/Cooling',
       sub: 'Cool < 90 min · or "no bulk prep"', to: '/jkhive/cooking-cooling?back=/jkhive/daily-check',
-      done: (data.cooling || []).some(r => isTodayIso(r.started_at || r.recorded_at)) },
+      // Only count as DONE once the cooled-temp record has been submitted
+      // (status: 'complete') or "no bulk prep today" has been logged.
+      // An in-progress cooling session (status: 'cooling') stays PENDING.
+      done: (data.cooling || []).some(r =>
+        isTodayIso(r.started_at || r.recorded_at) && (r.status === 'complete' || r.kind === 'no_bulk_prep')
+      ) },
     { id: 'deliveries',      routineKey: 'delivery_records',   icon: Truck,           color: '#0A84C9', title: 'Deliveries',
       sub: 'Goods-in temps · or "no delivery"', to: '/jkhive/delivery-records?back=/jkhive/daily-check',
       done: (data.deliveries || []).some(r => isTodayIso(r.recorded_at)) },

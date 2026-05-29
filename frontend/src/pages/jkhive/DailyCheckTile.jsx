@@ -39,14 +39,19 @@ const DailyCheckTile = () => {
     const cdComplete = !!cd;
     const loc = (locations || []).find(l => l.id === adminLocationId);
     const applicable = loc?.applicable_routines || [];
+    // Hot/Cold Holding: requires BOTH hot AND cold today (mirrors DailyCheck.jsx).
+    const hcToday = (hotCold || []).filter(r => isToday(r.start_time || r.recorded_at));
+    const hcDone = hcToday.some(r => r.mode === 'hot') && hcToday.some(r => r.mode === 'cold');
     // Each entry: [routineKey, doneFlag]
     const candidates = [
       ['opening_checklist', dcOpening],
       ['opening_temps',     (openingTemps || []).length > 0],
       ['washer_temps',      (washers || []).some(r => isToday(r.recorded_at))],
-      ['hot_cold_holding',  (hotCold || []).some(r => isToday(r.start_time || r.recorded_at))],
+      ['hot_cold_holding',  hcDone],
       ['reheating',         (reheating || []).some(r => isToday(r.recorded_at))],
-      ['bulk_cooling',      (cooling || []).some(r => isToday(r.started_at || r.recorded_at))],
+      ['bulk_cooling',      (cooling || []).some(r =>
+        isToday(r.started_at || r.recorded_at) && (r.status === 'complete' || r.kind === 'no_bulk_prep')
+      )],
       ['delivery_records',  (deliveries || []).some(r => isToday(r.recorded_at))],
       ['daily_cleaning',    (checklists || []).some(c => isToday(c.last_run_at || c.last_run_date))],
       ['closing_temps',     (closingTemps || []).length > 0],
