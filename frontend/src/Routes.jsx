@@ -142,6 +142,7 @@ import LegionellaHotTemp from './pages/jkhive/legionella/LegionellaHotTemp';
 import LegionellaColdTemp from './pages/jkhive/legionella/LegionellaColdTemp';
 import LegionellaCommentSubmit from './pages/jkhive/legionella/LegionellaCommentSubmit';
 import DailyCheck from './pages/jkhive/DailyCheck';
+import WeeklyCheck from './pages/jkhive/WeeklyCheck';
 import ResidentBalance from './pages/resident-balance';
 import ResidentHistory from './pages/resident-history';
 import TransactionReport from './pages/transaction-report';
@@ -352,6 +353,7 @@ const AppRouter = () => {
         <Route path="legionella/cold" element={<LegionellaColdTemp />} />
         <Route path="legionella/submit" element={<LegionellaCommentSubmit />} />
         <Route path="daily-check" element={<DailyCheck />} />
+        <Route path="weekly-check" element={<WeeklyCheck />} />
         <Route path="opening" element={<JKHiveOpeningRoutine />} />
         <Route path="opening/fridge-temp" element={<JKHiveOpeningFridgeTemp />} />
         <Route path="closing" element={<JKHiveClosingRoutine />} />

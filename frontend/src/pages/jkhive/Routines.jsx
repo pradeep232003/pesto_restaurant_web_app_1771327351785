@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Sunrise, Sunset, Snowflake, ListChecks, Flame, Truck, MoreHorizontal } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 import DailyCheckTile from './DailyCheckTile';
+import WeeklyCheckTile from './WeeklyCheckTile';
 import api from '../../lib/api';
 import { useLocation2 } from '../../contexts/LocationContext';
 import { reconcile, worstStatus, STATUS_COLOR } from './cooling/cooling_alarms';
@@ -61,6 +62,7 @@ const Routines = () => {
       <SectionLabel>Daily flow</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
         <DailyCheckTile />
+        <WeeklyCheckTile />
         <Tile testId="tile-opening-routine"     to="/jkhive/opening"           icon={Sunrise}     color="#FF9500" title="Opening Routine"    subtitle="Pre-service checks" />
         <Tile testId="tile-closing-routine"     to="/jkhive/closing"           icon={Sunset}      color="#5856D6" title="Closing Routine"    subtitle="End-of-day shutdown" />
         <Tile testId="tile-cooking-and-cooling" to="/jkhive/cooking-cooling"   icon={Snowflake}   color="#30B0C7" title="Cooking & Cooling"  subtitle="Cool-down log"
