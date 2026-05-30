@@ -35,8 +35,11 @@ const DailyCheckTile = () => {
       api.fetch(`/api/admin/routine-temps?location_id=${encodeURIComponent(adminLocationId)}&period=closing&start_date=${dt}&end_date=${dt}`).catch(() => []),
     ]);
     const [washers, hotCold, reheating, cooling, deliveries, checklists, dc, cd, openingTemps, closingTemps] = calls;
-    const dcOpening = !!dc;
-    const cdComplete = !!cd;
+    // Opening / Closing now only count as fully DONE when every active item
+    // is ticked. Partial completion stays outstanding (with "IN PROGRESS"
+    // pill on the hub itself).
+    const dcOpening = !!dc && (dc.total_items ?? 0) > 0 && (dc.passed_items ?? 0) >= (dc.total_items ?? 0);
+    const cdComplete = !!cd && (cd.total_items ?? 0) > 0 && (cd.passed_items ?? 0) >= (cd.total_items ?? 0);
     const loc = (locations || []).find(l => l.id === adminLocationId);
     const applicable = loc?.applicable_routines || [];
     // Hot/Cold Holding: requires BOTH hot AND cold today (mirrors DailyCheck.jsx).

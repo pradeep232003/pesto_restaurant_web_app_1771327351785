@@ -35,9 +35,31 @@ const isTodayIso = (iso) => (iso || '').slice(0, 10) === today();
 
 const buildTasks = (loc, data) => {
   const dc = data.dailyCheck || null;
-  const dcOpening = !!dc;  // any saved row counts as "done" for the day
+  // Opening checklist: PENDING (no entry saved), IN PROGRESS (some items
+  // ticked but not all), or DONE (every active item ticked).
+  let openingState = 'pending';
+  let openingPassed = 0;
+  let openingTotal = 0;
+  if (dc) {
+    openingPassed = dc.passed_items ?? 0;
+    openingTotal  = dc.total_items  ?? 0;
+    if (openingTotal === 0)            openingState = 'in_progress'; // saved but no items snapshot
+    else if (openingPassed >= openingTotal) openingState = 'done';
+    else if (openingPassed > 0)        openingState = 'in_progress';
+    else                               openingState = 'in_progress'; // saved with zero ticks = started
+  }
   const cd = data.closedown || null;
-  const cdComplete = !!cd;
+  let closingState = 'pending';
+  let closingPassed = 0;
+  let closingTotal = 0;
+  if (cd) {
+    closingPassed = cd.passed_items ?? 0;
+    closingTotal  = cd.total_items  ?? 0;
+    if (closingTotal === 0)            closingState = 'in_progress';
+    else if (closingPassed >= closingTotal) closingState = 'done';
+    else if (closingPassed > 0)        closingState = 'in_progress';
+    else                               closingState = 'in_progress';
+  }
   const checklistsRunToday = (data.checklists || []).filter(c => (c.last_run_at || c.last_run_date || '').slice(0, 10) === today()).length;
   // Open the daily-frequency checklist directly when there's just one (most
   // common case). When the location has multiple daily templates we still
@@ -54,8 +76,12 @@ const buildTasks = (loc, data) => {
   const hotColdDone = hotLogged && coldLogged;
   return [
     { id: 'opening',         routineKey: 'opening_checklist',  icon: ListChecks,      color: '#FF9500', title: 'Opening checklist',
-      sub: 'Daily setup tasks',                  to: '/jkhive/daily-checks?back=/jkhive/daily-check',
-      done: dcOpening },
+      sub: openingState === 'done'        ? `All ${openingTotal} items ticked`
+         : openingState === 'in_progress' ? `${openingPassed} of ${openingTotal} items ticked`
+         : 'Daily setup tasks',
+      to: '/jkhive/daily-checks?back=/jkhive/daily-check',
+      done: openingState === 'done',
+      state: openingState },
     { id: 'fridge-open',     routineKey: 'opening_temps',      icon: Refrigerator,    color: '#34C759', title: 'Fridge / Freezer opening temps',
       sub: 'AM temp probe round',               to: '/jkhive/opening/fridge-temp?back=/jkhive/daily-check',
       done: (data.openingTemps || []).length > 0 },
@@ -90,8 +116,12 @@ const buildTasks = (loc, data) => {
       sub: 'PM temp probe round',               to: '/jkhive/closing/fridge-temp?back=/jkhive/daily-check',
       done: (data.closingTemps || []).length > 0 },
     { id: 'closing',         routineKey: 'closing_checklist',  icon: ClipboardCheck,  color: '#1D1D1F', title: 'Closing checklist',
-      sub: 'End of trade tasks',                to: '/jkhive/kitchen-closedown?back=/jkhive/daily-check',
-      done: cdComplete },
+      sub: closingState === 'done'        ? `All ${closingTotal} items ticked`
+         : closingState === 'in_progress' ? `${closingPassed} of ${closingTotal} items ticked`
+         : 'End of trade tasks',
+      to: '/jkhive/kitchen-closedown?back=/jkhive/daily-check',
+      done: closingState === 'done',
+      state: closingState },
   ];
 };
 
@@ -191,9 +221,17 @@ const DailyCheck = () => {
                 </div>
                 <span style={{
                   fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 999,
-                  background: t.done ? 'rgba(52,199,89,0.15)' : 'rgba(255,149,0,0.15)',
-                  color: t.done ? '#1B7A35' : '#A35E00',
-                }}>{t.done ? 'DONE' : 'PENDING'}</span>
+                  background:
+                    t.state === 'in_progress' ? 'rgba(0,122,255,0.12)' :
+                    t.done                    ? 'rgba(52,199,89,0.15)' :
+                                                'rgba(255,149,0,0.15)',
+                  color:
+                    t.state === 'in_progress' ? '#0A66CC' :
+                    t.done                    ? '#1B7A35' :
+                                                '#A35E00',
+                }} data-testid={`dc-status-${t.id}`}>
+                  {t.state === 'in_progress' ? 'IN PROGRESS' : (t.done ? 'DONE' : 'PENDING')}
+                </span>
                 <ChevronRight size={16} color="#C7C7CC" strokeWidth={2.4} />
               </button>
               {t.quickAction && !t.done && (
