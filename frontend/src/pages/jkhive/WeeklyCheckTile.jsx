@@ -32,12 +32,13 @@ const WeeklyCheckTile = () => {
     const weekStartDate = startOfWeekDateOnly();
 
     const [probeCals, legio, checklists] = await Promise.all([
-      api.adminListProbeCalibration({ location_id: adminLocationId, start_date: weekStartDate }).catch(() => []),
+      // JKHive wizard endpoint — stores `recorded_at` (full ISO ts) not date.
+      api.probeCalibrations(adminLocationId).catch(() => []),
       api.adminListLegionella({ location_id: adminLocationId, start_date: weekStartDate }).catch(() => []),
       api.checklistList(adminLocationId).catch(() => []),
     ]);
 
-    const probeDone = (probeCals || []).length > 0;
+    const probeDone = (probeCals || []).some(r => (r.recorded_at || '') >= weekStartIso);
     const legioDone = (legio || []).length > 0;
 
     // Weekly checklist counts as DONE only when every visible item across

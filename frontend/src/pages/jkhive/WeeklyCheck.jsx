@@ -38,10 +38,14 @@ const WeeklyCheck = () => {
     setLoading(true);
     try {
       const [probeCals, legio, checklists] = await Promise.all([
-        api.adminListProbeCalibration({ location_id: adminLocationId, start_date: weekStartDate }).catch(() => []),
+        // Probe calibrations come from /api/admin/probes/calibrations — the
+        // JKHive wizard endpoint. Has `recorded_at` (full ISO), no date filter.
+        api.probeCalibrations(adminLocationId).catch(() => []),
         api.adminListLegionella({ location_id: adminLocationId, start_date: weekStartDate }).catch(() => []),
         api.checklistList(adminLocationId).catch(() => []),
       ]);
+      // Filter probe cals to this week client-side via recorded_at.
+      const probeCalsThisWeek = (probeCals || []).filter(r => (r.recorded_at || '') >= weekStartIso);
       // For weekly templates, pull every run and compute the UNION of ticked
       // indices in the current week so we can derive PENDING / IN-PROGRESS /
       // DONE. Done = every visible item has been ticked at least once this
@@ -59,7 +63,7 @@ const WeeklyCheck = () => {
         const total = tpl.visible_items_count ?? (tpl.items || []).length;
         return { id: tpl.id, title: tpl.title, ticked: union.size, total, runCount: inWeek.length };
       }));
-      setData({ probeCals: probeCals || [], legio: legio || [], checklists: checklists || [], weeklyTpls, weeklyProgress });
+      setData({ probeCals: probeCalsThisWeek, legio: legio || [], checklists: checklists || [], weeklyTpls, weeklyProgress });
     } finally { setLoading(false); }
   }, [adminLocationId, weekStartDate, weekStartIso]);
 
