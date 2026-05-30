@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Check, MessageSquare } from 'lucide-react';
 import api from '../../../lib/api';
 import { useLocation2 } from '../../../contexts/LocationContext';
@@ -12,6 +12,8 @@ import { WizardHeader } from '../cooling/_shared';
 const ChecklistRun = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const backTo = searchParams.get('back') || '/jkhive/checklists';
   const { adminLocationId, locations } = useLocation2();
   const [tpl, setTpl] = useState(null);
   const [checked, setChecked] = useState(new Set());
@@ -109,7 +111,7 @@ const ChecklistRun = () => {
             {checked.size}/{total} ticked — logged against {locationName}.
           </p>
           <button data-testid="checklist-done-back"
-            onClick={() => navigate('/jkhive/checklists', { replace: true })}
+            onClick={() => navigate(backTo, { replace: true })}
             style={{
               width: '100%', padding: '14px 16px', borderRadius: 999, border: 0,
               background: '#1D1D1F', color: '#FFFFFF', fontSize: 16, fontWeight: 600, cursor: 'pointer',
@@ -121,7 +123,7 @@ const ChecklistRun = () => {
 
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'Outfit, sans-serif' }} data-testid="checklist-run">
-      <WizardHeader title={tpl.title} locationName={locationName} dateStr={today} backTo="/jkhive/checklists" />
+      <WizardHeader title={tpl.title} locationName={locationName} dateStr={today} backTo={backTo} />
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '6px 4px 10px' }}>
         <p style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#86868B', margin: 0 }}>

@@ -39,6 +39,13 @@ const buildTasks = (loc, data) => {
   const cd = data.closedown || null;
   const cdComplete = !!cd;
   const checklistsRunToday = (data.checklists || []).filter(c => (c.last_run_at || c.last_run_date || '').slice(0, 10) === today()).length;
+  // Open the daily-frequency checklist directly when there's just one (most
+  // common case). When the location has multiple daily templates we still
+  // jump into the checklists list page (which defaults to the "Daily" tab).
+  const dailyChecklists = (data.checklists || []).filter(c => c.frequency === 'daily');
+  const cleaningTo = dailyChecklists.length === 1
+    ? `/jkhive/checklists/${dailyChecklists[0].id}/run?back=/jkhive/daily-check`
+    : '/jkhive/checklists?back=/jkhive/daily-check';
   // Hot/Cold Holding: done only when BOTH hot AND cold have been logged today
   // (either a real session OR a "no hot/cold holding today" idempotent record).
   const hcToday = (data.hotCold || []).filter(r => isTodayIso(r.start_time || r.recorded_at));
@@ -76,7 +83,8 @@ const buildTasks = (loc, data) => {
       sub: 'Goods-in temps · or "no delivery"', to: '/jkhive/delivery-records?back=/jkhive/daily-check',
       done: (data.deliveries || []).some(r => isTodayIso(r.recorded_at)) },
     { id: 'cleaning',        routineKey: 'daily_cleaning',     icon: Sparkles,        color: '#32ADE6', title: 'Daily Cleaning',
-      sub: 'Cleaning checklists',               to: '/jkhive/checklists?back=/jkhive/daily-check',
+      sub: dailyChecklists.length === 1 ? dailyChecklists[0].title : 'Cleaning checklists',
+      to: cleaningTo,
       done: checklistsRunToday > 0 },
     { id: 'fridge-close',    routineKey: 'closing_temps',      icon: Refrigerator,    color: '#5856D6', title: 'Fridge / Freezer closing temps',
       sub: 'PM temp probe round',               to: '/jkhive/closing/fridge-temp?back=/jkhive/daily-check',
