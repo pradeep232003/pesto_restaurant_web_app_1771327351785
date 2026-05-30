@@ -17,6 +17,8 @@ const ChecklistRun = () => {
   const { adminLocationId, locations } = useLocation2();
   const [tpl, setTpl] = useState(null);
   const [checked, setChecked] = useState(new Set());
+  const [tickedAt, setTickedAt] = useState(new Map()); // idx → ISO timestamp of FIRST tick in window
+  const [tickedBy, setTickedBy] = useState(new Map()); // idx → who first ticked
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -67,19 +69,42 @@ const ChecklistRun = () => {
         return sa >= windowStart;
       });
       const union = new Set();
+      const firstTick = new Map();  // idx → earliest run.submitted_at that included it
+      const firstBy   = new Map();  // idx → who submitted that run
       let lastComment = '';
-      for (const r of inWindow) {
+      // Sort oldest → newest so the first encounter wins (the date the item
+      // was originally ticked, not the most recent re-confirmation).
+      const sortedRuns = [...inWindow].sort((a, b) => (a.submitted_at || '').localeCompare(b.submitted_at || ''));
+      for (const r of sortedRuns) {
         if (Array.isArray(r.checked_items)) {
-          for (const i of r.checked_items) union.add(i);
+          for (const i of r.checked_items) {
+            union.add(i);
+            if (!firstTick.has(i)) {
+              firstTick.set(i, r.submitted_at || '');
+              firstBy.set(i, r.submitted_by_name || r.submitted_by || '');
+            }
+          }
         }
         if (r.comment) lastComment = r.comment;
       }
       if (union.size > 0) setChecked(union);
+      setTickedAt(firstTick);
+      setTickedBy(firstBy);
       if (lastComment) setComment(lastComment);
     }).catch(err => alert('Failed to load: ' + err.message));
   }, [id, adminLocationId]);
 
   if (!tpl) return <p style={{ padding: 24, color: '#86868B', textAlign: 'center' }}>Loading…</p>;
+
+  const fmtTickedAt = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    // Day-of-month + short month, no year. e.g. "Mon 25 May · 14:30".
+    const day = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+    const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return `${day} · ${time}`;
+  };
 
   const toggle = (idx) => {
     const next = new Set(checked);
@@ -155,6 +180,8 @@ const ChecklistRun = () => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
         {(tpl.items || []).map((it, idx) => {
           const isChecked = checked.has(idx);
+          const tAt = tickedAt.get(idx);
+          const tBy = tickedBy.get(idx);
           return (
             <button key={idx}
               data-testid={`checklist-item-${idx}`}
@@ -174,8 +201,22 @@ const ChecklistRun = () => {
               }}>
                 {isChecked && <Check size={16} strokeWidth={3} color="#fff" />}
               </span>
-              <span style={{ flex: 1, fontSize: 15, fontWeight: 600, color: '#1D1D1F', textDecoration: isChecked ? 'line-through' : 'none', textDecorationColor: 'rgba(0,0,0,0.3)' }}>
-                {typeof it === 'string' ? it : it.text}
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 15, fontWeight: 600, color: '#1D1D1F', textDecoration: isChecked ? 'line-through' : 'none', textDecorationColor: 'rgba(0,0,0,0.3)' }}>
+                  {typeof it === 'string' ? it : it.text}
+                </span>
+                {isChecked && tAt && (
+                  <span data-testid={`checklist-item-meta-${idx}`}
+                    style={{ display: 'block', marginTop: 2, fontSize: 11, fontWeight: 500, color: '#1B7A35', letterSpacing: '0.01em' }}>
+                    Ticked {fmtTickedAt(tAt)}{tBy ? ` · ${tBy}` : ''}
+                  </span>
+                )}
+                {isChecked && !tAt && (
+                  <span data-testid={`checklist-item-meta-${idx}`}
+                    style={{ display: 'block', marginTop: 2, fontSize: 11, fontWeight: 500, color: '#86868B' }}>
+                    Just ticked — submit to save
+                  </span>
+                )}
               </span>
             </button>
           );
