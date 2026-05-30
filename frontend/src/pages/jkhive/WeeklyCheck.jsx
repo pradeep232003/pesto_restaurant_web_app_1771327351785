@@ -42,18 +42,40 @@ const WeeklyCheck = () => {
         api.adminListLegionella({ location_id: adminLocationId, start_date: weekStartDate }).catch(() => []),
         api.checklistList(adminLocationId).catch(() => []),
       ]);
-      setData({ probeCals: probeCals || [], legio: legio || [], checklists: checklists || [] });
+      // For weekly templates, pull every run and compute the UNION of ticked
+      // indices in the current week so we can derive PENDING / IN-PROGRESS /
+      // DONE. Done = every visible item has been ticked at least once this
+      // week. In-progress = some ticked but not all. Pending = zero ticks.
+      const weeklyTpls = (checklists || []).filter(c => c.frequency === 'weekly');
+      const weeklyProgress = await Promise.all(weeklyTpls.map(async (tpl) => {
+        const runs = await api.checklistRunsList(tpl.id).catch(() => []);
+        const inWeek = (runs || []).filter(r => {
+          if (r.location_id && r.location_id !== adminLocationId) return false;
+          const sa = r.submitted_at || '';
+          return sa >= weekStartIso;
+        });
+        const union = new Set();
+        for (const r of inWeek) for (const i of (r.checked_items || [])) union.add(i);
+        const total = tpl.visible_items_count ?? (tpl.items || []).length;
+        return { id: tpl.id, title: tpl.title, ticked: union.size, total, runCount: inWeek.length };
+      }));
+      setData({ probeCals: probeCals || [], legio: legio || [], checklists: checklists || [], weeklyTpls, weeklyProgress });
     } finally { setLoading(false); }
-  }, [adminLocationId, weekStartDate]);
+  }, [adminLocationId, weekStartDate, weekStartIso]);
 
   useEffect(() => { load(); }, [load]);
 
-  const weeklyTpls = (data.checklists || []).filter(c => c.frequency === 'weekly');
-  const weeklyTplDone = (c) => {
-    const at = c.last_run_at || c.last_run_date || '';
-    return at >= weekStartIso || at.slice(0, 10) >= weekStartDate;
-  };
-  const weeklyChecklistDone = weeklyTpls.length > 0 && weeklyTpls.some(weeklyTplDone);
+  const weeklyTpls = data.weeklyTpls || [];
+  const weeklyProgress = data.weeklyProgress || [];
+  // Aggregate progress across all weekly templates at this location.
+  const wkTicked = weeklyProgress.reduce((s, p) => s + p.ticked, 0);
+  const wkTotal  = weeklyProgress.reduce((s, p) => s + p.total, 0);
+  let weeklyState = 'pending';
+  if (weeklyTpls.length === 0)      weeklyState = 'pending';      // no template at all
+  else if (wkTotal === 0)           weeklyState = 'pending';      // empty templates
+  else if (wkTicked >= wkTotal)     weeklyState = 'done';
+  else if (wkTicked > 0)            weeklyState = 'in_progress';
+  const weeklyChecklistDone = weeklyState === 'done';
 
   // When there's exactly one weekly template, jump straight into its run page.
   const weeklyChecklistTarget = weeklyTpls.length === 1
@@ -86,11 +108,29 @@ const WeeklyCheck = () => {
       title: weeklyTpls.length === 1 ? weeklyTpls[0].title : 'Weekly Checklist',
       sub: weeklyTpls.length === 0
         ? 'No weekly template — set one up in Checklists'
-        : (weeklyChecklistDone ? 'Submitted this week' : 'Pending this week'),
+        : (weeklyState === 'done'
+            ? `All ${wkTotal} items ticked this week`
+            : (weeklyState === 'in_progress'
+                ? `${wkTicked} of ${wkTotal} items ticked`
+                : 'Pending this week')),
       to: weeklyChecklistTarget,
       done: weeklyChecklistDone,
+      state: weeklyState,
     },
   ];
+
+  // Map each task into a {label, bg, color} pill spec. Custom 3-state for
+  // weekly checklist so half-done shows as "IN PROGRESS" rather than PENDING.
+  const stateForTask = (t) => {
+    if (t.id === 'weekly-checklist') {
+      if (t.state === 'done')        return { label: 'DONE',        bg: 'rgba(52,199,89,0.15)',  color: '#1B7A35' };
+      if (t.state === 'in_progress') return { label: 'IN PROGRESS', bg: 'rgba(0,122,255,0.12)',  color: '#0A66CC' };
+      return { label: 'PENDING', bg: 'rgba(255,149,0,0.15)', color: '#A35E00' };
+    }
+    return t.done
+      ? { label: 'DONE',    bg: 'rgba(52,199,89,0.15)',  color: '#1B7A35' }
+      : { label: 'PENDING', bg: 'rgba(255,149,0,0.15)', color: '#A35E00' };
+  };
 
   const done = tasks.filter(t => t.done).length;
   const outstanding = tasks.length - done;
@@ -144,9 +184,9 @@ const WeeklyCheck = () => {
               </div>
               <span style={{
                 fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 999,
-                background: t.done ? 'rgba(52,199,89,0.15)' : 'rgba(255,149,0,0.15)',
-                color: t.done ? '#1B7A35' : '#A35E00',
-              }}>{t.done ? 'DONE' : 'PENDING'}</span>
+                background: stateForTask(t).bg,
+                color: stateForTask(t).color,
+              }} data-testid={`wc-status-${t.id}`}>{stateForTask(t).label}</span>
               <ChevronRight size={16} color="#C7C7CC" strokeWidth={2.4} />
             </button>
           );

@@ -40,17 +40,24 @@ const WeeklyCheckTile = () => {
     const probeDone = (probeCals || []).length > 0;
     const legioDone = (legio || []).length > 0;
 
-    // Weekly checklist: any weekly-frequency template whose last run is in
-    // the current week counts as done. If there are no weekly templates at
-    // all, leave it pending so staff get nudged to set one up.
+    // Weekly checklist counts as DONE only when every visible item across
+    // the weekly templates has been ticked at least once during this ISO
+    // week. Half-completed still counts as outstanding.
     const weeklyTpls = (checklists || []).filter(c => c.frequency === 'weekly');
     let weeklyDone = false;
     if (weeklyTpls.length > 0) {
-      // Use last_run_at if available; fall back to last_run_date (YYYY-MM-DD)
-      weeklyDone = weeklyTpls.some(c => {
-        const at = c.last_run_at || c.last_run_date || '';
-        return at >= weekStartIso || at.slice(0, 10) >= weekStartDate;
-      });
+      const allFullyTicked = await Promise.all(weeklyTpls.map(async (tpl) => {
+        const runs = await api.checklistRunsList(tpl.id).catch(() => []);
+        const inWeek = (runs || []).filter(r => {
+          if (r.location_id && r.location_id !== adminLocationId) return false;
+          return (r.submitted_at || '') >= weekStartIso;
+        });
+        const union = new Set();
+        for (const r of inWeek) for (const i of (r.checked_items || [])) union.add(i);
+        const total = tpl.visible_items_count ?? (tpl.items || []).length;
+        return total > 0 && union.size >= total;
+      }));
+      weeklyDone = allFullyTicked.every(Boolean);
     }
 
     const flags = [probeDone, legioDone, weeklyDone];
