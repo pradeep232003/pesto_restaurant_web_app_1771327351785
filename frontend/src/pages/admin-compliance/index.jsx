@@ -117,6 +117,15 @@ const AdminCompliance = () => {
     finally { setLoading(false); }
   };
 
+  // Lock body scroll while the drill-down modal is open
+  useEffect(() => {
+    if (detail) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+  }, [detail]);
+
   const openDetail = async (site, checkKey) => {
     setDetailLoading(true);
     setDetail({ location_id: site.location_id, location_name: site.location_name, check_key: checkKey, label: data.check_types.find(c => c.key === checkKey)?.label, entries: [] });
@@ -336,40 +345,46 @@ const AdminCompliance = () => {
             </div>
           </div>
 
-          {/* Matrix */}
+          {/* Matrix — rows = checks, columns = sites */}
           <div className="rounded-2xl overflow-hidden mb-6" style={{ background: '#FFFFFF' }}>
             <div className="overflow-x-auto">
-              <table className="w-full" style={{ minWidth: 900 }}>
+              <table className="w-full" style={{ minWidth: Math.max(560, 220 + displayedSites.length * 140) }}>
                 <thead>
                   <tr style={{ background: '#F5F5F7' }}>
-                    <th className="sticky left-0 z-10 px-3 py-2.5 text-left text-[11px] font-semibold" style={{ background: '#F5F5F7', color: '#86868B', ...font, minWidth: 180 }}>Site</th>
-                    <th className="px-3 py-2.5 text-center text-[11px] font-semibold" style={{ color: '#86868B', ...font, minWidth: 75 }}>Score</th>
-                    {displayedChecks?.map(c => (
-                      <th key={c.key} className="px-2 py-2.5 text-center text-[11px] font-semibold" style={{ color: '#86868B', ...font, minWidth: 100 }}>
-                        {c.label}
-                        <div className="text-[9px] font-normal mt-0.5" style={{ color: '#C7C7CC' }}>{c.cadence}</div>
+                    <th className="sticky left-0 z-10 px-3 py-2.5 text-left text-[11px] font-semibold" style={{ background: '#F5F5F7', color: '#86868B', ...font, minWidth: 220 }}>Check</th>
+                    {displayedSites.map(site => (
+                      <th key={site.location_id} className="px-2 py-2.5 text-center text-[11px] font-semibold" style={{ color: '#86868B', ...font, minWidth: 130 }} data-testid={`site-col-${site.location_id}`}>
+                        <div>{site.location_name}</div>
+                        <div className="mt-1">
+                          <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold"
+                            style={{
+                              background: site.compliance_pct >= 90 ? 'rgba(52,199,89,0.12)' : site.compliance_pct >= 60 ? 'rgba(255,149,0,0.12)' : 'rgba(255,59,48,0.12)',
+                              color:      site.compliance_pct >= 90 ? '#1F8C42' : site.compliance_pct >= 60 ? '#A35E00' : '#C0392B',
+                            }}>
+                            {site.compliance_pct}%
+                          </span>
+                        </div>
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {displayedSites.map(site => (
-                    <tr key={site.location_id} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }} data-testid={`site-row-${site.location_id}`}>
-                      <td className="sticky left-0 z-10 px-3 py-2.5 text-sm font-medium" style={{ background: '#FFFFFF', color: '#1D1D1F', ...font }}>{site.location_name}</td>
-                      <td className="px-3 py-2 text-center">
-                        <span className="inline-block px-2 py-1 rounded-lg text-xs font-semibold" style={{ background: site.compliance_pct >= 90 ? 'rgba(52,199,89,0.1)' : site.compliance_pct >= 60 ? 'rgba(255,149,0,0.1)' : 'rgba(255,59,48,0.1)', color: site.compliance_pct >= 90 ? '#34C759' : site.compliance_pct >= 60 ? '#FF9500' : '#FF3B30' }}>
-                          {site.compliance_pct}%
-                        </span>
+                  {displayedChecks?.map(c => (
+                    <tr key={c.key} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }} data-testid={`check-row-${c.key}`}>
+                      <td className="sticky left-0 z-10 px-3 py-2.5 text-sm" style={{ background: '#FFFFFF', color: '#1D1D1F', ...font }}>
+                        <div className="font-medium">{c.label}</div>
+                        <div className="text-[10px] mt-0.5 inline-block px-1.5 py-0.5 rounded"
+                          style={{ background: c.cadence === 'weekly' ? 'rgba(0,122,255,0.10)' : 'rgba(142,142,147,0.10)',
+                                   color:      c.cadence === 'weekly' ? '#0A66CC'             : '#86868B' }}>
+                          {c.cadence}
+                        </div>
                       </td>
-                      {displayedChecks?.map(c => {
+                      {displayedSites.map(site => {
                         const check = site.checks[c.key];
-                        // When a site doesn't include this routine (per its
-                        // location.applicable_routines), the backend omits the
-                        // key. Show "N/A" instead of crashing.
                         if (!check) {
                           const meta = STATUS_META.not_required;
                           return (
-                            <td key={c.key} className="px-2 py-2 text-center" data-testid={`cell-${site.location_id}-${c.key}`}>
+                            <td key={site.location_id} className="px-2 py-2 text-center" data-testid={`cell-${site.location_id}-${c.key}`}>
                               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium"
                                 style={{ background: meta.bg, color: meta.fg, ...font }}>
                                 {meta.label}
@@ -380,7 +395,7 @@ const AdminCompliance = () => {
                         const meta = STATUS_META[check.status] || STATUS_META.missing;
                         const Ico = meta.icon;
                         return (
-                          <td key={c.key} className="px-2 py-2 text-center">
+                          <td key={site.location_id} className="px-2 py-2 text-center">
                             <button onClick={() => openDetail(site, c.key)} data-testid={`cell-${site.location_id}-${c.key}`}
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium active:scale-95 hover:opacity-80"
                               style={{ background: meta.bg, color: meta.fg, ...font }}>
@@ -397,7 +412,7 @@ const AdminCompliance = () => {
                     </tr>
                   ))}
                   {displayedSites.length === 0 && (
-                    <tr><td colSpan={(displayedChecks?.length || 0) + 2} className="px-4 py-10 text-center text-sm" style={{ color: '#86868B', ...font }}>No sites match current filters.</td></tr>
+                    <tr><td colSpan={(displayedSites?.length || 0) + 1} className="px-4 py-10 text-center text-sm" style={{ color: '#86868B', ...font }}>No sites match current filters.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -489,7 +504,7 @@ const AdminCompliance = () => {
                 <X size={16} strokeWidth={2.4} style={{ color: '#1D1D1F' }} />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-2" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2" style={{ WebkitOverflowScrolling: 'touch', minHeight: 0, overscrollBehavior: 'contain' }}>
               {detailLoading ? (
                 <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" /></div>
               ) : detail.entries.length === 0 ? (

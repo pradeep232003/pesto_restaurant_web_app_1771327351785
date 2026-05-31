@@ -31,9 +31,13 @@ CHECK_CONFIG = {
     "reheating":         {"coll": db["reheating_logs"],       "date": "recorded_at",  "date_kind": "timestamp", "cadence": "daily", "label": "Cooking/Reheating"},
     "bulk_cooling":      {"coll": db["cooking_cooling_logs"], "date": "started_at",   "date_kind": "timestamp", "cadence": "daily", "label": "Bulk Cooking/Cooling"},
     "delivery_records":  {"coll": db["delivery_records"],     "date": "recorded_at",  "date_kind": "timestamp", "cadence": "daily", "label": "Deliveries"},
-    "daily_cleaning":    {"coll": db["checklist_runs"],       "date": "submitted_at", "date_kind": "timestamp", "cadence": "daily", "label": "Daily Cleaning"},
+    "daily_cleaning":    {"coll": db["checklist_runs"],       "date": "submitted_at", "date_kind": "timestamp", "cadence": "daily", "label": "Daily Cleaning", "filter": {"frequency": "daily"}},
     "closing_temps":     {"coll": db["routine_temps"],        "date": "date",         "date_kind": "date",      "cadence": "daily", "label": "Fridge/Freezer Closing Temps", "filter": {"period": "closing"}},
     "closing_checklist": {"coll": kitchen_closedown_collection,"date": "date",        "date_kind": "date",      "cadence": "daily", "label": "Closing checklist"},
+    # ----- Weekly cadence (rows under "Weekly Check" on /jkhive/weekly-check) -----
+    "probe_calibration": {"coll": db["probe_calibrations"],   "date": "recorded_at",  "date_kind": "timestamp", "cadence": "weekly", "label": "Probe Calibration"},
+    "legionella":        {"coll": db["legionella_tests"],     "date": "date",         "date_kind": "date",      "cadence": "weekly", "label": "Legionella"},
+    "weekly_checklist":  {"coll": db["checklist_runs"],       "date": "submitted_at", "date_kind": "timestamp", "cadence": "weekly", "label": "Weekly Checklist", "filter": {"frequency": "weekly"}},
 }
 
 
