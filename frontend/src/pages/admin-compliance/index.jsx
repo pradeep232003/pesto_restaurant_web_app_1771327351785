@@ -15,7 +15,71 @@ const STATUS_META = {
 
 const fmtDate = (s) => {
   if (!s) return '—';
-  try { return new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }); } catch { return s; }
+  try {
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return s;
+    // Include time when the source value is a full ISO timestamp (has a 'T').
+    const hasTime = typeof s === 'string' && s.includes('T');
+    return hasTime
+      ? d.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+      : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+  } catch { return s; }
+};
+
+/** Best-effort field accessors so the drill-down modal renders complete details
+ *  for every check type, not just opening_checklist. Each collection uses
+ *  different field names (recorded_at vs date vs start_time, recorded_by_name
+ *  vs completed_by_name vs submitted_by_name vs started_by_name, etc).
+ */
+const entryWhen = (e) =>
+  e.completed_at || e.recorded_at || e.submitted_at || e.start_time || e.started_at
+  || e.date || e.week_ending || e.created_at || e.updated_at || '';
+
+const entryBy = (e) =>
+  e.completed_by_name || e.recorded_by_name || e.submitted_by_name || e.started_by_name
+  || e.created_by_name || e.completed_by || e.recorded_by || e.submitted_by
+  || e.started_by || e.created_by || '—';
+
+const entryPass = (e) => {
+  if (e.passed != null) return e.passed;
+  if (e.completed === true) return true;
+  if (e.passed_items != null && e.total_items != null) return e.passed_items === e.total_items;
+  return null;
+};
+
+const entrySummary = (e) => {
+  const parts = [];
+  // Item / target labels
+  if (e.item_name) parts.push(e.item_name);
+  if (e.washer_name) parts.push(e.washer_name);
+  if (e.title) parts.push(e.title);
+  if (e.food_item) parts.push(e.food_item);
+  if (e.supplier) parts.push(e.supplier);
+  if (e.location_of_test) parts.push(e.location_of_test);
+  if (e.probe_name) parts.push(`Probe ${e.probe_name}`);
+  if (e.probe_no) parts.push(`Probe ${e.probe_no}`);
+  if (e.unit_id) parts.push(e.unit_id);
+  // "No cold holding today" type idempotent stubs — show the mode label
+  if (e.kind === 'no_holding' && e.mode) parts.push(`(no ${e.mode} holding)`);
+  if (e.kind === 'no_bulk_prep') parts.push('(no bulk prep)');
+  // Temperatures
+  if (e.wash_temp != null) parts.push(`Wash ${Number(e.wash_temp).toFixed(1)}°C`);
+  if (e.rinse_temp != null) parts.push(`Rinse ${Number(e.rinse_temp).toFixed(1)}°C`);
+  if (e.start_temp_c != null) parts.push(`Start ${Number(e.start_temp_c).toFixed(1)}°C`);
+  if (e.end_temp_c != null) parts.push(`End ${Number(e.end_temp_c).toFixed(1)}°C`);
+  if (e.temp_c != null) parts.push(`${e.temp_c}°C`);
+  if (e.temperature != null) parts.push(`${e.temperature}°C`);
+  if (e.boiling_temp != null) parts.push(`Boil ${e.boiling_temp}°C`);
+  if (e.iced_temp != null) parts.push(`Iced ${e.iced_temp}°C`);
+  if (e.hot_water_temp != null) parts.push(`Hot ${e.hot_water_temp}°C`);
+  if (e.cold_water_temp != null) parts.push(`Cold ${e.cold_water_temp}°C`);
+  // Counters
+  if (e.passed_items != null && e.total_items != null) parts.push(`${e.passed_items}/${e.total_items} ticked`);
+  if (Array.isArray(e.checked_items) && e.total_items != null && e.passed_items == null) parts.push(`${e.checked_items.length}/${e.total_items} ticked`);
+  if (e.passed_cells != null && e.total_cells != null) parts.push(`${e.passed_cells}/${e.total_cells} cells`);
+  // Status badges for cooling
+  if (e.status && e.status !== 'complete') parts.push(`status: ${e.status}`);
+  return parts;
 };
 
 const AdminCompliance = () => {
@@ -390,19 +454,42 @@ const AdminCompliance = () => {
 
       {/* Drill-down drawer */}
       {detail && (
-        <div className="fixed inset-0 z-50 print:hidden" data-testid="detail-drawer">
-          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={() => setDetail(null)} />
-          <div className="absolute right-0 top-0 bottom-0 w-full sm:w-[520px] overflow-y-auto" style={{ background: '#F5F5F7' }}>
-            <div className="sticky top-0 z-10 px-5 py-4 flex items-center justify-between" style={{ background: '#FFFFFF', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-              <div className="min-w-0">
-                <p className="text-xs font-medium" style={{ color: '#86868B', ...font }}>{detail.location_name}</p>
-                <h2 className="text-lg font-semibold truncate" style={{ color: '#1D1D1F', ...font }}>{detail.label}</h2>
+        <div className="fixed inset-0 z-50 print:hidden flex items-end sm:items-center justify-center" data-testid="detail-drawer">
+          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)' }} onClick={() => setDetail(null)} />
+          <div
+            className="relative w-full sm:w-[560px] sm:max-w-[92vw] flex flex-col"
+            style={{
+              background: '#F5F5F7',
+              maxHeight: '90vh',
+              borderRadius: '24px 24px 0 0',
+              boxShadow: '0 -8px 32px rgba(0,0,0,0.18)',
+            }}
+          >
+            {/* Mobile grab handle */}
+            <div className="sm:hidden flex justify-center pt-2 pb-1">
+              <span style={{ width: 36, height: 4, borderRadius: 999, background: 'rgba(0,0,0,0.18)' }} />
+            </div>
+            <div className="px-5 py-3.5 flex items-center justify-between gap-3" style={{ background: '#FFFFFF', borderBottom: '1px solid rgba(0,0,0,0.06)', borderRadius: '24px 24px 0 0' }}>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-medium uppercase tracking-wider" style={{ color: '#86868B', ...font }}>{detail.location_name}</p>
+                <h2 className="text-base sm:text-lg font-semibold truncate" style={{ color: '#1D1D1F', ...font }}>{detail.label}</h2>
+                {!detailLoading && detail.entries.length > 0 && (
+                  <p className="text-[11px] mt-0.5" style={{ color: '#86868B', ...font }}>
+                    {detail.entries.length} {detail.entries.length === 1 ? 'entry' : 'entries'} · {fmtDate(startDate)} → {fmtDate(endDate)}
+                  </p>
+                )}
               </div>
-              <button onClick={() => setDetail(null)} className="w-8 h-8 rounded-lg flex items-center justify-center active:scale-95" style={{ background: '#F5F5F7' }}>
-                <X size={15} style={{ color: '#1D1D1F' }} />
+              <button
+                onClick={() => setDetail(null)}
+                data-testid="detail-close"
+                aria-label="Close"
+                className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform flex-shrink-0"
+                style={{ background: '#F5F5F7' }}
+              >
+                <X size={16} strokeWidth={2.4} style={{ color: '#1D1D1F' }} />
               </button>
             </div>
-            <div className="p-5 space-y-2">
+            <div className="flex-1 overflow-y-auto p-4 space-y-2" style={{ WebkitOverflowScrolling: 'touch' }}>
               {detailLoading ? (
                 <div className="flex items-center justify-center h-32"><div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" /></div>
               ) : detail.entries.length === 0 ? (
@@ -410,22 +497,14 @@ const AdminCompliance = () => {
                   <p className="text-sm" style={{ color: '#86868B', ...font }}>No entries in this period.</p>
                 </div>
               ) : detail.entries.map((e, i) => {
-                const dateVal = e.date || e.week_ending;
-                const by = e.completed_by_name || e.created_by_name || e.completed_by || e.created_by || '—';
-                const pass = e.passed ?? (e.passed_items != null && e.total_items != null ? e.passed_items === e.total_items : null);
-                const summary = [];
-                if (e.food_item) summary.push(e.food_item);
-                if (e.supplier) summary.push(e.supplier);
-                if (e.probe_no) summary.push(`Probe ${e.probe_no}`);
-                if (e.location_of_test) summary.push(e.location_of_test);
-                if (e.unit_id) summary.push(e.unit_id);
-                if (e.temp_c != null) summary.push(`${e.temp_c}°C`);
-                if (e.temperature != null) summary.push(`${e.temperature}°C`);
-                if (e.passed_items != null && e.total_items != null) summary.push(`${e.passed_items}/${e.total_items} checks`);
-                if (e.passed_cells != null && e.total_cells != null) summary.push(`${e.passed_cells}/${e.total_cells} cells`);
+                const dateVal = entryWhen(e);
+                const by = entryBy(e);
+                const pass = entryPass(e);
+                const summary = entrySummary(e);
+                const note = e.note || e.quality_comments || e.action_taken || e.comments || e.comment;
                 return (
-                  <div key={e.id || i} className="p-4 rounded-2xl" style={{ background: '#FFFFFF' }}>
-                    <div className="flex items-center justify-between mb-1">
+                  <div key={e.id || i} data-testid={`compliance-entry-${i}`} className="p-4 rounded-2xl" style={{ background: '#FFFFFF' }}>
+                    <div className="flex items-center justify-between mb-1.5 gap-2">
                       <span className="text-sm font-semibold" style={{ color: '#1D1D1F', ...font }}>{fmtDate(dateVal)}</span>
                       {pass != null && (
                         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md" style={{ background: pass ? 'rgba(52,199,89,0.1)' : 'rgba(255,59,48,0.1)', color: pass ? '#34C759' : '#FF3B30' }}>
@@ -433,11 +512,11 @@ const AdminCompliance = () => {
                         </span>
                       )}
                     </div>
-                    {summary.length > 0 && <p className="text-xs mb-1" style={{ color: '#3A3A3C', ...font }}>{summary.join(' · ')}</p>}
+                    {summary.length > 0 && <p className="text-xs mb-1.5 leading-relaxed" style={{ color: '#3A3A3C', ...font }}>{summary.join(' · ')}</p>}
                     <p className="text-[11px]" style={{ color: '#86868B', ...font }}>By {by}</p>
-                    {(e.note || e.quality_comments || e.action_taken || e.comments) && (
-                      <p className="text-[11px] mt-2 px-2 py-1.5 rounded-lg" style={{ background: '#F5F5F7', color: '#FF9500', ...font }}>
-                        ⚠ {e.note || e.quality_comments || e.action_taken || e.comments}
+                    {note && (
+                      <p className="text-[11px] mt-2 px-2.5 py-1.5 rounded-lg" style={{ background: 'rgba(255,149,0,0.08)', color: '#A35E00', ...font }}>
+                        ⚠ {note}
                       </p>
                     )}
                   </div>
