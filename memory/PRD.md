@@ -309,3 +309,43 @@ Owner-only operational analytics layer. Adds three pieces:
 - Reuse Stripe test key already in pod env
 - New collections: `orders` (already exists, extend with `pickup_time`, `collection_code`, `acceptance_log[]`), `cafe_order_settings` (cut-off, chime, manager phone)
 - WhatsApp Cloud API integration: integration_playbook_expert_v2 should be invoked before writing any WA code
+
+
+---
+
+## Future feature spec: AI Marketing Strategy hub (`/admin/marketing`)
+
+**User requested 2026-05-31 — added to backlog (no build yet, awaiting prioritisation).**
+
+Four AI-powered modules using the Emergent LLM key (Claude / GPT / Gemini). Designed to layer progressively so the MVP ships without any 3rd-party API approvals, and integrations get added once business verifications land.
+
+**(a) Social media autopilot**
+- AI generates ready-to-paste post copy + caption + hashtags per platform (IG/FB/X) based on this week's offers, menu changes, sales trends.
+- v1: manager copies & posts manually (no Meta approval).
+- v1.5: + auto-generated banner via Gemini Nano Banana.
+- v2: actually publishes to IG/FB (requires Meta Graph API + business page).
+
+**(b) Smarter ads**
+- AI generates 3-5 ad headline + body variants for personas (lunch crowd, families, students, evening trade).
+- v1.5: + suggested daily/weekly budget + audience targeting tips driven by BI data (Daily Sales × Labour % × Food Cost %).
+- v2: run/manage Meta ad campaigns (requires Meta Marketing API).
+
+**(c) Replies 24/7**
+- v1: AI-drafted reply templates for Google reviews & Instagram DMs that manager copies/pastes (no integration).
+- v1.5: + WhatsApp inbound auto-replies after-hours with FAQ + opening hours (uses existing C&C number once Meta-approved).
+- v2: Google Business Profile API hook so reviews show in dashboard + 1-tap Approve sends reply.
+
+**(d) Adaptive strategy**
+- Reads BI data (Daily Sales, Labour %, Food Cost %, Waste) + Offers history.
+- Produces weekly "what to push next week" plan with specific actions per location.
+- Tracks which past offers worked (sales lift attribution) → recommends new variants.
+- v2: daily push-notification to staff with "sell-first" guidance (waste-risk items).
+
+**Architecture notes for the next dev session:**
+- New routes: `/api/admin/marketing/*` (super_admin only).
+- Reuse the Emergent LLM key + `integration_playbook_expert_v2` for SDK setup.
+- New collection: `marketing_artifacts` (id, kind: 'post'|'ad'|'reply'|'strategy', location_id, prompt_inputs, model_output, status: 'draft'|'approved'|'posted', created_at, created_by).
+- Front-end: dark-gradient tile on `/admin` → `/admin/marketing` hub → 4 sub-pages, each with a "Generate" button + history list.
+- Lock behind super_admin only.
+
+**Priority slot**: P1 (Future) — schedule after JKHive Coming Soon tiles + Click & Collect WhatsApp Phase 2.
