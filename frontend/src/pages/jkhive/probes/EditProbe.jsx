@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useParams, useLocation, Navigate } from 'react-router-dom';
 import api from '../../../lib/api';
+import { useAuth } from '../../../contexts/AuthContext';
 import { useLocation2 } from '../../../contexts/LocationContext';
 import { WizardHeader } from '../cooling/_shared';
 
@@ -8,6 +9,7 @@ const EditProbe = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { state } = useLocation();
+  const { isAdmin, loading: authLoading } = useAuth();
   const { adminLocationId, locations } = useLocation2();
   const [name, setName] = useState(state?.probe?.name || '');
   const [info, setInfo] = useState(state?.probe?.info || '');
@@ -15,6 +17,13 @@ const EditProbe = () => {
   const [saving, setSaving] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
+
+  // Editing a probe is admin/super_admin only — staff can still calibrate but
+  // cannot rename or delete a probe. Block before render to avoid leaking the
+  // form fields if the user lands here via a deep link.
+  if (!authLoading && !isAdmin) {
+    return <Navigate to="/jkhive/probe-calibration" replace />;
+  }
 
   useEffect(() => {
     if (state?.probe || !adminLocationId) return;

@@ -161,15 +161,17 @@ const PickProbe = () => {
                     <span style={{ fontSize: 56, lineHeight: 1 }}>📟</span>
                     <span style={{ fontSize: 13, fontWeight: 500, color: '#1D1D1F', textAlign: 'center' }}>{p.name}</span>
                   </button>
-                  <button data-testid={`probe-edit-${p.id}`}
-                    onClick={() => navigate(`/jkhive/probe-calibration/${p.id}/edit`, { state: { probe: p } })}
-                    aria-label={`Edit ${p.name}`}
-                    style={{
-                      position: 'absolute', top: 0, right: 14, width: 24, height: 24, borderRadius: 999,
-                      background: '#1D1D1F', color: '#FFFFFF', border: 0, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 12, fontWeight: 700, fontStyle: 'italic',
-                    }}>i</button>
+                  {isAdmin && (
+                    <button data-testid={`probe-edit-${p.id}`}
+                      onClick={() => navigate(`/jkhive/probe-calibration/${p.id}/edit`, { state: { probe: p } })}
+                      aria-label={`Edit ${p.name}`}
+                      style={{
+                        position: 'absolute', top: 0, right: 14, width: 24, height: 24, borderRadius: 999,
+                        background: '#1D1D1F', color: '#FFFFFF', border: 0, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 12, fontWeight: 700, fontStyle: 'italic',
+                      }}>i</button>
+                  )}
                 </div>
               ))}
               <button data-testid="probe-add"

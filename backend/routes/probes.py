@@ -64,7 +64,7 @@ async def add_probe(body: ProbeBody, user: dict = Depends(get_staff_or_above)):
 
 
 @router.patch("/{probe_id}")
-async def update_probe(probe_id: str, body: ProbeUpdate, user: dict = Depends(get_staff_or_above)):
+async def update_probe(probe_id: str, body: ProbeUpdate, user: dict = Depends(get_admin_user)):
     existing = probes.find_one({"id": probe_id}, {"_id": 0})
     if not existing:
         raise HTTPException(404, "Not found")
@@ -78,12 +78,14 @@ async def update_probe(probe_id: str, body: ProbeUpdate, user: dict = Depends(ge
         update["info"] = body.info
     if update:
         update["updated_at"] = datetime.now(timezone.utc).isoformat()
+        update["updated_by"] = user.get("email", "")
+        update["updated_by_name"] = user.get("name", "")
         probes.update_one({"id": probe_id}, {"$set": update})
     return probes.find_one({"id": probe_id}, {"_id": 0})
 
 
 @router.delete("/{probe_id}")
-async def delete_probe(probe_id: str, user: dict = Depends(get_staff_or_above)):
+async def delete_probe(probe_id: str, user: dict = Depends(get_admin_user)):
     res = probes.delete_one({"id": probe_id})
     if res.deleted_count == 0:
         raise HTTPException(404, "Not found")
