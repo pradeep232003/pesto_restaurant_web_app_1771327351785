@@ -857,6 +857,10 @@ class ApiService {
   }
   async probeCalibrate(data) { return this.fetch('/api/admin/probes/calibrations', { method: 'POST', body: JSON.stringify(data) }); }
   async probeCalibrationDelete(id) { return this.fetch(`/api/admin/probes/calibrations/${id}`, { method: 'DELETE' }); }
+  async probeCalibrationHistory({ location_id, start_date, end_date, limit } = {}) {
+    const qs = new URLSearchParams(Object.entries({ location_id, start_date, end_date, limit }).filter(([, v]) => v != null && v !== '')).toString();
+    return this.fetch(`/api/admin/probes/calibrations/history${qs ? '?' + qs : ''}`);
+  }
 
   // ============== WASHER TEMPS ==============
   async washersList(locationId) { return this.fetch(`/api/admin/washers?location_id=${encodeURIComponent(locationId)}`); }

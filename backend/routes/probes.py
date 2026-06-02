@@ -13,12 +13,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from db import db
-from auth import get_staff_or_above
+from auth import get_staff_or_above, get_admin_user
 
 router = APIRouter(prefix="/api/admin/probes", tags=["probes"])
 
 probes = db["probes"]
 calibrations = db["probe_calibrations"]
+locations_coll = db["locations"]
 
 
 class ProbeBody(BaseModel):
@@ -100,6 +101,34 @@ async def list_calibrations(
     if probe_id:
         q["probe_id"] = probe_id
     return list(calibrations.find(q, {"_id": 0}).sort("recorded_at", -1).limit(limit))
+
+
+@router.get("/calibrations/history")
+async def calibrations_history(
+    location_id: Optional[str] = Query(None, description="Filter to one site; omit for all"),
+    start_date: Optional[str] = Query(None, description="YYYY-MM-DD inclusive"),
+    end_date: Optional[str] = Query(None, description="YYYY-MM-DD inclusive"),
+    limit: int = Query(500, le=2000),
+    user: dict = Depends(get_admin_user),
+):
+    """Admin/super_admin only — cross-location calibration history with
+    enriched location name. Supports optional date range and per-site filter.
+    """
+    q: dict = {}
+    if location_id:
+        q["location_id"] = location_id
+    if start_date or end_date:
+        date_q: dict = {}
+        if start_date:
+            date_q["$gte"] = start_date
+        if end_date:
+            date_q["$lte"] = end_date + "T23:59:59"
+        q["recorded_at"] = date_q
+    rows = list(calibrations.find(q, {"_id": 0}).sort("recorded_at", -1).limit(limit))
+    name_by_id = {ldoc["id"]: ldoc.get("name", ldoc["id"]) for ldoc in locations_coll.find({}, {"_id": 0, "id": 1, "name": 1})}
+    for r in rows:
+        r["location_name"] = name_by_id.get(r.get("location_id"), r.get("location_id"))
+    return {"entries": rows, "total": len(rows)}
 
 
 @router.post("/calibrations")
