@@ -381,11 +381,14 @@ const AdminCompliance = () => {
                       </td>
                       {displayedSites.map(site => {
                         const check = site.checks[c.key];
-                        if (!check) {
+                        // Site doesn't include this routine, OR has never
+                        // produced any record (weekly cadence default) → N/A.
+                        if (!check || check.status === 'not_applicable') {
                           const meta = STATUS_META.not_required;
                           return (
                             <td key={site.location_id} className="px-2 py-2 text-center" data-testid={`cell-${site.location_id}-${c.key}`}>
                               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium"
+                                title={!check ? 'Not required at this location' : 'No records ever — not set up'}
                                 style={{ background: meta.bg, color: meta.fg, ...font }}>
                                 {meta.label}
                               </span>

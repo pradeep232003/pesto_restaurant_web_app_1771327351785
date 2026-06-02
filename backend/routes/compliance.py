@@ -78,6 +78,21 @@ def _assess_check(location_id: str, cfg: dict, start: str, end: str) -> dict:
     expected = _daterange_days(start_d, end_d) if cadence == "daily" else _daterange_weeks(start_d, end_d)
 
     if not entries:
+        # For weekly cadence: if the site has NEVER produced this kind of
+        # record (no probes ever calibrated, no legionella tests ever, no
+        # weekly templates ever submitted) treat as "not_applicable" so the
+        # compliance matrix shows N/A instead of a misleading "Missing 0%".
+        # A site with historical records but a quiet period stays "missing".
+        if cadence == "weekly":
+            base_q = {"location_id": location_id}
+            if cfg.get("filter"):
+                base_q.update(cfg["filter"])
+            if coll.count_documents(base_q) == 0:
+                return {
+                    "status": "not_applicable", "count": 0, "expected": expected,
+                    "actual_periods": 0, "pct": 0, "last_date": None,
+                    "last_by": None, "last_passed": None,
+                }
         return {
             "status": "missing", "count": 0, "expected": expected,
             "actual_periods": 0, "pct": 0, "last_date": None,
@@ -156,7 +171,7 @@ async def get_compliance(
     locs = list(locations_collection.find(loc_query, {"_id": 0}).sort("name", 1))
 
     site_rows = []
-    status_weight = {"complete": 1, "partial": 0.5, "overdue": 0.0, "missing": 0.0, "not_required": None}
+    status_weight = {"complete": 1, "partial": 0.5, "overdue": 0.0, "missing": 0.0, "not_required": None, "not_applicable": None}
 
     for loc in locs:
         checks = {}
