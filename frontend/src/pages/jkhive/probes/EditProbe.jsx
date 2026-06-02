@@ -60,7 +60,7 @@ const EditProbe = () => {
   }
 
   return (
-    <div style={{ paddingBottom: 160, fontFamily: 'Outfit, sans-serif' }} data-testid="edit-probe">
+    <div style={{ paddingBottom: 100, fontFamily: 'Outfit, sans-serif' }} data-testid="edit-probe">
       <WizardHeader title="Edit Probe" locationName={locationName} dateStr={today} backTo="/jkhive/probe-calibration" />
 
       <div style={{ display: 'flex', justifyContent: 'center', margin: '24px 0' }}>
@@ -93,25 +93,22 @@ const EditProbe = () => {
               fontFamily: 'Outfit, sans-serif',
             }} />
         </div>
+        <button data-testid="edit-probe-save-btn" onClick={save} disabled={saving}
+          style={{
+            marginTop: 18, padding: '18px 16px', border: 0, borderRadius: 999,
+            background: '#1D1D1F', color: '#FFFFFF', fontSize: 17, fontWeight: 600,
+            cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1,
+            fontFamily: 'Outfit, sans-serif',
+            boxShadow: '0 8px 22px rgba(0,0,0,0.18)',
+          }}>{saving ? 'Saving…' : 'Save changes'}</button>
         <button data-testid="edit-probe-delete-btn"
           onClick={remove}
           style={{
-            marginTop: 8, padding: '14px 16px', borderRadius: 14,
+            marginTop: 4, padding: '14px 16px', borderRadius: 14,
             border: '1px solid rgba(255,59,48,0.4)', background: 'transparent',
             color: '#FF3B30', fontSize: 15, fontWeight: 600, cursor: 'pointer',
             fontFamily: 'Outfit, sans-serif',
           }}>Delete probe</button>
-      </div>
-
-      <div style={{ position: 'fixed', left: 16, right: 16, bottom: 84, zIndex: 5 }}>
-        <button data-testid="edit-probe-save-btn" onClick={save} disabled={saving}
-          style={{
-            width: '100%', padding: '18px 16px', border: 0, borderRadius: 999,
-            background: '#1D1D1F', color: '#FFFFFF', fontSize: 17, fontWeight: 600,
-            cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1,
-            fontFamily: 'Outfit, sans-serif',
-            boxShadow: '0 8px 22px rgba(0,0,0,0.25)',
-          }}>{saving ? 'Saving…' : 'Save changes'}</button>
       </div>
     </div>
   );

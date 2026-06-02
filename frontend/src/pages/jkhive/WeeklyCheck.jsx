@@ -37,15 +37,24 @@ const WeeklyCheck = () => {
     if (!adminLocationId) { setLoading(false); return; }
     setLoading(true);
     try {
-      const [probeCals, legio, checklists] = await Promise.all([
+      const [probeCalsAll, legioAll, checklists] = await Promise.all([
         // Probe calibrations come from /api/admin/probes/calibrations — the
         // JKHive wizard endpoint. Has `recorded_at` (full ISO), no date filter.
         api.probeCalibrations(adminLocationId).catch(() => []),
-        api.adminListLegionella({ location_id: adminLocationId, start_date: weekStartDate }).catch(() => []),
+        // Pull EVERY legionella test (no start_date) so we can also surface
+        // the most-recent record when it's outside this week.
+        api.adminListLegionella({ location_id: adminLocationId }).catch(() => []),
         api.checklistList(adminLocationId).catch(() => []),
       ]);
-      // Filter probe cals to this week client-side via recorded_at.
-      const probeCalsThisWeek = (probeCals || []).filter(r => (r.recorded_at || '') >= weekStartIso);
+      // Filter to this week client-side.
+      const probeCalsThisWeek = (probeCalsAll || []).filter(r => (r.recorded_at || '') >= weekStartIso);
+      const legioThisWeek = (legioAll || []).filter(r => {
+        const d = r.date || r.recorded_at || '';
+        return d >= weekStartDate;
+      });
+      // Newest-overall for "Last calibrated …" sub-text when this week is empty.
+      const probeLast = (probeCalsAll || []).slice().sort((a, b) => (b.recorded_at || '').localeCompare(a.recorded_at || ''))[0];
+      const legioLast = (legioAll || []).slice().sort((a, b) => ((b.date || b.recorded_at || '')).localeCompare(a.date || a.recorded_at || ''))[0];
       // For weekly templates, pull every run and compute the UNION of ticked
       // indices in the current week so we can derive PENDING / IN-PROGRESS /
       // DONE. Done = every visible item has been ticked at least once this
@@ -63,7 +72,11 @@ const WeeklyCheck = () => {
         const total = tpl.visible_items_count ?? (tpl.items || []).length;
         return { id: tpl.id, title: tpl.title, ticked: union.size, total, runCount: inWeek.length };
       }));
-      setData({ probeCals: probeCalsThisWeek, legio: legio || [], checklists: checklists || [], weeklyTpls, weeklyProgress });
+      setData({
+        probeCals: probeCalsThisWeek, probeLast,
+        legio: legioThisWeek, legioLast,
+        checklists: checklists || [], weeklyTpls, weeklyProgress,
+      });
     } finally { setLoading(false); }
   }, [adminLocationId, weekStartDate, weekStartIso]);
 
@@ -86,24 +99,42 @@ const WeeklyCheck = () => {
     ? `/jkhive/checklists/${weeklyTpls[0].id}/run?back=/jkhive/weekly-check`
     : '/jkhive/checklists?back=/jkhive/weekly-check';
 
+  const fmtPastDate = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+  };
+
+  const probeDoneThisWeek = (data.probeCals || []).length > 0;
+  const legioDoneThisWeek = (data.legio || []).length > 0;
+
   const tasks = [
     {
       id: 'probe-calibration',
       icon: Gauge,
       color: '#FF9500',
       title: 'Probe Calibration',
-      sub: 'Cold 0°C / Hot 100°C accuracy',
+      sub: probeDoneThisWeek
+        ? 'Done this week'
+        : (data.probeLast?.recorded_at
+            ? `Last calibrated ${fmtPastDate(data.probeLast.recorded_at)} — due again`
+            : 'Cold 0°C / Hot 100°C accuracy'),
       to: '/jkhive/probe-calibration?back=/jkhive/weekly-check',
-      done: (data.probeCals || []).length > 0,
+      done: probeDoneThisWeek,
     },
     {
       id: 'legionella',
       icon: Droplet,
       color: '#30B0C7',
       title: 'Legionella',
-      sub: 'Weekly hot/cold water test',
+      sub: legioDoneThisWeek
+        ? 'Done this week'
+        : (data.legioLast
+            ? `Last tested ${fmtPastDate(data.legioLast.date || data.legioLast.recorded_at)} — due again`
+            : 'Weekly hot/cold water test'),
       to: '/jkhive/legionella?back=/jkhive/weekly-check',
-      done: (data.legio || []).length > 0,
+      done: legioDoneThisWeek,
     },
     {
       id: 'weekly-checklist',
