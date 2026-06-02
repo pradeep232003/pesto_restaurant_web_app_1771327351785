@@ -346,26 +346,23 @@ const PickProbe = () => {
           {/* Edit modal */}
           {editing && (
             <div data-testid="probe-history-edit-modal"
-              style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+              style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
               <div onClick={() => setEditing(null)}
                 style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)' }} />
               <div style={{
                 position: 'relative', background: '#FFFFFF', width: '100%', maxWidth: 520,
-                borderRadius: '24px 24px 0 0', padding: '12px 18px 24px',
-                boxShadow: '0 -8px 32px rgba(0,0,0,0.18)', maxHeight: '90vh', overflowY: 'auto', ...FONT,
+                borderRadius: 20, padding: '20px 22px',
+                boxShadow: '0 24px 48px rgba(0,0,0,0.22)', maxHeight: '90vh', overflowY: 'auto', ...FONT,
               }}>
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
-                  <span style={{ width: 36, height: 4, borderRadius: 999, background: 'rgba(0,0,0,0.18)' }} />
-                </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <div>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
+                  <div style={{ minWidth: 0, flex: 1, paddingRight: 12 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {editing.location_name} · {fmtWhen(editing.recorded_at)}
                     </p>
                     <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1D1D1F', margin: '2px 0 0' }}>Edit calibration</h2>
                   </div>
                   <button onClick={() => setEditing(null)} aria-label="Close"
-                    style={{ width: 32, height: 32, borderRadius: 999, background: '#F5F5F7', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    style={{ width: 32, height: 32, borderRadius: 999, background: '#F5F5F7', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <X size={15} color="#1D1D1F" />
                   </button>
                 </div>
