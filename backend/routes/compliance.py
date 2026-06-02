@@ -56,7 +56,7 @@ def _daterange_weeks(start: date, end: date) -> int:
     return len(weeks)
 
 
-def _assess_check(location_id: str, cfg: dict, start: str, end: str) -> dict:
+def _assess_check(location_id: str, cfg: dict, start: str, end: str, check_key: str = "") -> dict:
     """Return per-check status summary for one site & check type."""
     coll = cfg["coll"]
     date_field = cfg["date"]
@@ -77,12 +77,30 @@ def _assess_check(location_id: str, cfg: dict, start: str, end: str) -> dict:
     end_d = date.fromisoformat(end)
     expected = _daterange_days(start_d, end_d) if cadence == "daily" else _daterange_weeks(start_d, end_d)
 
-    if not entries:
+    # Applicability: probe_calibration is "applicable" iff the site has
+    # probes registered. A site with Probe 1 set up but no calibration yet
+    # should read "missing" (chase the user), not N/A. A site with zero
+    # probes registered correctly reads N/A regardless of calibration history.
+    if check_key == "probe_calibration":
+        has_probes = db["probes"].count_documents({"location_id": location_id}) > 0
+        if not has_probes:
+            return {
+                "status": "not_applicable", "count": 0, "expected": expected,
+                "actual_periods": 0, "pct": 0, "last_date": None,
+                "last_by": None, "last_passed": None,
+            }
+        if not entries:
+            return {
+                "status": "missing", "count": 0, "expected": expected,
+                "actual_periods": 0, "pct": 0, "last_date": None,
+                "last_by": None, "last_passed": None,
+            }
+    elif not entries:
         # For weekly cadence: if the site has NEVER produced this kind of
-        # record (no probes ever calibrated, no legionella tests ever, no
-        # weekly templates ever submitted) treat as "not_applicable" so the
-        # compliance matrix shows N/A instead of a misleading "Missing 0%".
-        # A site with historical records but a quiet period stays "missing".
+        # record (no legionella tests ever, no weekly templates ever
+        # submitted) treat as "not_applicable" so the compliance matrix
+        # shows N/A instead of a misleading "Missing 0%". A site with
+        # historical records but a quiet period stays "missing".
         if cadence == "weekly":
             base_q = {"location_id": location_id}
             if cfg.get("filter"):
@@ -180,7 +198,7 @@ async def get_compliance(
         for key, cfg in CHECK_CONFIG.items():
             if applicable and key not in applicable:
                 continue  # this routine is not used at this site
-            result = _assess_check(loc["id"], cfg, start_date, end_date)
+            result = _assess_check(loc["id"], cfg, start_date, end_date, check_key=key)
             result["label"] = cfg["label"]
             result["cadence"] = cfg["cadence"]
             checks[key] = result
