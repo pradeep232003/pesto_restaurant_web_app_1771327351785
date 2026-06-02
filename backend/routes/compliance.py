@@ -138,6 +138,72 @@ def _assess_check(location_id: str, cfg: dict, start: str, end: str, check_key: 
                 pass
 
     actual_periods = len(periods)
+
+    # Checklist-runs coverage: a period only counts as "complete" when the
+    # UNION of ticked item indices across all runs of every applicable
+    # template covers every visible item. This mirrors the Weekly Check hub
+    # logic so a partially-ticked weekly checklist no longer reports 100%.
+    if check_key in ("weekly_checklist", "daily_cleaning"):
+        # Find templates that apply at this site for this frequency.
+        freq = "weekly" if check_key == "weekly_checklist" else "daily"
+        tpl_query = {
+            "frequency": freq,
+            "$or": [
+                {"scope": "global"},
+                {"scope": "location", "location_id": location_id},
+                {"scope": {"$exists": False}, "location_id": location_id},
+            ],
+        }
+        applicable_tpls = list(db["checklist_templates"].find(tpl_query, {"_id": 0}))
+        tpl_totals = {}  # tpl_id -> visible item count at this site
+        from routes.checklists import _normalize_items, _filter_items_for_site
+        for tpl in applicable_tpls:
+            items = _normalize_items(tpl.get("items"))
+            visible = _filter_items_for_site(items, location_id)
+            tpl_totals[tpl["id"]] = len(visible)
+
+        # Bucket runs by (period, template_id) and accumulate ticked-index
+        # unions. Period is YYYY-MM-DD for daily, (year, isoweek) for weekly.
+        def _period_for(iso_str):
+            try:
+                d = date.fromisoformat(iso_str[:10])
+            except Exception:
+                return None
+            if cadence == "daily":
+                return d.isoformat()
+            y, w, _ = d.isocalendar()
+            return (y, w)
+
+        buckets = {}  # period -> { tpl_id -> set(indices) }
+        for r in entries:
+            pk = _period_for(r.get(date_field) or "")
+            if pk is None:
+                continue
+            tid = r.get("template_id")
+            if not tid or tid not in tpl_totals:
+                continue
+            slot = buckets.setdefault(pk, {}).setdefault(tid, set())
+            for i in (r.get("checked_items") or []):
+                slot.add(i)
+
+        # A period is "complete" iff every applicable template's union of
+        # ticked indices covers all its visible items. Templates with zero
+        # visible items at this site are skipped (nothing to tick).
+        complete_periods = set()
+        for pk, tpl_map in buckets.items():
+            applicable_ids = [tid for tid, n in tpl_totals.items() if n > 0]
+            if not applicable_ids:
+                continue
+            ok = True
+            for tid in applicable_ids:
+                total = tpl_totals[tid]
+                if len(tpl_map.get(tid, set())) < total:
+                    ok = False
+                    break
+            if ok:
+                complete_periods.add(pk)
+        actual_periods = len(complete_periods)
+        periods = complete_periods  # keep `periods` consistent for downstream
     pct = round(100 * actual_periods / expected) if expected else 0
     last = entries[0]
     last_passed = None
