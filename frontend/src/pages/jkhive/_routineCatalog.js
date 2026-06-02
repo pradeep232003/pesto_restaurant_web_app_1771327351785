@@ -5,7 +5,8 @@
  * hub UI and the compliance % calculation.
  *
  * If a location's `applicable_routines` is empty (or missing), ALL routines
- * apply — this keeps existing sites working without a migration.
+ * (daily AND weekly) apply — this keeps existing sites working without a
+ * migration.
  */
 export const ROUTINE_CATALOG = [
   { key: 'opening_checklist', label: 'Opening checklist' },
@@ -18,6 +19,23 @@ export const ROUTINE_CATALOG = [
   { key: 'daily_cleaning',    label: 'Daily Cleaning' },
   { key: 'closing_temps',     label: 'Fridge / Freezer closing temps' },
   { key: 'closing_checklist', label: 'Closing checklist' },
+];
+
+/**
+ * Canonical list of weekly-cadence routines surfaced on the Weekly Check hub
+ * (/jkhive/weekly-check). Keys match `CHECK_CONFIG` in compliance.py.
+ */
+export const WEEKLY_ROUTINE_CATALOG = [
+  { key: 'probe_calibration', label: 'Probe Calibration' },
+  { key: 'legionella',        label: 'Legionella' },
+  { key: 'weekly_checklist',  label: 'Weekly Checklist' },
+];
+
+/** All routine keys (daily + weekly) — used to expand the "empty = all"
+ *  default when an admin first ticks/unticks an individual routine. */
+export const ALL_ROUTINE_KEYS = [
+  ...ROUTINE_CATALOG.map(r => r.key),
+  ...WEEKLY_ROUTINE_CATALOG.map(r => r.key),
 ];
 
 /** Returns true if `key` should be shown for a location whose

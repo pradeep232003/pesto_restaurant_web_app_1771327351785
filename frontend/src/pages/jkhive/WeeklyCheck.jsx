@@ -4,6 +4,7 @@ import { Clock, Check, ChevronRight, X, ArrowRight, Gauge, Droplet, ListChecks }
 import { WizardHeader } from './cooling/_shared';
 import { useLocation2 } from '../../contexts/LocationContext';
 import api from '../../lib/api';
+import { isRoutineApplicable } from './_routineCatalog';
 
 /** Monday 00:00 of the current ISO week, as an ISO timestamp. */
 const startOfWeekISO = () => {
@@ -109,9 +110,16 @@ const WeeklyCheck = () => {
   const probeDoneThisWeek = (data.probeCals || []).length > 0;
   const legioDoneThisWeek = (data.legio || []).length > 0;
 
-  const tasks = [
+  // Filter tiles by what's applicable for this location (Admin → Site Settings
+  // → Weekly Check routines). Empty / missing routines list = all applicable.
+  const applicable = useMemo(
+    () => locations.find(l => l.id === adminLocationId)?.applicable_routines || [],
+    [locations, adminLocationId]
+  );
+  const allTasks = [
     {
       id: 'probe-calibration',
+      routineKey: 'probe_calibration',
       icon: Gauge,
       color: '#FF9500',
       title: 'Probe Calibration',
@@ -125,6 +133,7 @@ const WeeklyCheck = () => {
     },
     {
       id: 'legionella',
+      routineKey: 'legionella',
       icon: Droplet,
       color: '#30B0C7',
       title: 'Legionella',
@@ -138,6 +147,7 @@ const WeeklyCheck = () => {
     },
     {
       id: 'weekly-checklist',
+      routineKey: 'weekly_checklist',
       icon: ListChecks,
       color: '#34C759',
       title: weeklyTpls.length === 1 ? weeklyTpls[0].title : 'Weekly Checklist',
@@ -153,6 +163,7 @@ const WeeklyCheck = () => {
       state: weeklyState,
     },
   ];
+  const tasks = allTasks.filter(t => isRoutineApplicable(applicable, t.routineKey));
 
   // Map each task into a {label, bg, color} pill spec. Custom 3-state for
   // weekly checklist so half-done shows as "IN PROGRESS" rather than PENDING.

@@ -14,7 +14,9 @@ Full-stack restaurant ops platform: Apple-inspired UX, multi-location, role-gate
 - Weekly Check hub (Probes, Legionella, Weekly Checklist) with 3-state pills
 - Compliance matrix transposed; drill-down modal mobile scroll fix
 - Probe Calibration: admin history tab, date/site filter, edit/delete with audit stamps, admin-locked name edit
-- "0 probes ⇒ N/A" vs "probes registered but no calibration ⇒ Missing" gating (current session — fixed Chaddesden mismatch)
+- "0 probes ⇒ N/A" vs "probes registered but no calibration ⇒ Missing" gating
+- Admin → Site Settings: added **Weekly Check routines** toggles (Probe Calibration, Legionella, Weekly Checklist) per location; fixed daily-toggle expansion so weekly routines aren't implicitly disabled on first edit
+- Weekly Check hub now filters its tiles by the per-location `applicable_routines` list
 - Hot/Cold "No holding today" idempotent toggle; Checklist "All Done" tick; weekly/monthly tick retention over period
 - Bulk cooling requires "Cooled Temp" to mark Done; Washer comment required <55 wash / <82 rinse
 - Daily Check tile auto-jumps to single template; Tick timestamps "Ticked on X by Y"
@@ -38,6 +40,7 @@ Full-stack restaurant ops platform: Apple-inspired UX, multi-location, role-gate
 
 ## 8. Key invariants
 - All compliance "applicability" must use the configuration source (e.g. probes registry), not historical records, to decide N/A vs Missing.
+- `applicable_routines` array stores both daily AND weekly routine keys; expand "empty = all" using `ALL_ROUTINE_KEYS` so toggling daily never silently drops weekly (and vice-versa).
 - `?back=` parameter for every JKHive sub-route to preserve native mobile back behaviour.
 - Admin-only routes: `/api/admin/bi`, probe PATCH/DELETE, calibration PATCH/DELETE.
 - Mobile: never `position: fixed` save buttons inside forms (iOS keyboard).

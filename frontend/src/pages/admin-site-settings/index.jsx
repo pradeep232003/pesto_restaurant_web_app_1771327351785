@@ -5,7 +5,7 @@ import Icon from '../../components/AppIcon';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
-import { ROUTINE_CATALOG } from '../jkhive/_routineCatalog';
+import { ROUTINE_CATALOG, WEEKLY_ROUTINE_CATALOG, ALL_ROUTINE_KEYS } from '../jkhive/_routineCatalog';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
@@ -415,7 +415,7 @@ const AdminSiteSettings = () => {
                             <span className="text-[11px] text-muted-foreground font-body">
                               {(loc?.applicable_routines || []).length === 0
                                 ? 'All routines (default)'
-                                : `${(loc?.applicable_routines || []).length} of ${ROUTINE_CATALOG.length} enabled`}
+                                : `${(loc?.applicable_routines || []).filter(k => ROUTINE_CATALOG.some(r => r.key === k)).length} of ${ROUTINE_CATALOG.length} enabled`}
                             </span>
                           </div>
                           <p className="text-[11px] text-muted-foreground font-body mb-2">
@@ -436,15 +436,56 @@ const AdminSiteSettings = () => {
                                     onChange={(e) => {
                                       // Build the next list. We persist an explicit list (never empty
                                       // once a user has interacted) so the API behaviour is unambiguous.
+                                      // Expand empty → ALL (daily + weekly) so weekly routines are
+                                      // preserved when an admin first toggles a daily routine.
+                                      const expanded = current.length === 0 ? ALL_ROUTINE_KEYS : current;
                                       const next = e.target.checked
-                                        ? Array.from(new Set([
-                                            ...(current.length === 0 ? ROUTINE_CATALOG.map(x => x.key) : current),
-                                            r.key,
-                                          ]))
-                                        : (current.length === 0 ? ROUTINE_CATALOG.map(x => x.key) : current)
-                                            .filter(k => k !== r.key);
+                                        ? Array.from(new Set([...expanded, r.key]))
+                                        : expanded.filter(k => k !== r.key);
                                       api.adminUpdateLocation(setting.location_id, { applicable_routines: next })
                                         .then(() => { showSuccess('Routine list updated'); refreshLocations(); })
+                                        .catch(err => setError(err.message));
+                                    }}
+                                    className="w-4 h-4 rounded"
+                                  />
+                                  <span className="text-sm font-body text-foreground">{r.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Weekly Check routines applicable at this site */}
+                        <div className="border-t border-border pt-4 mb-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-body font-semibold text-foreground">Weekly Check routines</p>
+                            <span className="text-[11px] text-muted-foreground font-body">
+                              {(loc?.applicable_routines || []).length === 0
+                                ? 'All routines (default)'
+                                : `${(loc?.applicable_routines || []).filter(k => WEEKLY_ROUTINE_CATALOG.some(r => r.key === k)).length} of ${WEEKLY_ROUTINE_CATALOG.length} enabled`}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground font-body mb-2">
+                            Tick the weekly routines that apply at this site. Untick items the site doesn't perform (e.g. Legionella if water hygiene is managed elsewhere). Empty = all enabled.
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                            {WEEKLY_ROUTINE_CATALOG.map(r => {
+                              const current = loc?.applicable_routines || [];
+                              const checked = current.length === 0 || current.includes(r.key);
+                              return (
+                                <label key={r.key}
+                                  data-testid={`weekly-routine-toggle-${setting.location_id}-${r.key}`}
+                                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted/40 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) => {
+                                      const expanded = current.length === 0 ? ALL_ROUTINE_KEYS : current;
+                                      const next = e.target.checked
+                                        ? Array.from(new Set([...expanded, r.key]))
+                                        : expanded.filter(k => k !== r.key);
+                                      api.adminUpdateLocation(setting.location_id, { applicable_routines: next })
+                                        .then(() => { showSuccess('Weekly routine list updated'); refreshLocations(); })
                                         .catch(err => setError(err.message));
                                     }}
                                     className="w-4 h-4 rounded"
