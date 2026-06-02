@@ -158,8 +158,44 @@ async def record_calibration(body: CalibrationBody, user: dict = Depends(get_sta
 
 
 @router.delete("/calibrations/{record_id}")
-async def delete_calibration(record_id: str, user: dict = Depends(get_staff_or_above)):
+async def delete_calibration(record_id: str, user: dict = Depends(get_admin_user)):
     res = calibrations.delete_one({"id": record_id})
     if res.deleted_count == 0:
         raise HTTPException(404, "Not found")
     return {"deleted": True}
+
+
+class CalibrationUpdate(BaseModel):
+    boiling_temp: Optional[float] = None
+    iced_temp: Optional[float] = None
+    comment: Optional[str] = None
+
+
+@router.patch("/calibrations/{record_id}")
+async def update_calibration(record_id: str, body: CalibrationUpdate, user: dict = Depends(get_admin_user)):
+    """Admin/super_admin only — edit a historical calibration. Re-derives pass
+    flags from the new temps so the BI / Compliance views stay accurate.
+    """
+    existing = calibrations.find_one({"id": record_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(404, "Not found")
+    update: dict = {}
+    boil = body.boiling_temp if body.boiling_temp is not None else existing.get("boiling_temp")
+    iced = body.iced_temp    if body.iced_temp    is not None else existing.get("iced_temp")
+    if body.boiling_temp is not None:
+        update["boiling_temp"] = body.boiling_temp
+    if body.iced_temp is not None:
+        update["iced_temp"] = body.iced_temp
+    if body.comment is not None:
+        update["comment"] = body.comment
+    if body.boiling_temp is not None or body.iced_temp is not None:
+        boil_pass = boil is not None and abs(boil - 100.0) <= 1.0
+        iced_pass = iced is not None and abs(iced - 0.0) <= 1.0
+        update["boiling_pass"] = boil_pass
+        update["iced_pass"]    = iced_pass
+        update["passed"]       = bool(boil_pass and iced_pass)
+    update["edited_at"]      = datetime.now(timezone.utc).isoformat()
+    update["edited_by"]      = user.get("email", "")
+    update["edited_by_name"] = user.get("name", "")
+    calibrations.update_one({"id": record_id}, {"$set": update})
+    return calibrations.find_one({"id": record_id}, {"_id": 0})

@@ -856,6 +856,7 @@ class ApiService {
     return this.fetch(`/api/admin/probes/calibrations?${qs}`);
   }
   async probeCalibrate(data) { return this.fetch('/api/admin/probes/calibrations', { method: 'POST', body: JSON.stringify(data) }); }
+  async probeCalibrationUpdate(id, data) { return this.fetch(`/api/admin/probes/calibrations/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async probeCalibrationDelete(id) { return this.fetch(`/api/admin/probes/calibrations/${id}`, { method: 'DELETE' }); }
   async probeCalibrationHistory({ location_id, start_date, end_date, limit } = {}) {
     const qs = new URLSearchParams(Object.entries({ location_id, start_date, end_date, limit }).filter(([, v]) => v != null && v !== '')).toString();
