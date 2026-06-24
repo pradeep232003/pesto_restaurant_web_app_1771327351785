@@ -111,6 +111,7 @@ from routes.offers import router as offers_router
 from routes.friday_menu import router as friday_menu_router
 from routes.bi import router as bi_router
 from routes.inspection import router as inspection_router
+from routes.documents import router as documents_router
 
 app.include_router(auth_router)
 app.include_router(locations_router)
@@ -156,6 +157,7 @@ app.include_router(offers_router)
 app.include_router(friday_menu_router)
 app.include_router(bi_router)
 app.include_router(inspection_router)
+app.include_router(documents_router)
 
 # ============== PUBLIC ENDPOINTS ==============
 

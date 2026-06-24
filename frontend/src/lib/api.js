@@ -794,6 +794,46 @@ class ApiService {
     return this.fetch(`/api/admin/inspection/pack${qs ? '?' + qs : ''}`);
   }
 
+  // ============== DOCUMENTS (per-location file vault) ==============
+  async documentsList({ location_id, category } = {}) {
+    const qs = new URLSearchParams(
+      Object.entries({ location_id, category }).filter(([, v]) => v),
+    ).toString();
+    return this.fetch(`/api/admin/documents${qs ? '?' + qs : ''}`);
+  }
+  async documentsCategories() {
+    return this.fetch('/api/admin/documents/categories');
+  }
+  async documentsUpload(formData) {
+    // Multipart; let the browser set the Content-Type with the boundary.
+    const url = `${API_BASE_URL}/api/admin/documents/upload`;
+    const tok = localStorage.getItem('access_token');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+      body: formData,
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`Upload failed: ${res.status} ${txt}`);
+    }
+    return res.json();
+  }
+  /** Returns a fetch-blob URL the caller must `URL.revokeObjectURL` later.
+   *  Used for inline preview of PDFs/images so the auth header stays attached. */
+  async documentsFileBlobUrl(docId) {
+    const tok = localStorage.getItem('access_token');
+    const res = await fetch(`${API_BASE_URL}/api/admin/documents/${docId}/file`, {
+      headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+    });
+    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  }
+  async documentsDelete(docId) {
+    return this.fetch(`/api/admin/documents/${docId}`, { method: 'DELETE' });
+  }
+
   // ============== ROUTINE TEMPS (opening / closing) ==============
   async submitRoutineTemp(data) { return this.fetch('/api/admin/routine-temps', { method: 'POST', body: JSON.stringify(data) }); }
   async listRoutineTemps(filters = {}) {
