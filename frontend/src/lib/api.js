@@ -786,6 +786,14 @@ class ApiService {
     return this.fetch(`/api/admin/bi/menu-cost${qs}`);
   }
 
+  // ============== INSPECTION PACK (EHO-ready audit bundle) ==============
+  async adminInspectionPack({ location_id, start_date, end_date } = {}) {
+    const qs = new URLSearchParams(
+      Object.entries({ location_id, start_date, end_date }).filter(([, v]) => v),
+    ).toString();
+    return this.fetch(`/api/admin/inspection/pack${qs ? '?' + qs : ''}`);
+  }
+
   // ============== ROUTINE TEMPS (opening / closing) ==============
   async submitRoutineTemp(data) { return this.fetch('/api/admin/routine-temps', { method: 'POST', body: JSON.stringify(data) }); }
   async listRoutineTemps(filters = {}) {

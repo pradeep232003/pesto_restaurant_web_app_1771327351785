@@ -47,6 +47,7 @@ import JKHiveIntelligence from './pages/jkhive/Intelligence';
 import JKHiveRoutines from './pages/jkhive/Routines';
 import JKHiveMoreRoutines from './pages/jkhive/MoreRoutines';
 import JKHiveProfile from './pages/jkhive/Profile';
+import JKHiveInspection from './pages/jkhive/Inspection';
 import JKHiveDailySales from './pages/jkhive-daily-sales';
 import JKHiveSalesSummary from './pages/jkhive-sales-summary';
 import JKHiveIncome from './pages/jkhive-income';
@@ -279,6 +280,7 @@ const AppRouter = () => {
         <Route path="income" element={<AdminOnly><JKHiveIncome /></AdminOnly>} />
         <Route path="expenses" element={<AdminOnly><JKHiveExpenses /></AdminOnly>} />
         <Route path="compliance" element={<JKHiveCompliance />} />
+        <Route path="inspection" element={<AdminOnly><JKHiveInspection /></AdminOnly>} />
         <Route path="menu" element={<JKHiveMenu />} />
         <Route path="daily-checks" element={<JKHiveDailyChecks />} />
         <Route path="kitchen-closedown" element={<JKHiveKitchenClosedown />} />
