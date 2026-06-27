@@ -398,8 +398,23 @@ async def _generate_insights(overview: dict) -> dict:
     # Use send_message (single-shot) — partial JSON is not useful to the UI
     # so streaming buys nothing here. send_message is universally available
     # in emergentintegrations; stream_message is newer and may not be present.
-    response = await chat.send_message(UserMessage(text=user_text))
+    # Catch every exception so the real cause (invalid key, rate limit, network,
+    # SDK mismatch) is surfaced to the admin instead of a bare 500.
+    try:
+        response = await chat.send_message(UserMessage(text=user_text))
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001 — bubble up readable cause to the UI
+        import logging
+        logging.exception("BI AI insights LLM call failed")
+        msg = str(e) or e.__class__.__name__
+        # Strip very long stack traces from the visible error so the toast stays readable.
+        snippet = msg.splitlines()[0][:240]
+        raise HTTPException(502, f"AI provider error ({provider}): {snippet}")
+
     full = (response or "").strip() if isinstance(response, str) else str(response).strip()
+    if not full:
+        raise HTTPException(502, "AI provider returned an empty response")
 
     try:
         return _extract_json(full)

@@ -806,6 +806,12 @@ class ApiService {
   async adminClearAiKey() {
     return this.fetch('/api/admin/ai-settings', { method: 'DELETE' });
   }
+  async adminTestAiKey({ api_key, provider = 'anthropic' }) {
+    return this.fetch('/api/admin/ai-settings/test', {
+      method: 'POST',
+      body: JSON.stringify({ api_key, provider }),
+    });
+  }
 
   // ============== INSPECTION PACK (EHO-ready audit bundle) ==============
   async adminInspectionPack({ location_id, start_date, end_date } = {}) {

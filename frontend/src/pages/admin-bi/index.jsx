@@ -263,6 +263,8 @@ const AIKeyModal = ({ open, keyInfo, onClose, onSaved }) => {
   const provider = 'anthropic';
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [testStatus, setTestStatus] = useState(null); // {ok, message}
+  const [testing, setTesting] = useState(false);
 
   // Reset the input every time the modal opens so the previous text doesn't
   // linger as a stale "value" the admin might accidentally save again.
@@ -270,6 +272,7 @@ const AIKeyModal = ({ open, keyInfo, onClose, onSaved }) => {
     if (open) {
       setApiKey('');
       setError('');
+      setTestStatus(null);
     }
   }, [open, keyInfo]);
 
@@ -299,6 +302,20 @@ const AIKeyModal = ({ open, keyInfo, onClose, onSaved }) => {
       setError(e?.message || 'Could not clear key');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const test = async () => {
+    const trimmed = apiKey.trim();
+    if (!trimmed) { setError('Paste the key first, then tap Test'); return; }
+    setTesting(true); setError(''); setTestStatus(null);
+    try {
+      const res = await api.adminTestAiKey({ api_key: trimmed, provider });
+      setTestStatus(res);
+    } catch (e) {
+      setTestStatus({ ok: false, message: e?.message || 'Test failed' });
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -363,7 +380,29 @@ const AIKeyModal = ({ open, keyInfo, onClose, onSaved }) => {
           <p data-testid="bi-ai-key-error" style={{ fontSize: 12, color: '#C0392B', margin: '0 0 12px' }}>{error}</p>
         )}
 
+        {testStatus && (
+          <div data-testid="bi-ai-key-test-status"
+            style={{
+              fontSize: 12, padding: '8px 12px', borderRadius: 10, margin: '0 0 12px',
+              background: testStatus.ok ? 'rgba(52,199,89,0.12)' : 'rgba(255,59,48,0.10)',
+              color: testStatus.ok ? '#1B7A35' : '#C0392B',
+            }}>
+            {testStatus.ok ? '✓ ' : '✕ '}{testStatus.message}
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+          <button
+            data-testid="bi-ai-key-test"
+            onClick={test}
+            disabled={testing || !apiKey.trim()}
+            style={{
+              padding: '12px 14px', borderRadius: 999, border: '1px solid rgba(0,0,0,0.1)',
+              background: '#FFFFFF', color: '#1D1D1F', fontSize: 13, fontWeight: 600,
+              cursor: (testing || !apiKey.trim()) ? 'not-allowed' : 'pointer',
+              opacity: (testing || !apiKey.trim()) ? 0.5 : 1, ...font,
+            }}
+          >{testing ? 'Testing…' : 'Test key'}</button>
           <button
             data-testid="bi-ai-key-save"
             onClick={save}

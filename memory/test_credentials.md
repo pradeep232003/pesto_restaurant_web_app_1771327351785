@@ -1,7 +1,12 @@
-# Test credentials
+# Test Credentials
 
-Super Admin: `admin@jollys.com` / `Admin123!` (also has access to all admin + super admin features)
+## Super Admin Account
+- Email: admin@jollys.com
+- Password: Admin123!
+- Role: super_admin
 
-## Notes for testers
-- Default JKHive `admin_location_id` for testing: `howe-bridge-atherton`.
-- AI features (BI insights at `/admin/bi` and `/jkhive/bi`) require an AI key. Universal Emergent key is pre-loaded in dev env via `/app/backend/.env` `EMERGENT_LLM_KEY`. On production, a super admin can paste a key via the "Add key" affordance on the AI Insights panel.
+## Auth Endpoints
+- POST /api/auth/login
+- POST /api/auth/logout
+- GET /api/auth/me
+- POST /api/auth/refresh

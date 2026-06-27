@@ -93,3 +93,32 @@ async def clear_ai_settings(user: dict = Depends(get_super_admin)):
     """Clear the DB-stored key. Env var (if any) becomes the active source."""
     app_settings.delete_one({"name": KEY_NAME})
     return {"cleared": True}
+
+
+class TestKeyBody(BaseModel):
+    api_key: str
+    provider: str = "anthropic"
+
+
+@router.post("/test")
+async def test_ai_settings(body: TestKeyBody, user: dict = Depends(get_super_admin)):
+    """Validate a key by making a tiny round-trip to Claude. Returns a
+    human-readable status so the UI can confirm before saving."""
+    key = (body.api_key or "").strip()
+    if not key:
+        raise HTTPException(400, "api_key cannot be empty")
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(
+            api_key=key,
+            session_id="bi-ai-key-test",
+            system_message="Reply only with the word 'ok'.",
+        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        resp = await chat.send_message(UserMessage(text="ping"))
+        out = (resp or "").strip() if isinstance(resp, str) else str(resp).strip()
+        if not out:
+            return {"ok": False, "message": "Provider returned an empty response"}
+        return {"ok": True, "message": "Key works", "preview": out[:80]}
+    except Exception as e:  # noqa: BLE001
+        snippet = (str(e) or e.__class__.__name__).splitlines()[0][:240]
+        return {"ok": False, "message": snippet}
