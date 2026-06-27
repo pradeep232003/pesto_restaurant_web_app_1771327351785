@@ -363,9 +363,16 @@ def _extract_json(text: str) -> dict:
 
 async def _generate_insights(overview: dict) -> dict:
     """Call Claude Sonnet 4.5 via the Emergent universal key and parse JSON."""
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    # Prefer DB-stored key (super admin can set/replace it from the UI);
+    # fall back to the env var for backwards compatibility.
+    from routes.ai_settings import get_active_ai_key, get_active_ai_provider
+    api_key = get_active_ai_key()
     if not api_key:
-        raise HTTPException(500, "AI insights unavailable: EMERGENT_LLM_KEY not set")
+        raise HTTPException(
+            500,
+            "AI insights unavailable: no API key configured. Open Admin → AI Settings to add one.",
+        )
+    provider = get_active_ai_provider()
 
     # Import inside the function so a missing/broken integration package
     # never blocks the rest of the BI API.

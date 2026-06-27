@@ -283,6 +283,7 @@ const AppRouter = () => {
         <Route path="compliance" element={<JKHiveCompliance />} />
         <Route path="inspection" element={<AdminOnly><JKHiveInspection /></AdminOnly>} />
         <Route path="documents" element={<JKHiveDocuments />} />
+        <Route path="bi" element={<SuperAdminRoute><AdminBI /></SuperAdminRoute>} />
         <Route path="menu" element={<JKHiveMenu />} />
         <Route path="daily-checks" element={<JKHiveDailyChecks />} />
         <Route path="kitchen-closedown" element={<JKHiveKitchenClosedown />} />

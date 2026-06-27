@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { TrendingUp, ArrowLeft, Users, DollarSign, ChefHat, Activity, AlertTriangle, RefreshCcw, ChevronDown, ChevronRight, Sparkles, AlertOctagon, CheckCircle2, Zap } from 'lucide-react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { TrendingUp, ArrowLeft, Users, DollarSign, ChefHat, Activity, AlertTriangle, RefreshCcw, ChevronDown, ChevronRight, Sparkles, AlertOctagon, CheckCircle2, Zap, KeyRound, X } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -65,9 +65,13 @@ const PRIORITY_META = {
 };
 
 /** Sparkle-headed panel that renders Claude's structured BI analysis. */
-const AIInsightsPanel = ({ insights, loading, cached, generatedAt, error, onRefresh }) => {
+const AIInsightsPanel = ({ insights, loading, cached, generatedAt, error, keyInfo, onRefresh, onOpenKeyModal, onRetryAfterKey }) => {
   const palette = HEALTH_COLORS[insights?.health_label] || HEALTH_COLORS.Healthy;
   const score = insights?.health_score ?? null;
+  const keyMissing = keyInfo && !keyInfo.has_key;
+  // Surface "no key" errors with a primary action to open the key modal
+  // rather than burying the fix in copy.
+  const isKeyError = error && /no API key|EMERGENT_LLM_KEY|api key/i.test(error);
 
   return (
     <div data-testid="bi-ai-insights" className="rounded-2xl overflow-hidden mb-5"
@@ -75,24 +79,53 @@ const AIInsightsPanel = ({ insights, loading, cached, generatedAt, error, onRefr
       {/* Hero header — always renders so the section is recognisable mid-load. */}
       <div className="p-5 sm:p-6" style={{ background: insights ? palette.bg : 'linear-gradient(135deg, #1D1D1F 0%, #3A3A3C 100%)', color: '#FFFFFF' }}>
         <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <Sparkles size={16} strokeWidth={2.2} />
-            <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ ...font, opacity: 0.85 }}>
+            <span className="text-[11px] font-semibold uppercase tracking-wider truncate" style={{ ...font, opacity: 0.85 }}>
               AI Insights · Claude Sonnet 4.5
             </span>
           </div>
-          <button
-            data-testid="bi-ai-refresh"
-            onClick={onRefresh}
-            disabled={loading}
-            className="px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 active:scale-95"
-            style={{ background: 'rgba(255,255,255,0.18)', color: '#FFFFFF', border: 0, ...font, opacity: loading ? 0.5 : 1 }}
-          >
-            <RefreshCcw size={11} className={loading ? 'animate-spin' : ''} /> {loading ? 'Thinking…' : (cached ? 'Refresh' : 'Re-run')}
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              data-testid="bi-ai-configure-key"
+              onClick={onOpenKeyModal}
+              className="px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 active:scale-95"
+              style={{ background: 'rgba(255,255,255,0.18)', color: '#FFFFFF', border: 0, ...font }}
+              title={keyInfo?.has_key ? `Active key ends ${keyInfo.last4} (${keyInfo.source})` : 'No API key configured'}
+            >
+              <KeyRound size={11} /> {keyInfo?.has_key ? `Key · ${keyInfo.last4}` : 'Add key'}
+            </button>
+            <button
+              data-testid="bi-ai-refresh"
+              onClick={onRefresh}
+              disabled={loading || keyMissing}
+              className="px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 active:scale-95"
+              style={{ background: 'rgba(255,255,255,0.18)', color: '#FFFFFF', border: 0, ...font, opacity: (loading || keyMissing) ? 0.5 : 1 }}
+            >
+              <RefreshCcw size={11} className={loading ? 'animate-spin' : ''} /> {loading ? 'Thinking…' : (cached ? 'Refresh' : 'Re-run')}
+            </button>
+          </div>
         </div>
-        {loading && !insights && (
+        {loading && !insights && !keyMissing && (
           <p className="text-sm" style={{ ...font, opacity: 0.9 }}>Analysing your data with Claude…</p>
+        )}
+        {keyMissing && !insights && !loading && (
+          <div data-testid="bi-ai-no-key">
+            <p className="text-base sm:text-lg leading-snug mb-2" style={{ ...font, fontWeight: 500 }}>
+              Add an AI key to unlock insights.
+            </p>
+            <p className="text-xs mb-3" style={{ ...font, opacity: 0.85 }}>
+              Use your Emergent universal key (free for any provider) or your own Anthropic Claude key.
+            </p>
+            <button
+              data-testid="bi-ai-add-key-cta"
+              onClick={onOpenKeyModal}
+              className="px-3.5 py-2 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 active:scale-95"
+              style={{ background: '#FFFFFF', color: '#1D1D1F', border: 0, ...font }}
+            >
+              <KeyRound size={12} /> Configure AI key
+            </button>
+          </div>
         )}
         {insights && (
           <>
@@ -110,8 +143,29 @@ const AIInsightsPanel = ({ insights, loading, cached, generatedAt, error, onRefr
             </p>
           </>
         )}
-        {error && (
-          <p className="text-xs mt-2" style={{ ...font, color: '#FFE5E5' }}>{error}</p>
+        {error && !keyMissing && (
+          <div className="mt-3">
+            <p className="text-xs" style={{ ...font, color: '#FFE5E5' }}>{error}</p>
+            {isKeyError && (
+              <button
+                data-testid="bi-ai-error-add-key"
+                onClick={onOpenKeyModal}
+                className="mt-2 px-3 py-1.5 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 active:scale-95"
+                style={{ background: '#FFFFFF', color: '#1D1D1F', border: 0, ...font }}
+              >
+                <KeyRound size={11} /> Add API key
+              </button>
+            )}
+            {!isKeyError && (
+              <button
+                onClick={onRetryAfterKey}
+                className="mt-2 px-3 py-1.5 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 active:scale-95"
+                style={{ background: '#FFFFFF', color: '#1D1D1F', border: 0, ...font }}
+              >
+                <RefreshCcw size={11} /> Try again
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -198,10 +252,177 @@ const AIInsightsPanel = ({ insights, loading, cached, generatedAt, error, onRefr
   );
 };
 
+/** Super-admin modal for storing the AI API key in the DB.
+ *  Accepts either the Emergent universal key (recommended) or a raw
+ *  Anthropic Claude key. Key value is never displayed back — only last 4
+ *  characters via the parent's keyInfo prop. */
+const AIKeyModal = ({ open, keyInfo, onClose, onSaved }) => {
+  const [apiKey, setApiKey] = useState('');
+  const [provider, setProvider] = useState('emergent');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  // Reset the input every time the modal opens so the previous text doesn't
+  // linger as a stale "value" the admin might accidentally save again.
+  useEffect(() => {
+    if (open) {
+      setApiKey('');
+      setProvider(keyInfo?.provider || 'emergent');
+      setError('');
+    }
+  }, [open, keyInfo]);
+
+  if (!open) return null;
+
+  const save = async () => {
+    const trimmed = apiKey.trim();
+    if (!trimmed) { setError('Please paste the API key'); return; }
+    setSaving(true); setError('');
+    try {
+      await api.adminSetAiKey({ api_key: trimmed, provider });
+      onSaved();
+    } catch (e) {
+      setError(e?.message || 'Could not save key');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const clear = async () => {
+    if (!window.confirm('Remove the stored key? AI insights will stop working until you add another or set EMERGENT_LLM_KEY in the server environment.')) return;
+    setSaving(true); setError('');
+    try {
+      await api.adminClearAiKey();
+      onSaved();
+    } catch (e) {
+      setError(e?.message || 'Could not clear key');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      data-testid="bi-ai-key-modal"
+      role="dialog"
+      aria-modal="true"
+      style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+    >
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} />
+      <div style={{
+        position: 'relative', background: '#FFFFFF', width: '100%', maxWidth: 520,
+        borderRadius: 18, padding: '22px 24px', boxShadow: '0 24px 48px rgba(0,0,0,0.28)',
+        maxHeight: '90vh', overflowY: 'auto', ...font,
+      }}>
+        <div className="flex items-start justify-between mb-3">
+          <div className="min-w-0">
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Settings</p>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1D1D1F', margin: '2px 0 0' }}>AI key</h2>
+          </div>
+          <button data-testid="bi-ai-key-modal-close" onClick={onClose} aria-label="Close"
+            style={{ width: 32, height: 32, borderRadius: 999, background: '#F5F5F7', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={15} color="#1D1D1F" />
+          </button>
+        </div>
+
+        <p style={{ fontSize: 13, color: '#3A3A3C', margin: '0 0 14px', lineHeight: 1.4 }}>
+          Stored in the database. The key is used to call Claude
+          Sonnet 4.5 for Business Intelligence insights — nothing else.
+        </p>
+
+        <div style={{ background: '#F9F9FB', borderRadius: 12, padding: '10px 12px', marginBottom: 14, fontSize: 12, color: '#3A3A3C' }}>
+          {keyInfo?.has_key ? (
+            <>
+              <strong style={{ color: '#1D1D1F' }}>Current key</strong> · ends <code style={{ background: '#FFFFFF', padding: '1px 6px', borderRadius: 6 }}>…{keyInfo.last4}</code>
+              {' '}({keyInfo.source === 'database' ? 'stored in app' : keyInfo.source === 'env' ? 'from server env' : keyInfo.source})
+              {keyInfo.updated_by && <span style={{ color: '#86868B' }}> · saved by {keyInfo.updated_by}</span>}
+            </>
+          ) : (
+            <span style={{ color: '#C0392B' }}>No key configured yet.</span>
+          )}
+        </div>
+
+        <label style={{ display: 'block', marginBottom: 12 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Provider</span>
+          <select
+            data-testid="bi-ai-key-provider"
+            value={provider}
+            onChange={(e) => setProvider(e.target.value)}
+            style={{ display: 'block', marginTop: 4, width: '100%', padding: '10px 12px', borderRadius: 10, background: '#F5F5F7', border: 0, fontSize: 14, color: '#1D1D1F', ...font }}
+          >
+            <option value="emergent">Emergent universal key (recommended)</option>
+            <option value="anthropic">Anthropic Claude (direct)</option>
+          </select>
+          <p style={{ margin: '6px 0 0', fontSize: 11, color: '#86868B' }}>
+            Emergent universal keys start with <code>sk-emergent-…</code>. Anthropic keys start with <code>sk-ant-…</code>.
+          </p>
+        </label>
+
+        <label style={{ display: 'block', marginBottom: 14 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>API key</span>
+          <input
+            data-testid="bi-ai-key-input"
+            type="password"
+            autoComplete="new-password"
+            value={apiKey}
+            onChange={(e) => { setApiKey(e.target.value); if (error) setError(''); }}
+            placeholder={provider === 'emergent' ? 'sk-emergent-…' : 'sk-ant-…'}
+            style={{ display: 'block', marginTop: 4, width: '100%', padding: '12px 14px', borderRadius: 10, background: '#F5F5F7', border: error ? '1px solid #FF3B30' : 0, fontSize: 14, color: '#1D1D1F', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
+          />
+        </label>
+
+        {error && (
+          <p data-testid="bi-ai-key-error" style={{ fontSize: 12, color: '#C0392B', margin: '0 0 12px' }}>{error}</p>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+          <button
+            data-testid="bi-ai-key-save"
+            onClick={save}
+            disabled={saving || !apiKey.trim()}
+            style={{
+              flex: 1, minWidth: 160, padding: '12px 14px', borderRadius: 999, border: 0,
+              background: '#1D1D1F', color: '#FFFFFF', fontSize: 14, fontWeight: 700,
+              cursor: (saving || !apiKey.trim()) ? 'not-allowed' : 'pointer',
+              opacity: (saving || !apiKey.trim()) ? 0.5 : 1, ...font,
+            }}
+          >{saving ? 'Saving…' : 'Save key'}</button>
+          {keyInfo?.has_key && keyInfo.source === 'database' && (
+            <button
+              data-testid="bi-ai-key-clear"
+              onClick={clear}
+              disabled={saving}
+              style={{
+                padding: '12px 14px', borderRadius: 999, border: '1px solid rgba(255,59,48,0.4)',
+                background: '#FFFFFF', color: '#C0392B', fontSize: 13, fontWeight: 600,
+                cursor: saving ? 'not-allowed' : 'pointer', ...font,
+              }}
+            >Remove</button>
+          )}
+        </div>
+
+        <p style={{ marginTop: 14, fontSize: 11, color: '#86868B', lineHeight: 1.5 }}>
+          Don&apos;t have a key? Visit your{' '}
+          <a href="https://app.emergent.sh/profile" target="_blank" rel="noreferrer" style={{ color: '#007AFF', textDecoration: 'none' }}>Emergent profile</a>
+          {' '}for the universal key, or{' '}
+          <a href="https://console.anthropic.com/" target="_blank" rel="noreferrer" style={{ color: '#007AFF', textDecoration: 'none' }}>console.anthropic.com</a>
+          {' '}for a direct Claude key.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+
 const AdminBI = () => {
   const navigate = useNavigate();
   const { isAuthenticated, isSuperAdmin, loading: authLoading } = useAuth();
   const { locations } = useLocation2();
+  const routerLocation = useLocation();
+  // When mounted under /jkhive/bi, we render in mobile-first mode with a
+  // back link to the JKHive Manager hub. Outside of JKHive we keep the
+  // existing desktop AdminLayout chrome with a back link to /admin.
+  const isJkhive = routerLocation.pathname.startsWith('/jkhive');
   const [preset, setPreset] = useState('30');
   const [startDate, setStartDate] = useState(daysAgoISO(29));
   const [endDate, setEndDate] = useState(todayISO());
@@ -220,6 +441,10 @@ const AdminBI = () => {
   const [aiError, setAiError] = useState('');
   const [aiCached, setAiCached] = useState(false);
   const [aiGeneratedAt, setAiGeneratedAt] = useState('');
+  // AI key management — surfaced as a modal triggered from the panel header
+  // or from the friendly "no key configured" empty state.
+  const [aiKeyInfo, setAiKeyInfo] = useState(null); // {has_key, source, last4, provider, ...}
+  const [showAiKeyModal, setShowAiKeyModal] = useState(false);
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !isSuperAdmin)) {
@@ -283,6 +508,14 @@ const AdminBI = () => {
     if (isSuperAdmin && data && !loading) fetchAi(false);
   }, [isSuperAdmin, data, loading, fetchAi]);
 
+  // Load AI key status so the panel can surface "key missing" / last-4.
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    api.adminGetAiSettings()
+      .then(setAiKeyInfo)
+      .catch(() => setAiKeyInfo({ has_key: false }));
+  }, [isSuperAdmin, showAiKeyModal]);
+
   if (authLoading || !isSuperAdmin) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -297,20 +530,36 @@ const AdminBI = () => {
   const fband = foodBand(kpi.food_cost_pct || 0);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto" data-testid="admin-bi-page" style={{ background: '#F5F5F7', minHeight: '100vh' }}>
-      <Link to="/admin" data-testid="bi-back-link" className="inline-flex items-center gap-1.5 text-xs font-medium mb-3 active:scale-95" style={{ color: '#007AFF', ...font }}>
-        <ArrowLeft size={13} /> Dashboard
+    <div
+      className={isJkhive
+        ? 'pb-24 max-w-[1400px] mx-auto'
+        : 'p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto'}
+      data-testid="admin-bi-page"
+      style={isJkhive ? {} : { background: '#F5F5F7', minHeight: '100vh' }}
+    >
+      <Link
+        to={isJkhive ? '/jkhive/manager' : '/admin'}
+        data-testid="bi-back-link"
+        className="inline-flex items-center gap-1.5 -ml-1 px-1 py-1 mb-2 rounded-lg active:scale-95"
+        style={{ color: '#007AFF', ...font }}
+      >
+        <ArrowLeft size={isJkhive ? 20 : 13} strokeWidth={2.4} />
+        <span className={isJkhive ? 'text-base font-semibold' : 'text-xs font-medium'}>
+          {isJkhive ? 'Manager' : 'Dashboard'}
+        </span>
       </Link>
 
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: '#1D1D1F' }}>
-            <TrendingUp size={20} color="white" strokeWidth={1.6} />
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5 sm:mb-6">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#1D1D1F' }}>
+            <TrendingUp size={isJkhive ? 18 : 20} color="white" strokeWidth={1.6} />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: '#1D1D1F', ...font }}>Business Intelligence</h1>
-            <p className="text-xs sm:text-sm" style={{ color: '#86868B', ...font }}>Labour %, Food Cost %, Margin · super admin only</p>
+            <p className="text-[11px] sm:text-sm truncate" style={{ color: '#86868B', ...font }}>
+              {isJkhive ? 'AI-powered analytics · super admin' : 'Labour %, Food Cost %, Margin · super admin only'}
+            </p>
           </div>
         </div>
         <button
@@ -389,7 +638,17 @@ const AdminBI = () => {
         cached={aiCached}
         generatedAt={aiGeneratedAt}
         error={aiError}
+        keyInfo={aiKeyInfo}
         onRefresh={() => fetchAi(true)}
+        onOpenKeyModal={() => setShowAiKeyModal(true)}
+        onRetryAfterKey={() => { setAiError(''); fetchAi(true); }}
+      />
+
+      <AIKeyModal
+        open={showAiKeyModal}
+        keyInfo={aiKeyInfo}
+        onClose={() => setShowAiKeyModal(false)}
+        onSaved={() => { setShowAiKeyModal(false); setAiError(''); fetchAi(true); }}
       />
 
       {/* KPI cards */}

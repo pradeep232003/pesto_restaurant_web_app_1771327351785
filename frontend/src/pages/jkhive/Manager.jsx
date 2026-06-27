@@ -26,7 +26,7 @@ const Manager = () => {
       <SectionLabel>Analytics</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
         {isSuperAdmin ? (
-          <Tile testId="tile-business-intelligence" to="/admin/bi" icon={LineChart} color="#007AFF" title="Business Intelligence" subtitle="AI-powered analytics" />
+          <Tile testId="tile-business-intelligence" to="/jkhive/bi" icon={LineChart} color="#007AFF" title="Business Intelligence" subtitle="AI-powered analytics" />
         ) : (
           <Tile testId="tile-business-intelligence" comingSoon icon={LineChart} color="#007AFF" title="Business Intelligence" subtitle="Super admin only" />
         )}

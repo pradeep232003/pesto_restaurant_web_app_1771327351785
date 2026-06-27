@@ -794,6 +794,19 @@ class ApiService {
     return this.fetch(`/api/admin/bi/ai-insights${qs ? '?' + qs : ''}`);
   }
 
+  async adminGetAiSettings() {
+    return this.fetch('/api/admin/ai-settings');
+  }
+  async adminSetAiKey({ api_key, provider = 'emergent' }) {
+    return this.fetch('/api/admin/ai-settings', {
+      method: 'PUT',
+      body: JSON.stringify({ api_key, provider }),
+    });
+  }
+  async adminClearAiKey() {
+    return this.fetch('/api/admin/ai-settings', { method: 'DELETE' });
+  }
+
   // ============== INSPECTION PACK (EHO-ready audit bundle) ==============
   async adminInspectionPack({ location_id, start_date, end_date } = {}) {
     const qs = new URLSearchParams(
