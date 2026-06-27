@@ -75,8 +75,15 @@ const Documents = () => {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Policies');
   const [expiresAt, setExpiresAt] = useState(''); // empty = N/A / non-expiring
+  // Location the upload will be filed against. Defaults to the current
+  // JKHive site picker, but the admin can target any site from the form.
+  const [uploadLocationId, setUploadLocationId] = useState(adminLocationId || '');
   const [categories, setCategories] = useState(['Policies', 'Certificates', 'Training', 'Risk Assessments', 'Suppliers', 'HACCP', 'Other']);
   const [uploading, setUploading] = useState(false);
+
+  // Keep the upload form's location in sync whenever the JKHive site picker
+  // changes (e.g. admin switches site before opening the form).
+  useEffect(() => { if (adminLocationId) setUploadLocationId(adminLocationId); }, [adminLocationId]);
 
   // Inline expiry editor
   const [editingExpiryFor, setEditingExpiryFor] = useState(null); // doc.id or null
@@ -135,18 +142,21 @@ const Documents = () => {
 
   const submitUpload = async () => {
     if (!file || !title.trim()) { setError('Pick a file and give it a title'); return; }
+    if (!uploadLocationId) { setError('Select a location to file this document against'); return; }
     setUploading(true);
     setError('');
     try {
       const fd = new FormData();
       fd.append('file', file);
-      fd.append('location_id', adminLocationId);
+      fd.append('location_id', uploadLocationId);
       fd.append('title', title.trim());
       fd.append('category', category);
       if (expiresAt) fd.append('expires_at', expiresAt);
       await api.documentsUpload(fd);
       // Reset form & refresh
-      setFile(null); setTitle(''); setCategory('Policies'); setExpiresAt(''); setShowUpload(false);
+      setFile(null); setTitle(''); setCategory('Policies'); setExpiresAt('');
+      setUploadLocationId(adminLocationId || '');
+      setShowUpload(false);
       await load();
     } catch (err) {
       setError(err.message);
@@ -286,6 +296,20 @@ const Documents = () => {
           style={{ background: '#FFFFFF', borderRadius: 14, padding: 14, marginBottom: 14, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}
         >
           <label style={{ display: 'block', marginBottom: 10 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Location</span>
+            <select
+              data-testid="documents-upload-location"
+              value={uploadLocationId}
+              onChange={e => setUploadLocationId(e.target.value)}
+              style={{ display: 'block', marginTop: 4, width: '100%', padding: '10px 12px', borderRadius: 10, background: '#F5F5F7', border: 0, fontSize: 14, color: '#1D1D1F', ...FONT }}
+            >
+              <option value="">Select a location…</option>
+              {locations.filter(l => l.is_active !== false).map(l => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: 'block', marginBottom: 10 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>File</span>
             <input
               data-testid="documents-file-input"
@@ -329,12 +353,12 @@ const Documents = () => {
           </label>
           <button
             data-testid="documents-submit-upload"
-            disabled={uploading || !file || !title.trim()}
+            disabled={uploading || !file || !title.trim() || !uploadLocationId}
             onClick={submitUpload}
             style={{
               width: '100%', padding: '12px 14px', borderRadius: 999, border: 0,
               background: '#34C759', color: '#FFFFFF', fontSize: 14, fontWeight: 700,
-              cursor: uploading ? 'not-allowed' : 'pointer', opacity: (uploading || !file || !title.trim()) ? 0.5 : 1, ...FONT,
+              cursor: uploading ? 'not-allowed' : 'pointer', opacity: (uploading || !file || !title.trim() || !uploadLocationId) ? 0.5 : 1, ...FONT,
             }}
           >
             {uploading ? 'Uploading…' : 'Upload document'}
