@@ -293,7 +293,7 @@ const AIKeyModal = ({ open, keyInfo, onClose, onSaved }) => {
   };
 
   const clear = async () => {
-    if (!window.confirm('Remove the stored key? AI insights will stop working until you add another or set EMERGENT_LLM_KEY in the server environment.')) return;
+    if (!window.confirm('Remove the stored key? AI insights will stop working until you add another in the server environment.')) return;
     setSaving(true); setError('');
     try {
       await api.adminClearAiKey();
