@@ -583,7 +583,7 @@ const AdminBI = () => {
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: '#1D1D1F', ...font }}>Business Intelligence</h1>
             <p className="text-[11px] sm:text-sm truncate" style={{ color: '#86868B', ...font }}>
-              {isJkhive ? 'AI-powered analytics · super admin' : 'Labour %, Food Cost %, Margin · super admin only'}
+              {isJkhive ? 'AI-powered analytics' : 'Labour %, Food Cost %, Margin'}
             </p>
           </div>
         </div>
