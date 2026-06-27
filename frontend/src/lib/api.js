@@ -813,6 +813,23 @@ class ApiService {
     });
   }
 
+  // ============== SHIFT MANAGEMENT ==============
+  async shiftsList({ location_id, start_date, end_date } = {}) {
+    const qs = new URLSearchParams(
+      Object.entries({ location_id, start_date, end_date }).filter(([, v]) => v),
+    ).toString();
+    return this.fetch(`/api/admin/shifts${qs ? '?' + qs : ''}`);
+  }
+  async shiftCreate(body) {
+    return this.fetch('/api/admin/shifts', { method: 'POST', body: JSON.stringify(body) });
+  }
+  async shiftUpdate(id, patch) {
+    return this.fetch(`/api/admin/shifts/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  }
+  async shiftDelete(id) {
+    return this.fetch(`/api/admin/shifts/${id}`, { method: 'DELETE' });
+  }
+
   // ============== INSPECTION PACK (EHO-ready audit bundle) ==============
   async adminInspectionPack({ location_id, start_date, end_date } = {}) {
     const qs = new URLSearchParams(
