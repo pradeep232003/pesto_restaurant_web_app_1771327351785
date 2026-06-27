@@ -184,6 +184,17 @@ const AdminOnly = ({ children }) => {
   return children;
 };
 
+/** Super-admin guard that does NOT wrap in AdminLayout — for pages already
+ *  inside another layout (e.g. /jkhive/bi which lives inside the JKHive shell). */
+const SuperAdminOnly = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user || user.role !== 'super_admin') {
+    return <Navigate to="/jkhive" replace />;
+  }
+  return children;
+};
+
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
 const AppRouter = () => {
   const location = useLocation();
@@ -283,7 +294,7 @@ const AppRouter = () => {
         <Route path="compliance" element={<JKHiveCompliance />} />
         <Route path="inspection" element={<AdminOnly><JKHiveInspection /></AdminOnly>} />
         <Route path="documents" element={<JKHiveDocuments />} />
-        <Route path="bi" element={<SuperAdminRoute><AdminBI /></SuperAdminRoute>} />
+        <Route path="bi" element={<SuperAdminOnly><AdminBI /></SuperAdminOnly>} />
         <Route path="menu" element={<JKHiveMenu />} />
         <Route path="daily-checks" element={<JKHiveDailyChecks />} />
         <Route path="kitchen-closedown" element={<JKHiveKitchenClosedown />} />
