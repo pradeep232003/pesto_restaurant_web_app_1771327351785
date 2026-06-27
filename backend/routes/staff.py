@@ -27,6 +27,10 @@ class StaffMember(BaseModel):
     employee_no: str = ""
     start_date: str = ""    # YYYY-MM-DD
     hourly_rate: float = 0.0
+    # Optional login link — when an account with this email logs in we can
+    # automatically scope their view (e.g. /jkhive/shifts) to their own
+    # rota. Lower-cased on write so comparisons are case-insensitive.
+    account_email: str = ""
 
 
 class StaffMemberUpdate(BaseModel):
@@ -39,6 +43,7 @@ class StaffMemberUpdate(BaseModel):
     employee_no: Optional[str] = None
     start_date: Optional[str] = None
     hourly_rate: Optional[float] = None
+    account_email: Optional[str] = None
 
 
 @router.get("")
@@ -52,6 +57,10 @@ async def list_staff(user: dict = Depends(get_admin_user)):
 async def create_staff(body: StaffMember, user: dict = Depends(get_admin_user)):
     """Create a new staff record."""
     doc = body.dict()
+    # Normalise the optional login link so case differences don't break the
+    # lookup later.
+    if doc.get("account_email"):
+        doc["account_email"] = doc["account_email"].strip().lower()
     doc["id"] = str(uuid.uuid4())[:12]
     doc["created_by"] = user.get("email", "")
     doc["created_at"] = datetime.now(timezone.utc).isoformat()
@@ -65,6 +74,8 @@ async def update_staff(staff_id: str, body: StaffMemberUpdate, user: dict = Depe
     update = {k: v for k, v in body.dict().items() if v is not None}
     if not update:
         raise HTTPException(status_code=400, detail="No fields to update")
+    if "account_email" in update and update["account_email"]:
+        update["account_email"] = update["account_email"].strip().lower()
     update["updated_by"] = user.get("email", "")
     update["updated_at"] = datetime.now(timezone.utc).isoformat()
     result = staff_collection.update_one({"id": staff_id}, {"$set": update})

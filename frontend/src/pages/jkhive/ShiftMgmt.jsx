@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Plus, Calendar, ChevronLeft, ChevronRight, X, Trash2, Pencil, Users, Clock,
+  ArrowLeft, Plus, ChevronLeft, ChevronRight, X, Trash2, Users, Clock, Copy,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -42,9 +42,11 @@ const ShiftMgmt = () => {
 
   const [shifts, setShifts] = useState([]);
   const [staffList, setStaffList] = useState([]);
+  const [staffFilter, setStaffFilter] = useState(''); // admin-only: show only one person's shifts
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(null); // shift object or new template
+  const [copyBusy, setCopyBusy] = useState(false);
 
   const locName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
 
@@ -55,7 +57,8 @@ const ShiftMgmt = () => {
     try {
       const [rows, staff] = await Promise.all([
         api.shiftsList({ location_id: adminLocationId, start_date: toIso(weekStart), end_date: toIso(weekEnd) }),
-        api.adminListStaff().catch(() => []),
+        // Only admins need the staff list — for assigning shifts and filtering.
+        isAdmin ? api.adminListStaff().catch(() => []) : Promise.resolve([]),
       ]);
       setShifts(rows || []);
       setStaffList(staff || []);
@@ -64,9 +67,35 @@ const ShiftMgmt = () => {
     } finally {
       setLoading(false);
     }
-  }, [adminLocationId, weekStart, weekEnd]);
+  }, [adminLocationId, weekStart, weekEnd, isAdmin]);
 
   useEffect(() => { load(); }, [load]);
+
+  // "Copy last week" — replicate every shift from the previous 7 days
+  // into the currently-visible week. Asks for confirmation since this
+  // can create dozens of records at once.
+  const copyLastWeek = async () => {
+    const src = addDays(weekStart, -7);
+    if (!window.confirm(`Copy every shift from ${fmtRange(src, addDays(src, 6))} into ${fmtRange(weekStart, weekEnd)}?`)) return;
+    setCopyBusy(true);
+    setError('');
+    try {
+      const res = await api.shiftCopyWeek({
+        location_id: adminLocationId,
+        source_start: toIso(src),
+        target_start: toIso(weekStart),
+        overwrite: false,
+      });
+      if (!res.copied && !res.skipped) {
+        setError(res.message || 'Nothing to copy — last week had no shifts.');
+      }
+      await load();
+    } catch (err) {
+      setError(err.message || 'Could not copy week');
+    } finally {
+      setCopyBusy(false);
+    }
+  };
 
   if (!adminLocationId) {
     return (
@@ -76,14 +105,18 @@ const ShiftMgmt = () => {
     );
   }
 
-  // Group shifts by date string for the day cards.
-  const byDay = shifts.reduce((acc, s) => {
+  // Group shifts by date string for the day cards. Apply the admin staff
+  // filter here so the per-day cards + weekly totals stay in sync.
+  const visibleShifts = staffFilter
+    ? shifts.filter(s => s.staff_id === staffFilter)
+    : shifts;
+  const byDay = visibleShifts.reduce((acc, s) => {
     (acc[s.date] = acc[s.date] || []).push(s);
     return acc;
   }, {});
 
   // Weekly totals — hours per staff member across the visible window.
-  const totals = shifts.reduce((acc, s) => {
+  const totals = visibleShifts.reduce((acc, s) => {
     if (!s.staff_id) return acc;
     const key = s.staff_id;
     if (!acc[key]) acc[key] = { name: s.staff_name, hours: 0, count: 0 };
@@ -108,12 +141,46 @@ const ShiftMgmt = () => {
       </div>
 
       <div style={{ marginBottom: 14 }}>
-        <p className="text-[13px] font-medium" style={{ color: '#86868B' }}>Rotas, swaps and weekly hours</p>
+        <p className="text-[13px] font-medium" style={{ color: '#86868B' }}>
+          {isAdmin ? 'Rotas, swaps and weekly hours' : 'Your upcoming shifts'}
+        </p>
         <h1 className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-[1.05]" style={{ color: '#1D1D1F' }}>
-          Shift Management
+          {isAdmin ? 'Shift Management' : 'My Shifts'}
         </h1>
         <p className="text-[13px] mt-1" style={{ color: '#86868B' }}>{locName}</p>
       </div>
+
+      {/* Admin tools row — per-staff filter + Copy-last-week. Hidden for
+          regular staff so their view stays focused on their own shifts. */}
+      {isAdmin && (
+        <div style={{
+          background: '#FFFFFF', borderRadius: 14, padding: 10, marginBottom: 10,
+          display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+        }}>
+          <select
+            data-testid="shifts-staff-filter"
+            value={staffFilter}
+            onChange={e => setStaffFilter(e.target.value)}
+            style={{ flex: '1 1 160px', padding: '8px 10px', borderRadius: 9, background: '#F5F5F7', border: 0, fontSize: 13, color: '#1D1D1F', ...FONT }}
+          >
+            <option value="">Everyone</option>
+            {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <button
+            data-testid="shifts-copy-week"
+            onClick={copyLastWeek}
+            disabled={copyBusy}
+            style={{
+              padding: '8px 12px', borderRadius: 999, border: 0,
+              background: '#1D1D1F', color: '#FFFFFF', fontSize: 12, fontWeight: 700,
+              cursor: copyBusy ? 'not-allowed' : 'pointer', opacity: copyBusy ? 0.5 : 1,
+              display: 'inline-flex', alignItems: 'center', gap: 4, ...FONT,
+            }}>
+            <Copy size={12} /> {copyBusy ? 'Copying…' : 'Copy last week'}
+          </button>
+        </div>
+      )}
 
       {/* Week navigator */}
       <div style={{
@@ -129,7 +196,7 @@ const ShiftMgmt = () => {
         <div style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
           <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1D1D1F', ...FONT }}>{fmtRange(weekStart, weekEnd)}</p>
           <p style={{ margin: 0, fontSize: 11, color: '#86868B' }}>
-            {shifts.length} shift{shifts.length === 1 ? '' : 's'} · {weekHours.toFixed(1)}h total
+            {visibleShifts.length} shift{visibleShifts.length === 1 ? '' : 's'} · {weekHours.toFixed(1)}h total
           </p>
         </div>
         <button data-testid="shifts-this-week"

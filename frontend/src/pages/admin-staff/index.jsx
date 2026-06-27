@@ -4,7 +4,7 @@ import { Users, ArrowLeft, Plus, Pencil, Trash2, Check, X } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 
-const EMPTY = { name: '', forename: '', surname: '', ni_number: '', dob: '', address: '', employee_no: '', start_date: '', hourly_rate: '' };
+const EMPTY = { name: '', forename: '', surname: '', ni_number: '', dob: '', address: '', employee_no: '', start_date: '', hourly_rate: '', account_email: '' };
 
 const FIELDS = [
   { key: 'name',         label: 'Name',        type: 'text',  required: true, placeholder: 'Full name (for matching)' },
@@ -16,6 +16,7 @@ const FIELDS = [
   { key: 'employee_no',  label: 'Employee No', type: 'text' },
   { key: 'start_date',   label: 'Start Date',  type: 'date' },
   { key: 'hourly_rate',  label: 'Hourly Rate (£)', type: 'number', placeholder: '12.50' },
+  { key: 'account_email', label: 'Login email', type: 'email', placeholder: 'staff@example.com (links their account to this rota)' },
 ];
 
 const AdminStaff = () => {
