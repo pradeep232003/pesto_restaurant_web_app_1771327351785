@@ -1,0 +1,40 @@
+{
+  "summary": "Verified bug fix: admin-role users can now access /jkhive/bi. Backend BI endpoints accept admin tokens (was 403). /api/admin/ai-settings still correctly super_admin-only and the BI page degrades gracefully when the AI key panel returns 403. Super_admin regression passes.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_admin_bi_access.py",
+    "/app/test_reports/pytest/pytest_admin_bi_access.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "/app/frontend/src/Routes.jsx still keeps `SuperAdminOnly` component (unused after this fix). Safe to delete for cleanliness.",
+    "/app/frontend/src/pages/admin-bi/index.jsx header subtitle still says 'super admin only' / 'super admin' (lines 586) although the page is now admin-accessible. Cosmetic but misleading copy.",
+    "Stray `Routes;` expression statement at /app/frontend/src/Routes.jsx line 423 — no-op but should be removed (the equivalent of the earlier `nBI;` artefact).",
+    "No public POST /api/admin/users endpoint exists, so admin role users can only be seeded via DB. Consider exposing one (super_admin only) for ops convenience."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_admin_bi_access.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin (role=admin) seeded directly in MongoDB: test_admin_bi@jollys.com / AdminBI123!  | Super admin: admin@jollys.com / Admin123!",
+  "seed_data_creation": "Inserted role=admin user `test_admin_bi@jollys.com` into users collection via pymongo (no public create-user endpoint exists). Documented above so future runs can re-use.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Admin role user seeded in DB (test_admin_bi@jollys.com / AdminBI123!). Backend regression: /app/backend/tests/test_admin_bi_access.py covers BI endpoint access for admin vs super_admin and ai-settings being super_admin-only. /jkhive/manager always shows a 'Pick a location' modal on first visit — pytest UI scripts must dismiss it by clicking a location button before interacting with tiles.",
+  "verification_evidence": {
+    "backend_pytest": "6 passed (test_admin_bi_access.py)",
+    "admin_jkhive_bi_url": "https://.../jkhive/bi (reached after clicking tile-business-intelligence, no redirect)",
+    "admin_kpi_render": "kpi-revenue, kpi-labour, kpi-food-cost, kpi-margin all present",
+    "ai_panel_403_graceful": "/api/admin/ai-settings returns 403; AIInsightsPanel still renders with 'Add key' CTA — KPIs and ai-insights body still load",
+    "back_link_href": "/jkhive/manager",
+    "super_admin_regression": "/jkhive/bi renders for super_admin; pytest confirms /api/admin/bi and /api/admin/ai-settings still 200 for super_admin"
+  }
+}

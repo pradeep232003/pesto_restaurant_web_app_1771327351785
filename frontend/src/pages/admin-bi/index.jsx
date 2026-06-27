@@ -441,7 +441,7 @@ const AIKeyModal = ({ open, keyInfo, onClose, onSaved }) => {
 
 const AdminBI = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, isSuperAdmin, loading: authLoading } = useAuth();
+  const { isAuthenticated, isAdmin, loading: authLoading } = useAuth();
   const { locations } = useLocation2();
   const routerLocation = useLocation();
   // When mounted under /jkhive/bi, we render in mobile-first mode with a
@@ -472,10 +472,10 @@ const AdminBI = () => {
   const [showAiKeyModal, setShowAiKeyModal] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && (!isAuthenticated || !isSuperAdmin)) {
+    if (!authLoading && (!isAuthenticated || !isAdmin)) {
       navigate(isAuthenticated ? '/admin' : '/admin-login');
     }
-  }, [authLoading, isAuthenticated, isSuperAdmin, navigate]);
+  }, [authLoading, isAuthenticated, isAdmin, navigate]);
 
   const applyPreset = (id) => {
     setPreset(id);
@@ -507,7 +507,7 @@ const AdminBI = () => {
     }
   }, [startDate, endDate, locationId]);
 
-  useEffect(() => { if (isSuperAdmin) fetch(); }, [fetch, isSuperAdmin]);
+  useEffect(() => { if (isAdmin) fetch(); }, [fetch, isAdmin]);
 
   const fetchAi = useCallback(async (force = false) => {
     setAiLoading(true); setAiError('');
@@ -530,18 +530,18 @@ const AdminBI = () => {
   // Auto-load AI insights once BI data has arrived. Re-runs when filters
   // change because `fetchAi` is memoised on those same dependencies.
   useEffect(() => {
-    if (isSuperAdmin && data && !loading) fetchAi(false);
-  }, [isSuperAdmin, data, loading, fetchAi]);
+    if (isAdmin && data && !loading) fetchAi(false);
+  }, [isAdmin, data, loading, fetchAi]);
 
   // Load AI key status so the panel can surface "key missing" / last-4.
   useEffect(() => {
-    if (!isSuperAdmin) return;
+    if (!isAdmin) return;
     api.adminGetAiSettings()
       .then(setAiKeyInfo)
       .catch(() => setAiKeyInfo({ has_key: false }));
-  }, [isSuperAdmin, showAiKeyModal]);
+  }, [isAdmin, showAiKeyModal]);
 
-  if (authLoading || !isSuperAdmin) {
+  if (authLoading || !isAdmin) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" />
