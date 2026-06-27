@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Plus, ChevronLeft, ChevronRight, X, Trash2, Users, Clock, Copy, Send, FileEdit,
+  ArrowLeft, Plus, ChevronLeft, ChevronRight, X, Trash2, Users, Clock, Copy, Send, FileEdit, Sparkles,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -49,6 +49,10 @@ const ShiftMgmt = () => {
   const [copyBusy, setCopyBusy] = useState(false);
   const [publishBusy, setPublishBusy] = useState(false);
   const [publishMsg, setPublishMsg] = useState('');
+  // AI rota suggestion — preview before applying.
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiPreview, setAiPreview] = useState(null); // { reasoning, target_start, shifts }
+  const [aiError, setAiError] = useState('');
 
   const locName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
 
@@ -96,6 +100,57 @@ const ShiftMgmt = () => {
       setError(err.message || 'Could not copy week');
     } finally {
       setCopyBusy(false);
+    }
+  };
+
+  // AI rota suggest — ask Claude for a draft week, preview, then apply.
+  const aiSuggest = async () => {
+    setAiBusy(true);
+    setAiError('');
+    setAiPreview(null);
+    try {
+      const res = await api.shiftAiSuggestWeek({
+        location_id: adminLocationId,
+        target_start: toIso(weekStart),
+      });
+      if (!res.shifts || res.shifts.length === 0) {
+        setAiError(res.reasoning || 'AI could not produce a rota for this week. Check that staff and recent sales exist.');
+        return;
+      }
+      setAiPreview(res);
+    } catch (e) {
+      setAiError(e.message || 'AI suggest failed');
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const aiApply = async () => {
+    if (!aiPreview) return;
+    const payloadShifts = aiPreview.shifts.map(s => ({
+      location_id: adminLocationId,
+      staff_id: s.staff_id,
+      date: s.date,
+      start_time: s.start_time,
+      end_time: s.end_time,
+      role: s.role || '',
+      notes: '',
+    }));
+    setAiBusy(true);
+    setAiError('');
+    try {
+      const res = await api.shiftBulkCreate({
+        location_id: adminLocationId,
+        shifts: payloadShifts,
+        skip_clashes: true,
+      });
+      setPublishMsg(`Added ${res.created} AI-suggested draft shift${res.created === 1 ? '' : 's'}${res.skipped ? ` · ${res.skipped} skipped (already scheduled)` : ''}.`);
+      setAiPreview(null);
+      await load();
+    } catch (e) {
+      setAiError(e.message || 'Could not apply AI rota');
+    } finally {
+      setAiBusy(false);
     }
   };
 
@@ -222,6 +277,20 @@ const ShiftMgmt = () => {
                 display: 'inline-flex', alignItems: 'center', gap: 4, ...FONT,
               }}>
               <Copy size={12} /> {copyBusy ? 'Copying…' : 'Copy last week'}
+            </button>
+            <button
+              data-testid="shifts-ai-suggest"
+              onClick={aiSuggest}
+              disabled={aiBusy}
+              title="Auto-fill this week with an AI-suggested draft rota"
+              style={{
+                padding: '8px 12px', borderRadius: 999, border: 0,
+                background: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)',
+                color: '#FFFFFF', fontSize: 12, fontWeight: 700,
+                cursor: aiBusy ? 'wait' : 'pointer', opacity: aiBusy ? 0.7 : 1,
+                display: 'inline-flex', alignItems: 'center', gap: 4, ...FONT,
+              }}>
+              <Sparkles size={12} /> {aiBusy ? 'Thinking…' : 'AI Suggest'}
             </button>
             <button
               data-testid="shifts-publish-week"
@@ -407,6 +476,25 @@ const ShiftMgmt = () => {
           staffList={staffList}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); load(); }}
+        />
+      )}
+
+      {/* AI rota error banner */}
+      {aiError && !aiPreview && (
+        <div data-testid="shifts-ai-error" style={{ background: 'rgba(255,59,48,0.10)', borderRadius: 12, padding: 12, marginTop: 12, color: '#C0392B', fontSize: 13, ...FONT }}>
+          {aiError}
+        </div>
+      )}
+
+      {/* AI rota preview modal */}
+      {aiPreview && (
+        <AiRotaPreview
+          preview={aiPreview}
+          weekStart={weekStart}
+          busy={aiBusy}
+          error={aiError}
+          onClose={() => { setAiPreview(null); setAiError(''); }}
+          onApply={aiApply}
         />
       )}
     </div>
@@ -758,6 +846,110 @@ const QuickAddPopover = ({ anchor, busy, onClose, onCreate }) => {
     </>
   );
 };
+
+
+/**
+ * AiRotaPreview — overlay listing the AI-suggested shifts grouped by day,
+ * with an Apply (bulk-create as drafts) / Cancel choice. Shows the LLM's
+ * one-line reasoning + a per-day breakdown so the manager can sanity-check
+ * before committing.
+ */
+const AiRotaPreview = ({ preview, weekStart, busy, error, onClose, onApply }) => {
+  const grouped = useMemo(() => {
+    const by = {};
+    for (const s of preview.shifts || []) {
+      (by[s.date] = by[s.date] || []).push(s);
+    }
+    return by;
+  }, [preview]);
+
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
+
+  const totalHours = (preview.shifts || []).reduce((s, x) => s + (x.hours || 0), 0);
+
+  return (
+    <div data-testid="shifts-ai-preview" style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} />
+      <div style={{
+        position: 'relative', background: '#FFFFFF', width: '100%', maxWidth: 560,
+        borderRadius: 18, padding: '20px 22px', boxShadow: '0 24px 48px rgba(0,0,0,0.28)',
+        maxHeight: '88vh', overflowY: 'auto', ...FONT,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>AI Suggested Rota</p>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1D1D1F', margin: '2px 0 0' }}>
+              {fmtRange(weekStart, addDays(weekStart, 6))}
+            </h2>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#86868B' }}>
+              {(preview.shifts || []).length} shifts · {totalHours.toFixed(1)}h total
+            </p>
+          </div>
+          <button onClick={onClose} aria-label="Close" data-testid="shifts-ai-close"
+            style={{ width: 32, height: 32, borderRadius: 999, background: '#F5F5F7', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={15} color="#1D1D1F" />
+          </button>
+        </div>
+
+        {preview.reasoning && (
+          <div style={{ background: 'linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(79,70,229,0.08) 100%)', borderRadius: 12, padding: '10px 12px', marginBottom: 12, fontSize: 12, color: '#3F2A78', lineHeight: 1.5 }}>
+            {preview.reasoning}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+          {days.map(d => {
+            const iso = toIso(d);
+            const list = grouped[iso] || [];
+            return (
+              <div key={iso} data-testid={`shifts-ai-day-${iso}`} style={{ background: '#F9F9FB', borderRadius: 12, padding: '8px 12px' }}>
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#1D1D1F' }}>
+                  {fmtDayLabel(d)} <span style={{ fontWeight: 500, color: '#86868B' }}>· {list.length} shift{list.length === 1 ? '' : 's'}</span>
+                </p>
+                {list.length > 0 && (
+                  <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {list.map((s, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                        <span style={{ flex: 1, color: '#1D1D1F' }}>{s.staff_name || 'Unassigned'}</span>
+                        <span style={{ color: '#86868B' }}>{s.start_time}–{s.end_time}</span>
+                        {s.role && <span style={{ color: '#86868B' }}>· {s.role}</span>}
+                        <span style={{ fontWeight: 700, color: '#1D1D1F', width: 38, textAlign: 'right' }}>{(s.hours || 0).toFixed(1)}h</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {error && (
+          <p data-testid="shifts-ai-apply-error" style={{ fontSize: 12, color: '#C0392B', margin: '0 0 10px' }}>{error}</p>
+        )}
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button data-testid="shifts-ai-cancel" onClick={onClose} disabled={busy}
+            style={{ flex: 1, padding: '12px 14px', borderRadius: 999, border: 0, background: '#F5F5F7', color: '#1D1D1F', fontSize: 14, fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer', ...FONT }}>
+            Cancel
+          </button>
+          <button data-testid="shifts-ai-apply" onClick={onApply} disabled={busy}
+            style={{
+              flex: 1, padding: '12px 14px', borderRadius: 999, border: 0,
+              background: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)',
+              color: '#FFFFFF', fontSize: 14, fontWeight: 700,
+              cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1, ...FONT,
+            }}>
+            {busy ? 'Applying…' : `Apply ${(preview.shifts || []).length} draft${(preview.shifts || []).length === 1 ? '' : 's'}`}
+          </button>
+        </div>
+        <p style={{ margin: '10px 0 0', fontSize: 11, color: '#86868B', textAlign: 'center' }}>
+          Shifts are added as <strong>drafts</strong>. Review on the grid, then Publish to notify staff.
+        </p>
+      </div>
+    </div>
+  );
+};
+
 
 const ShiftModal = ({ shift, staffList, onClose, onSaved }) => {
   const isEdit = !!shift.id;

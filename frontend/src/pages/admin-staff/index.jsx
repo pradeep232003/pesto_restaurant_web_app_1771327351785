@@ -4,7 +4,7 @@ import { Users, ArrowLeft, Plus, Pencil, Trash2, Check, X } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 
-const EMPTY = { name: '', forename: '', surname: '', ni_number: '', dob: '', address: '', employee_no: '', start_date: '', hourly_rate: '', account_email: '' };
+const EMPTY = { name: '', forename: '', surname: '', ni_number: '', dob: '', address: '', employee_no: '', start_date: '', hourly_rate: '', weekly_hours_target: '', account_email: '' };
 
 const FIELDS = [
   { key: 'name',         label: 'Name',        type: 'text',  required: true, placeholder: 'Full name (for matching)' },
@@ -16,6 +16,7 @@ const FIELDS = [
   { key: 'employee_no',  label: 'Employee No', type: 'text' },
   { key: 'start_date',   label: 'Start Date',  type: 'date' },
   { key: 'hourly_rate',  label: 'Hourly Rate (£)', type: 'number', placeholder: '12.50' },
+  { key: 'weekly_hours_target', label: 'Weekly Hours Target', type: 'number', placeholder: '32 (0 = flexible)' },
   { key: 'account_email', label: 'Login email', type: 'email', placeholder: 'staff@example.com (links their account to this rota)' },
 ];
 
@@ -49,7 +50,11 @@ const AdminStaff = () => {
     if (!form.name?.trim()) { alert('Name is required'); return; }
     setSaving(true);
     try {
-      const payload = { ...form, hourly_rate: form.hourly_rate === '' || form.hourly_rate == null ? 0 : parseFloat(form.hourly_rate) || 0 };
+      const payload = {
+        ...form,
+        hourly_rate: form.hourly_rate === '' || form.hourly_rate == null ? 0 : parseFloat(form.hourly_rate) || 0,
+        weekly_hours_target: form.weekly_hours_target === '' || form.weekly_hours_target == null ? 0 : parseFloat(form.weekly_hours_target) || 0,
+      };
       if (editing === 'new') await api.adminCreateStaff(payload);
       else await api.adminUpdateStaff(editing.id, payload);
       await fetchStaff();

@@ -1,0 +1,43 @@
+{
+  "summary": "Tested new AI Suggest rota flow on /jkhive/shifts + weekly_hours_target staff field. Backend pytest (5 tests) all PASS. Frontend AI Suggest button is visible/clickable on desktop, click triggers POST /api/admin/shifts/ai-suggest-week and surfaces a graceful error banner when the Anthropic key is invalid (preview env). Bulk-create endpoint works for the happy path. Two real issues found: (1) bulk-create does NOT dedupe within the same batch, violating the documented 'skips duplicate {staff_id, date, start_time} triples' contract; (2) the preview ingress proxy replaces 502 JSON bodies with an HTML CDN error page, so the UI can't show the backend's specific provider error — it shows a generic fallback only.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/admin/shifts/bulk-create", "issue": "skip_clashes=true only checks DB for existing clashes, not in-batch duplicates. Sending 2 identical {staff_id,date,start_time} entries in one request inserts BOTH. Should also track inserted triples within the loop and skip duplicates."},
+      {"endpoint": "POST /api/admin/shifts/ai-suggest-week", "issue": "Returns HTTPException(502, ...). The preview gateway/Cloudflare intercepts 502 responses and replaces the JSON body with an HTML 'Bad gateway' page, so the frontend never sees the backend's detail message (e.g. 'AI provider error (emergent, 401): invalid x-api-key'). Consider using 400 or 500 (or 200 + error field) so JSON survives the proxy."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "AI Suggest error surfacing", "issue": "Because the backend's 502 JSON body is overridden by the proxy's HTML page, the error banner falls back to a generic 'Something went wrong. Please try again.' instead of the provider's actual error message. The user can't tell that the API key is invalid. Mitigation: change backend status code to non-502 OR have the frontend show response.status alongside the generic text.", "affected_selectors": ["shifts-ai-error"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ai_rota.py",
+    "/app/test_reports/pytest/pytest_ai_rota.xml"
+  ],
+  "action_items": [
+    "In /app/backend/routes/shifts.py bulk_create: when skip_clashes=true, also dedupe within the same batch by tracking inserted (staff_id, date, start_time) tuples in a local set and skip duplicates.",
+    "In /app/backend/routes/shifts.py ai_suggest_week: replace HTTPException(502, ...) with status 400 or 500 (or return 200 with an error field). Status 502 is rewritten to an HTML page by the preview gateway, so the frontend never receives the JSON 'detail' the user wants to see.",
+    "Optionally: in /app/frontend/src/lib/api.js fetch wrapper, when response is !ok and body isn't JSON, include `${response.status} ${response.statusText}` in the thrown error so the UI surfaces 502/timeout context."
+  ],
+  "critical_code_review_comments": [
+    "shifts.py bulk_create: in-batch dedupe missing — see action_items.",
+    "shifts.py ai_suggest_week: 502 status is fragile behind the preview proxy.",
+    "ShiftMgmt.jsx aiSuggest: when res.shifts is empty, sets aiError to res.reasoning. If reasoning is also empty the fallback text is used — fine. But aiBusy is correctly cleared in finally.",
+    "Frontend api.js: errorData = await response.json().catch(()=>({})) silently swallows non-JSON bodies and yields detail=undefined → generic 'API Error: 502 Bad Gateway' fallback. Could surface response.status to give users a better hint.",
+    "ShiftMgmt.jsx AI button: uses inline-flex on the toolbar wrapper; the AI button only renders when isAdmin truthy — confirmed visible at 1920px after picking a location."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ai_rota.py (new)"
+  ],
+  "success_rate": {"backend": "100% (5/5 pytest)", "frontend": "graceful failure verified; happy-path AI preview not exercised because preview key is invalid (expected per agent note)"},
+  "test_credentials": "admin@jollys.com / Admin123! (super_admin) — confirmed working.",
+  "seed_data_creation": "Created and cleaned up: TEST_AIROTA_<rand> staff record (used for weekly_hours_target PATCH verify) + 1-2 draft shifts on 2031-03-15 for bulk-create test (all deleted afterwards).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "AI Suggest button (data-testid=shifts-ai-suggest) shows ONLY when isAdmin truthy AND a location is picked. Pick 'Timperley, Altrincham' from the location modal first. Preview env Anthropic key is invalid → graceful 502/error banner is EXPECTED. Backend test file at /app/backend/tests/test_ai_rota.py contains 5 reusable tests. Staff admin route is /admin/staff (NOT /admin-staff). The Weekly Hours Target field has placeholder '32 (0 = flexible)' and only appears after clicking the 'add-staff-btn' or an 'Edit' row button — confirmed in source at admin-staff/index.jsx line 19. Backend persistence already verified.",
+  "rca of the issue": "1) bulk-create dedupe: implementation queries the DB inside a loop and appends each new shift to a list, calling insert_many() only at the end — so the second iteration's DB query doesn't see the first iteration's pending insert and both clear the clash check. Fix: maintain a local set of (staff_id,date,start_time) seen in this batch and skip duplicates. 2) 502 swallowed: the Kubernetes/Cloudflare ingress in front of preview.emergentagent.com has a CDN-level error page override for HTTP 5xx (specifically 502). The backend's JSON response (status 502, body {detail: 'AI provider error (emergent, 401): invalid x-api-key'}) is replaced with an HTML page client-side. Backend logs confirm the 502 is generated by our handler, but the body shipped to the browser is HTML. Recommended fix: return a non-502 status (e.g. 500 returns the JSON detail unmodified in this env, or just use 400/422 for client-visible upstream errors)."
+}

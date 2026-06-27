@@ -27,6 +27,9 @@ class StaffMember(BaseModel):
     employee_no: str = ""
     start_date: str = ""    # YYYY-MM-DD
     hourly_rate: float = 0.0
+    # Optional target hours per week, used by AI rota auto-suggest to
+    # balance schedules. 0 means "no preference".
+    weekly_hours_target: float = 0.0
     # Optional login link — when an account with this email logs in we can
     # automatically scope their view (e.g. /jkhive/shifts) to their own
     # rota. Lower-cased on write so comparisons are case-insensitive.
@@ -43,6 +46,7 @@ class StaffMemberUpdate(BaseModel):
     employee_no: Optional[str] = None
     start_date: Optional[str] = None
     hourly_rate: Optional[float] = None
+    weekly_hours_target: Optional[float] = None
     account_email: Optional[str] = None
 
 

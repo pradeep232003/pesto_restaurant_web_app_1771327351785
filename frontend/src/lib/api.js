@@ -835,6 +835,12 @@ class ApiService {
   async shiftPublishWeek(body) {
     return this.fetch('/api/admin/shifts/publish-week', { method: 'POST', body: JSON.stringify(body) });
   }
+  async shiftAiSuggestWeek(body) {
+    return this.fetch('/api/admin/shifts/ai-suggest-week', { method: 'POST', body: JSON.stringify(body) });
+  }
+  async shiftBulkCreate(body) {
+    return this.fetch('/api/admin/shifts/bulk-create', { method: 'POST', body: JSON.stringify(body) });
+  }
 
   // ============== INSPECTION PACK (EHO-ready audit bundle) ==============
   async adminInspectionPack({ location_id, start_date, end_date } = {}) {
