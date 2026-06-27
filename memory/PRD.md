@@ -22,6 +22,8 @@ Full-stack restaurant ops platform: Apple-inspired UX, multi-location, role-gate
 - **Documents** module — `/jkhive/documents` with GridFS storage, category filter, in-app preview, download, admin-only delete, **location picker on upload**, and per-document **expiry tracking** (Expired / Expiring / OK / N/A chips).
 - **Sales Summary** revamp — Location filter (All sites + per-site), Recharts area/bar charts with D/W/M/Y granularity toggle, avg-per-bucket KPI, peak label, click-to-drill-down by location.
 - **Business Intelligence + AI** (super admin only) — Manager tile no longer "Coming Soon"; `/admin/bi` page now leads with a Claude Sonnet 4.5 analysis panel: gradient hero (health score + label + headline), "What's working", "Risks to address", priority-tagged Recommended Actions, Anomalies, 30-min cache. Endpoint: `GET /api/admin/bi/ai-insights`.
+- **Shift Management** — Mobile day-card list + admin Copy-last-week + Publish-week with push notifications; staff see only their published shifts.
+- **Shift Management RotaCloud-style desktop grid** (Feb 2026) — `/jkhive/shifts` on `md:` and above renders a staff × week matrix with day headers (Mon→Sun) and a per-staff weekly hours column. Click an empty cell → inline popover with presets (Morning 8-14, Day 9-17, Evening 14-22, Close 17-23) + custom time + role. Click an existing block → opens full edit modal. **HTML5 drag-and-drop** to MOVE a shift across staff/date in one PATCH. Mobile keeps the optimised day-card list intact via `md:hidden` wrapper.
 
 ## 4. P0 Backlog
 (none open)
@@ -29,7 +31,7 @@ Full-stack restaurant ops platform: Apple-inspired UX, multi-location, role-gate
 ## 5. P1 Backlog
 - Click & Collect with WhatsApp Ordering — Phase 2/3 webhook + status page (blocked on Meta verification)
 - Stripe card top-ups for loyalty (test keys available)
-- JKHive "Coming Soon" tiles to activate next: HACCP Plan, Risk Assessments, Allergens (matrix), Clock In/Out, Payroll, Complaints, Safety Hotline, Shift Mgmt, Food Wastage
+- JKHive "Coming Soon" tiles to activate next: HACCP Plan, Risk Assessments, Allergens (matrix), Clock In/Out, Payroll, Complaints, Safety Hotline, Food Wastage
 - AI Marketing Strategy Hub — content autopilot, smarter ads, 24/7 replies, adaptive strategy (OpenAI + Meta)
 
 ## 6. P2 Backlog
