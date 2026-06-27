@@ -15,33 +15,48 @@ const EditProbe = () => {
   const [info, setInfo] = useState(state?.probe?.info || '');
   const [loading, setLoading] = useState(!state?.probe);
   const [saving, setSaving] = useState(false);
+  const [otherNames, setOtherNames] = useState([]); // lowercased names of OTHER probes at this site
+  const [error, setError] = useState('');
   const today = new Date().toISOString().slice(0, 10);
   const locationName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
 
   // Editing a probe is admin/super_admin only — staff can still calibrate but
-  // cannot rename or delete a probe. Block before render to avoid leaking the
-  // form fields if the user lands here via a deep link.
+  // cannot rename or delete a probe. Check happens after hooks so we don't
+  // violate the rules-of-hooks (early returns must come after every hook).
+  useEffect(() => {
+    if (!adminLocationId) return;
+    // Either way, fetch the full list so we can flag rename collisions.
+    api.probesList(adminLocationId).then(rows => {
+      const all = rows || [];
+      setOtherNames(all.filter(r => r.id !== id).map(p => (p.name || '').trim().toLowerCase()));
+      if (!state?.probe) {
+        const p = all.find(r => r.id === id);
+        if (!p) { alert('Probe not found'); navigate(-1); return; }
+        setName(p.name); setInfo(p.info || '');
+      }
+    }).finally(() => setLoading(false));
+  }, [adminLocationId, id, state, navigate]);
+
   if (!authLoading && !isAdmin) {
     return <Navigate to="/jkhive/probe-calibration" replace />;
   }
 
-  useEffect(() => {
-    if (state?.probe || !adminLocationId) return;
-    api.probesList(adminLocationId).then(rows => {
-      const p = (rows || []).find(r => r.id === id);
-      if (!p) { alert('Probe not found'); navigate(-1); return; }
-      setName(p.name); setInfo(p.info || '');
-    }).finally(() => setLoading(false));
-  }, [adminLocationId, id, state, navigate]);
+  const trimmed = name.trim();
+  const duplicate = trimmed && otherNames.includes(trimmed.toLowerCase());
 
   const save = async () => {
-    if (!name.trim()) { alert('Probe name is required'); return; }
+    if (!trimmed) { setError('Probe name is required'); return; }
+    if (duplicate) { setError(`A probe named "${trimmed}" already exists at ${locationName || 'this location'}`); return; }
     setSaving(true);
+    setError('');
     try {
-      await api.probeUpdate(id, { name: name.trim(), info: info.trim() });
+      await api.probeUpdate(id, { name: trimmed, info: info.trim() });
       navigate('/jkhive/probe-calibration');
-    } catch (err) { alert('Could not save: ' + err.message); }
-    finally { setSaving(false); }
+    } catch (err) {
+      setError(err.message || 'Could not save');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const remove = async () => {
@@ -71,13 +86,19 @@ const EditProbe = () => {
         <div>
           <label style={{ fontSize: 13, fontWeight: 600, color: '#1D1D1F', marginBottom: 6, display: 'block' }}>Probe name</label>
           <input data-testid="edit-probe-name-input"
-            value={name} onChange={e => setName(e.target.value)}
+            value={name}
+            onChange={e => { setName(e.target.value); if (error) setError(''); }}
             style={{
               width: '100%', padding: '14px 16px', fontSize: 16,
-              border: '1px solid rgba(0,0,0,0.1)', borderRadius: 14,
+              border: `1px solid ${duplicate ? '#FF3B30' : 'rgba(0,0,0,0.1)'}`, borderRadius: 14,
               background: '#FFFFFF', color: '#1D1D1F', outline: 'none',
               fontFamily: 'Outfit, sans-serif',
             }} />
+          {(duplicate || error) && (
+            <p data-testid="edit-probe-name-error" style={{ margin: '6px 2px 0', fontSize: 12, color: '#C0392B' }}>
+              {error || `A probe named "${trimmed}" already exists at ${locationName || 'this location'}`}
+            </p>
+          )}
         </div>
         <div>
           <label style={{ fontSize: 13, fontWeight: 600, color: '#1D1D1F', marginBottom: 6, display: 'block' }}>
@@ -93,11 +114,12 @@ const EditProbe = () => {
               fontFamily: 'Outfit, sans-serif',
             }} />
         </div>
-        <button data-testid="edit-probe-save-btn" onClick={save} disabled={saving}
+        <button data-testid="edit-probe-save-btn" onClick={save} disabled={saving || duplicate || !trimmed}
           style={{
             marginTop: 18, padding: '18px 16px', border: 0, borderRadius: 999,
             background: '#1D1D1F', color: '#FFFFFF', fontSize: 17, fontWeight: 600,
-            cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1,
+            cursor: (saving || duplicate || !trimmed) ? 'not-allowed' : 'pointer',
+            opacity: (saving || duplicate || !trimmed) ? 0.5 : 1,
             fontFamily: 'Outfit, sans-serif',
             boxShadow: '0 8px 22px rgba(0,0,0,0.18)',
           }}>{saving ? 'Saving…' : 'Save changes'}</button>

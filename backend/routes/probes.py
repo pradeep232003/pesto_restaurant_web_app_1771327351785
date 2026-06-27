@@ -6,6 +6,7 @@ Two collections:
   probe_calibrations   — calibration runs against each probe (boiling + iced temps)
 """
 import uuid
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -51,6 +52,14 @@ async def add_probe(body: ProbeBody, user: dict = Depends(get_staff_or_above)):
     name = body.name.strip()
     if not name:
         raise HTTPException(400, "Name required")
+    # Names must be unique per location (case-insensitive). Two sites can each
+    # have "Probe 1", but one site cannot have two "Probe 1" entries.
+    existing = probes.find_one({
+        "location_id": body.location_id,
+        "name": {"$regex": f"^{re.escape(name)}$", "$options": "i"},
+    })
+    if existing:
+        raise HTTPException(409, f"A probe named '{name}' already exists at this location")
     doc = {
         "id": str(uuid.uuid4())[:12],
         "location_id": body.location_id,
@@ -73,6 +82,15 @@ async def update_probe(probe_id: str, body: ProbeUpdate, user: dict = Depends(ge
         n = body.name.strip()
         if not n:
             raise HTTPException(400, "Name cannot be empty")
+        # Reject rename collisions at the same site (case-insensitive,
+        # excluding the row we're editing).
+        clash = probes.find_one({
+            "location_id": existing.get("location_id"),
+            "id": {"$ne": probe_id},
+            "name": {"$regex": f"^{re.escape(n)}$", "$options": "i"},
+        })
+        if clash:
+            raise HTTPException(409, f"A probe named '{n}' already exists at this location")
         update["name"] = n
     if body.info is not None:
         update["info"] = body.info
