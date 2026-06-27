@@ -4,12 +4,21 @@ Business Intelligence (BI) — super_admin only.
 Aggregates Daily Sales + Staff Hours + Staff hourly_rate + Menu Recipes
 into KPI metrics (Labour %, Food Cost %, Revenue) per location and overall.
 
+Also exposes `/ai-insights` which sends the rollup to Claude Sonnet 4.5 and
+returns a structured analysis (headline, strengths, risks, actions, anomalies).
+Results are cached for 30 minutes per (period, location_id) to avoid burning
+LLM credits on every page refresh.
+
 Designed to be pure read-only — no mutations.
 """
+import hashlib
+import json
+import os
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db import db, daily_sales_collection, menu_items_collection, locations_collection
 from auth import get_super_admin
@@ -17,6 +26,8 @@ from auth import get_super_admin
 router = APIRouter(prefix="/api/admin/bi", tags=["bi"])
 
 staff_collection = db["staff_members"]
+ai_cache = db["bi_ai_insights_cache"]
+AI_CACHE_TTL = timedelta(minutes=30)
 
 
 def _hours_between(start: str, end: str) -> float:
@@ -103,6 +114,12 @@ async def bi_overview(
     - menu: avg food cost % per location (recipe-based)
     - period: { start_date, end_date, days }
     """
+    return _compute_overview(start_date, end_date, location_id)
+
+
+def _compute_overview(start_date: Optional[str], end_date: Optional[str], location_id: Optional[str]) -> dict:
+    """Internal: build the BI overview dict so other endpoints (AI insights)
+    can reuse it without going through HTTP."""
     # Default to last 7 days inclusive
     if not start_date or not end_date:
         today = datetime.now(timezone.utc).date()
@@ -258,3 +275,187 @@ async def menu_cost_breakdown(
 
     items_out.sort(key=lambda x: (not x["has_recipe"], -x["margin"]))
     return {"items": items_out}
+
+
+
+# ---------------------------------------------------------------------------
+# AI Insights — Claude Sonnet 4.5 analysis of the BI rollup.
+# ---------------------------------------------------------------------------
+
+_AI_SYSTEM_PROMPT = """You are a senior restaurant business analyst for a multi-site
+quick-service food brand. You are given an aggregated BI dataset (revenue,
+labour cost, labour %, estimated food cost, gross margin, hours per site, top
+staff by cost) for a specific date window.
+
+Industry benchmarks for QSR/cafes:
+- Healthy labour cost: 25-30% of revenue (>35% = critical)
+- Healthy food cost: 28-32% of revenue (>35% = critical)
+- Healthy gross margin (revenue - labour - food): 35%+ (negative = critical)
+
+Your job: return a JSON object with concise, actionable insights. NEVER invent
+numbers — only reason from the data provided. Use British English (e.g. "labour"
+not "labor", "£" for currency). Keep each bullet under 20 words.
+
+Return ONLY valid JSON in this exact shape (no markdown, no prose):
+{
+  "headline": "One punchy sentence summarising overall business health",
+  "health_score": 0-100,
+  "health_label": "Excellent" | "Strong" | "Healthy" | "At risk" | "Critical",
+  "strengths": ["...", "..."],
+  "risks": ["...", "..."],
+  "actions": [
+    {"priority": "high" | "medium" | "low", "title": "...", "detail": "...", "impact": "..."}
+  ],
+  "anomalies": ["Specific outliers or surprising patterns, if any"]
+}
+"""
+
+
+def _cache_key(start_date: str, end_date: str, location_id: Optional[str], overview_digest: str) -> str:
+    base = f"{start_date}|{end_date}|{location_id or 'all'}|{overview_digest}"
+    return hashlib.sha256(base.encode("utf-8")).hexdigest()[:24]
+
+
+def _summarise_for_llm(overview: dict) -> dict:
+    """Trim the overview to the fields Claude actually needs. Keeps the prompt
+    small (cost) and the model focused (quality)."""
+    locs = []
+    for loc in overview.get("by_location", []):
+        # Keep only top 3 staff per location by cost — anything below that is
+        # noise for a high-level analysis.
+        top_staff = sorted(loc.get("staff_breakdown", []), key=lambda s: -s.get("cost", 0))[:3]
+        locs.append({
+            "name": loc.get("location_name"),
+            "revenue": loc.get("revenue"),
+            "labour": loc.get("labour"),
+            "labour_pct": loc.get("labour_pct"),
+            "est_food_cost": loc.get("est_food_cost"),
+            "food_cost_pct": loc.get("food_cost_pct"),
+            "gross_margin": loc.get("gross_margin"),
+            "gross_margin_pct": loc.get("gross_margin_pct"),
+            "hours": loc.get("hours"),
+            "days_traded": loc.get("days"),
+            "menu_recipe_coverage": loc.get("menu_coverage"),
+            "top_staff_cost": [{"name": s["name"], "hours": s["hours"], "cost": s["cost"]} for s in top_staff],
+        })
+    return {
+        "period": overview.get("period"),
+        "kpi": overview.get("kpi"),
+        "locations": locs,
+    }
+
+
+def _extract_json(text: str) -> dict:
+    """Tolerate model output wrapped in ```json fences or with leading prose
+    by hunting for the first/last brace pair before parsing."""
+    s = text.strip()
+    # Strip code fences
+    if s.startswith("```"):
+        s = re.sub(r"^```(?:json)?\s*", "", s)
+        s = re.sub(r"\s*```$", "", s)
+    # If still not pure JSON, find the outermost braces.
+    if not s.lstrip().startswith("{"):
+        m = re.search(r"\{.*\}", s, re.DOTALL)
+        if m:
+            s = m.group(0)
+    return json.loads(s)
+
+
+async def _generate_insights(overview: dict) -> dict:
+    """Call Claude Sonnet 4.5 via the Emergent universal key and parse JSON."""
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(500, "AI insights unavailable: EMERGENT_LLM_KEY not set")
+
+    # Import inside the function so a missing/broken integration package
+    # never blocks the rest of the BI API.
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+    payload = _summarise_for_llm(overview)
+    session_id = f"bi-insights-{datetime.now(timezone.utc).timestamp():.0f}"
+
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=session_id,
+        system_message=_AI_SYSTEM_PROMPT,
+    ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+
+    user_text = (
+        "Analyse the following Jolly's Kafe BI data window and return your JSON. "
+        "Focus on: where money is being made/lost, labour vs food-cost imbalance, "
+        "underperforming sites, and the 3-5 highest-impact actions a manager can "
+        "take this week.\n\n"
+        f"DATA:\n{json.dumps(payload, indent=2)}"
+    )
+
+    # Use send_message (single-shot) — partial JSON is not useful to the UI
+    # so streaming buys nothing here. send_message is universally available
+    # in emergentintegrations; stream_message is newer and may not be present.
+    response = await chat.send_message(UserMessage(text=user_text))
+    full = (response or "").strip() if isinstance(response, str) else str(response).strip()
+
+    try:
+        return _extract_json(full)
+    except json.JSONDecodeError as e:
+        raise HTTPException(502, f"AI returned non-JSON response: {e}")
+
+
+@router.get("/ai-insights")
+async def bi_ai_insights(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    location_id: Optional[str] = Query(None),
+    refresh: bool = Query(False, description="Bypass the 30-min cache"),
+    user: dict = Depends(get_super_admin),
+):
+    overview = _compute_overview(start_date, end_date, location_id)
+
+    # If there's literally no revenue in the window, skip the LLM call and
+    # return a deterministic "no data" envelope so the page renders sanely.
+    if not overview["kpi"]["total_revenue"]:
+        return {
+            "period": overview["period"],
+            "insights": {
+                "headline": "No sales data in this window.",
+                "health_score": 0,
+                "health_label": "No data",
+                "strengths": [],
+                "risks": ["No daily sales entries logged for this period."],
+                "actions": [{
+                    "priority": "high",
+                    "title": "Log daily sales",
+                    "detail": "Staff should be filling in Daily Sales each evening — empty windows make BI useless.",
+                    "impact": "Unlocks BI, labour cost, and food cost analysis for this period.",
+                }],
+                "anomalies": [],
+            },
+            "cached": False,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    # Cache key derives from the overview digest so any data change busts it.
+    digest = hashlib.sha256(
+        json.dumps(_summarise_for_llm(overview), sort_keys=True).encode("utf-8")
+    ).hexdigest()[:16]
+    key = _cache_key(overview["period"]["start_date"], overview["period"]["end_date"], location_id, digest)
+
+    if not refresh:
+        cached = ai_cache.find_one({"key": key}, {"_id": 0})
+        if cached:
+            try:
+                gen_at = datetime.fromisoformat(cached["generated_at"])
+                if datetime.now(timezone.utc) - gen_at < AI_CACHE_TTL:
+                    return {**cached, "cached": True}
+            except Exception:
+                pass
+
+    insights = await _generate_insights(overview)
+    record = {
+        "key": key,
+        "period": overview["period"],
+        "location_id": location_id,
+        "insights": insights,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    ai_cache.update_one({"key": key}, {"$set": record}, upsert=True)
+    return {**{k: v for k, v in record.items() if k != "_id"}, "cached": False}

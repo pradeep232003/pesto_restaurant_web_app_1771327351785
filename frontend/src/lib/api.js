@@ -786,6 +786,13 @@ class ApiService {
     const qs = location_id ? `?location_id=${encodeURIComponent(location_id)}` : '';
     return this.fetch(`/api/admin/bi/menu-cost${qs}`);
   }
+  async adminBIAIInsights({ start_date, end_date, location_id, refresh } = {}) {
+    const qs = new URLSearchParams(
+      Object.entries({ start_date, end_date, location_id, refresh: refresh ? '1' : undefined })
+        .filter(([, v]) => v),
+    ).toString();
+    return this.fetch(`/api/admin/bi/ai-insights${qs ? '?' + qs : ''}`);
+  }
 
   // ============== INSPECTION PACK (EHO-ready audit bundle) ==============
   async adminInspectionPack({ location_id, start_date, end_date } = {}) {

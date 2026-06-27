@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { TrendingUp, ArrowLeft, Users, DollarSign, ChefHat, Activity, AlertTriangle, RefreshCcw, ChevronDown, ChevronRight } from 'lucide-react';
+import { TrendingUp, ArrowLeft, Users, DollarSign, ChefHat, Activity, AlertTriangle, RefreshCcw, ChevronDown, ChevronRight, Sparkles, AlertOctagon, CheckCircle2, Zap } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
@@ -49,6 +49,155 @@ const foodBand = (pct) => {
   return { bg: 'rgba(255,59,48,0.12)', color: '#C0392B', label: 'high' };
 };
 
+const HEALTH_COLORS = {
+  Excellent: { bg: 'linear-gradient(135deg, #34C759 0%, #1F8C42 100%)', chip: '#1F8C42' },
+  Strong:    { bg: 'linear-gradient(135deg, #007AFF 0%, #0058B0 100%)', chip: '#0058B0' },
+  Healthy:   { bg: 'linear-gradient(135deg, #5856D6 0%, #3E3CB5 100%)', chip: '#3E3CB5' },
+  'At risk': { bg: 'linear-gradient(135deg, #FF9500 0%, #B36500 100%)', chip: '#B36500' },
+  Critical:  { bg: 'linear-gradient(135deg, #FF3B30 0%, #B0241A 100%)', chip: '#B0241A' },
+  'No data': { bg: 'linear-gradient(135deg, #8E8E93 0%, #555555 100%)', chip: '#555555' },
+};
+
+const PRIORITY_META = {
+  high:   { bg: 'rgba(255,59,48,0.10)',  color: '#C0392B', label: 'HIGH' },
+  medium: { bg: 'rgba(255,149,0,0.14)',  color: '#A35E00', label: 'MEDIUM' },
+  low:    { bg: 'rgba(0,122,255,0.10)',  color: '#0058B0', label: 'LOW' },
+};
+
+/** Sparkle-headed panel that renders Claude's structured BI analysis. */
+const AIInsightsPanel = ({ insights, loading, cached, generatedAt, error, onRefresh }) => {
+  const palette = HEALTH_COLORS[insights?.health_label] || HEALTH_COLORS.Healthy;
+  const score = insights?.health_score ?? null;
+
+  return (
+    <div data-testid="bi-ai-insights" className="rounded-2xl overflow-hidden mb-5"
+      style={{ background: '#FFFFFF', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+      {/* Hero header — always renders so the section is recognisable mid-load. */}
+      <div className="p-5 sm:p-6" style={{ background: insights ? palette.bg : 'linear-gradient(135deg, #1D1D1F 0%, #3A3A3C 100%)', color: '#FFFFFF' }}>
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2">
+            <Sparkles size={16} strokeWidth={2.2} />
+            <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ ...font, opacity: 0.85 }}>
+              AI Insights · Claude Sonnet 4.5
+            </span>
+          </div>
+          <button
+            data-testid="bi-ai-refresh"
+            onClick={onRefresh}
+            disabled={loading}
+            className="px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 active:scale-95"
+            style={{ background: 'rgba(255,255,255,0.18)', color: '#FFFFFF', border: 0, ...font, opacity: loading ? 0.5 : 1 }}
+          >
+            <RefreshCcw size={11} className={loading ? 'animate-spin' : ''} /> {loading ? 'Thinking…' : (cached ? 'Refresh' : 'Re-run')}
+          </button>
+        </div>
+        {loading && !insights && (
+          <p className="text-sm" style={{ ...font, opacity: 0.9 }}>Analysing your data with Claude…</p>
+        )}
+        {insights && (
+          <>
+            <div className="flex items-baseline gap-3 mb-2">
+              {score != null && (
+                <span data-testid="bi-ai-score" className="text-4xl font-bold tracking-tight" style={{ ...font }}>{score}</span>
+              )}
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider"
+                style={{ background: 'rgba(255,255,255,0.22)', color: '#FFFFFF', ...font }}>
+                {insights.health_label?.toUpperCase()}
+              </span>
+            </div>
+            <p data-testid="bi-ai-headline" className="text-base sm:text-lg leading-snug" style={{ ...font, fontWeight: 500 }}>
+              {insights.headline}
+            </p>
+          </>
+        )}
+        {error && (
+          <p className="text-xs mt-2" style={{ ...font, color: '#FFE5E5' }}>{error}</p>
+        )}
+      </div>
+
+      {/* Body — strengths, risks, actions, anomalies. */}
+      {insights && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
+          {insights.strengths?.length > 0 && (
+            <div className="p-5 sm:p-6" style={{ borderRight: '1px solid rgba(0,0,0,0.04)' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <CheckCircle2 size={14} color="#1F8C42" />
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#86868B', ...font }}>What&apos;s working</h3>
+              </div>
+              <ul className="space-y-2">
+                {insights.strengths.map((s, i) => (
+                  <li key={i} data-testid={`bi-ai-strength-${i}`} className="text-sm leading-snug flex gap-2" style={{ color: '#1D1D1F', ...font }}>
+                    <span style={{ color: '#1F8C42' }}>•</span> <span>{s}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {insights.risks?.length > 0 && (
+            <div className="p-5 sm:p-6">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertOctagon size={14} color="#C0392B" />
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#86868B', ...font }}>Risks to address</h3>
+              </div>
+              <ul className="space-y-2">
+                {insights.risks.map((r, i) => (
+                  <li key={i} data-testid={`bi-ai-risk-${i}`} className="text-sm leading-snug flex gap-2" style={{ color: '#1D1D1F', ...font }}>
+                    <span style={{ color: '#C0392B' }}>•</span> <span>{r}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {insights.actions?.length > 0 && (
+            <div className="col-span-1 lg:col-span-2 p-5 sm:p-6" style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <Zap size={14} color="#5856D6" />
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#86868B', ...font }}>Recommended actions</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {insights.actions.map((a, i) => {
+                  const meta = PRIORITY_META[a.priority] || PRIORITY_META.medium;
+                  return (
+                    <div key={i} data-testid={`bi-ai-action-${i}`} className="p-4 rounded-xl" style={{ background: '#F9F9FB' }}>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider" style={{ background: meta.bg, color: meta.color, ...font }}>{meta.label}</span>
+                      </div>
+                      <p className="text-sm font-semibold mb-1" style={{ color: '#1D1D1F', ...font }}>{a.title}</p>
+                      <p className="text-xs leading-snug mb-1.5" style={{ color: '#3A3A3C', ...font }}>{a.detail}</p>
+                      {a.impact && (
+                        <p className="text-[11px]" style={{ color: '#86868B', ...font }}><strong>Impact:</strong> {a.impact}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {insights.anomalies?.length > 0 && (
+            <div className="col-span-1 lg:col-span-2 p-5 sm:p-6" style={{ borderTop: '1px solid rgba(0,0,0,0.04)', background: '#FAFAFA' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <Activity size={14} color="#FF9500" />
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#86868B', ...font }}>Anomalies & patterns</h3>
+              </div>
+              <ul className="space-y-1.5">
+                {insights.anomalies.map((a, i) => (
+                  <li key={i} data-testid={`bi-ai-anomaly-${i}`} className="text-xs leading-snug" style={{ color: '#3A3A3C', ...font }}>· {a}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="col-span-1 lg:col-span-2 px-5 sm:px-6 py-2.5" style={{ background: '#FAFAFA', borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+            <p className="text-[10px]" style={{ color: '#86868B', ...font }}>
+              {cached ? 'Cached ' : 'Generated '}{generatedAt && new Date(generatedAt).toLocaleString('en-GB')}
+              · AI analysis is advisory, not a substitute for management judgement
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const AdminBI = () => {
   const navigate = useNavigate();
   const { isAuthenticated, isSuperAdmin, loading: authLoading } = useAuth();
@@ -63,6 +212,14 @@ const AdminBI = () => {
   const [err, setErr] = useState('');
   const [expandedLoc, setExpandedLoc] = useState(null);
   const [showMenu, setShowMenu] = useState(false);
+  // AI insights — lazy-loaded so the page is fast and credits aren't burned
+  // on every visit. Loads automatically once the BI data first arrives, then
+  // refresh / re-runs whenever the filters change.
+  const [aiInsights, setAiInsights] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [aiCached, setAiCached] = useState(false);
+  const [aiGeneratedAt, setAiGeneratedAt] = useState('');
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !isSuperAdmin)) {
@@ -101,6 +258,30 @@ const AdminBI = () => {
   }, [startDate, endDate, locationId]);
 
   useEffect(() => { if (isSuperAdmin) fetch(); }, [fetch, isSuperAdmin]);
+
+  const fetchAi = useCallback(async (force = false) => {
+    setAiLoading(true); setAiError('');
+    try {
+      const res = await api.adminBIAIInsights({
+        start_date: startDate, end_date: endDate,
+        location_id: locationId || undefined,
+        refresh: force,
+      });
+      setAiInsights(res.insights);
+      setAiCached(!!res.cached);
+      setAiGeneratedAt(res.generated_at || '');
+    } catch (e) {
+      setAiError(e?.message || 'Failed to generate insights');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [startDate, endDate, locationId]);
+
+  // Auto-load AI insights once BI data has arrived. Re-runs when filters
+  // change because `fetchAi` is memoised on those same dependencies.
+  useEffect(() => {
+    if (isSuperAdmin && data && !loading) fetchAi(false);
+  }, [isSuperAdmin, data, loading, fetchAi]);
 
   if (authLoading || !isSuperAdmin) {
     return (
@@ -200,6 +381,16 @@ const AdminBI = () => {
           <p className="text-xs" style={{ color: '#C0392B', ...font }}>{err}</p>
         </div>
       )}
+
+      {/* AI Insights — Claude Sonnet 4.5 analysis */}
+      <AIInsightsPanel
+        insights={aiInsights}
+        loading={aiLoading}
+        cached={aiCached}
+        generatedAt={aiGeneratedAt}
+        error={aiError}
+        onRefresh={() => fetchAi(true)}
+      />
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
