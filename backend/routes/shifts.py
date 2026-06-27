@@ -465,14 +465,16 @@ async def ai_suggest_week(body: AISuggestBody, user: dict = Depends(get_admin_us
         import logging
         logging.exception("AI rota HTTP call failed")
         snippet = (str(e) or e.__class__.__name__).splitlines()[0][:240]
-        raise HTTPException(502, f"AI provider error ({provider}): {snippet}")
+        # Use 500 (not 502) — the preview ingress rewrites 502 responses
+        # to an HTML error page, swallowing our JSON detail.
+        raise HTTPException(500, f"AI provider error ({provider}): {snippet}")
 
     if resp.status_code >= 400:
         try:
             err = resp.json().get("error", {}).get("message", resp.text)
         except Exception:
             err = resp.text
-        raise HTTPException(502, f"AI provider error ({provider}, {resp.status_code}): {err[:240]}")
+        raise HTTPException(500, f"AI provider error ({provider}, {resp.status_code}): {err[:240]}")
 
     data = resp.json()
     full = "".join(
@@ -480,7 +482,7 @@ async def ai_suggest_week(body: AISuggestBody, user: dict = Depends(get_admin_us
         if block.get("type") == "text"
     ).strip()
     if not full:
-        raise HTTPException(502, "AI provider returned an empty response")
+        raise HTTPException(500, "AI provider returned an empty response")
 
     # Strip ```json fences if Claude added them, then parse.
     import re
@@ -495,7 +497,7 @@ async def ai_suggest_week(body: AISuggestBody, user: dict = Depends(get_admin_us
     try:
         parsed = json.loads(s)
     except json.JSONDecodeError as e:
-        raise HTTPException(502, f"AI returned non-JSON response: {e}")
+        raise HTTPException(500, f"AI returned non-JSON response: {e}")
 
     raw_shifts = parsed.get("shifts") or []
     target_set = set(target_dates)
@@ -547,10 +549,15 @@ async def bulk_create(body: BulkCreateBody, user: dict = Depends(get_admin_user)
     still tweak before Publish."""
     inserted = []
     skipped = 0
+    seen = set()  # in-batch dedupe — (staff_id, date, start_time)
     now = datetime.now(timezone.utc).isoformat()
     docs = []
     for s in body.shifts:
+        triple = (s.staff_id, s.date, s.start_time)
         if body.skip_clashes:
+            if triple in seen:
+                skipped += 1
+                continue
             clash = shifts_collection.find_one({
                 "location_id": body.location_id,
                 "staff_id": s.staff_id,
@@ -560,6 +567,7 @@ async def bulk_create(body: BulkCreateBody, user: dict = Depends(get_admin_user)
             if clash:
                 skipped += 1
                 continue
+        seen.add(triple)
         doc = {
             "id": str(uuid.uuid4())[:12],
             "location_id": body.location_id,
