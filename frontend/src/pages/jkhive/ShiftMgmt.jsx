@@ -305,8 +305,12 @@ const ShiftMgmt = () => {
             </div>
           )}
 
-          {/* Per-day list — primary view on mobile, fallback when no staff exist. */}
-          <div className={isAdmin ? 'md:hidden' : ''} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+          {/* Per-day list — primary view on mobile, fallback when no staff exist.
+              NOTE: wrap the flex container in an outer `md:hidden` div because
+              the inline `display:flex` on the inner div would otherwise win
+              over Tailwind's `md:hidden` (display:none) at >=768px. */}
+          <div className={isAdmin ? 'md:hidden' : ''}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
             {Array.from({ length: 7 }, (_, i) => {
               const d = addDays(weekStart, i);
               const iso = toIso(d);
@@ -371,6 +375,7 @@ const ShiftMgmt = () => {
                 </div>
               );
             })}
+          </div>
           </div>
 
           {/* Weekly totals card */}

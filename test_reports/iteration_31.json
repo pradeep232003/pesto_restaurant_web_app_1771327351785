@@ -1,0 +1,22 @@
+{
+  "summary": "Regression retest of md:hidden fix on /jkhive/shifts ShiftMgmt page. The previous iteration found that on desktop the mobile day-card list rendered alongside ShiftGrid because inline display:flex overrode Tailwind md:hidden. Fix wraps the inline-flex container in an outer <div className='md:hidden'>. Verified at viewports 1280, 1024, 768, 767, and 390 px after logging in as admin@jollys.com and picking Timperley. Fix works correctly: at >=768px only shifts-grid is visible and shifts-day-* cards are hidden via the outer wrapper (display:none on the md:hidden parent). At <768px the grid wrapper is hidden and the seven shifts-day-* cards render normally along with mobile controls.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix is correct but slightly defensive: outer wrapper sets className conditionally (isAdmin ? 'md:hidden' : ''). When not admin the outer div is empty/no-op, which is fine. The inner div still has inline display:flex — preserving that as inline style is acceptable since visibility is now controlled at the outer wrapper. Consider migrating the inline flex/gap/flexDirection to Tailwind utility classes long-term to reduce style/className duplication, but not blocking."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped)", "frontend": "100% on requested checks"},
+  "test_credentials": "admin@jollys.com / Admin123! (super_admin) — picked Timperley site after login. Read from /app/memory/test_credentials.md.",
+  "seed_data_creation": "No new data created. Pre-existing draft shift (Alice Brown, Tue 23 Jun, 09:00-17:00, 8h) from iteration_30 was used as a visual confirmation that the grid actually renders content. No mutations performed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "md:hidden regression on ShiftMgmt page is FIXED and verified at multiple viewports (1280, 1024, 768, 767, 390). DOM probe at desktop confirms day cards' parent chain contains a div with class='md:hidden' and computedStyle display='none'. The shifts-grid itself stays display:block but is wrapped in 'hidden md:block' so it is effectively hidden on mobile (parent display:none, gridWidth=0 at 390px). NOTE: the date-nav testids are shifts-prev-week / shifts-this-week / shifts-next-week (NOT shifts-prev / shifts-next / shifts-today). Update future scripts accordingly. End-to-end flows (quick-add, click-to-edit, drag-and-drop, mobile controls) were intentionally NOT retested — they already passed in iteration_30.",
+  "rca of the issue": "Original bug: inline style display:flex won over Tailwind's md:hidden (which sets display:none via class selector). Inline styles have higher specificity than any class-based rule. Fix in /app/frontend/src/pages/jkhive/ShiftMgmt.jsx ~line 312 wraps the inline-styled flex container inside <div className={isAdmin ? 'md:hidden' : ''}>. Because the OUTER element has only a className and no inline display, Tailwind's md:hidden takes effect at >=768px, hiding the entire subtree including the inline-flex child. Verified via window.getComputedStyle on the parent chain at 1280px: outer wrapper {tag:'DIV', cls:'md:hidden', display:'none'}."
+}
