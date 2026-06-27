@@ -362,9 +362,11 @@ def _extract_json(text: str) -> dict:
 
 
 async def _generate_insights(overview: dict) -> dict:
-    """Call Claude Sonnet 4.5 via the Emergent universal key and parse JSON."""
-    # Prefer DB-stored key (super admin can set/replace it from the UI);
-    # fall back to the env var for backwards compatibility.
+    """Call Claude Sonnet 4.5 directly via the official Anthropic SDK.
+
+    We deliberately use the official `anthropic` package (PyPI) rather than
+    `emergentintegrations` so production (Railway) — which doesn't have access
+    to the private Emergent package index — works the same as the dev env."""
     from routes.ai_settings import get_active_ai_key, get_active_ai_provider
     api_key = get_active_ai_key()
     if not api_key:
@@ -374,19 +376,10 @@ async def _generate_insights(overview: dict) -> dict:
         )
     provider = get_active_ai_provider()
 
-    # Import inside the function so a missing/broken integration package
-    # never blocks the rest of the BI API.
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    import anthropic
+    client = anthropic.Anthropic(api_key=api_key)
 
     payload = _summarise_for_llm(overview)
-    session_id = f"bi-insights-{datetime.now(timezone.utc).timestamp():.0f}"
-
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=session_id,
-        system_message=_AI_SYSTEM_PROMPT,
-    ).with_model("anthropic", "claude-sonnet-4-5-20250929")
-
     user_text = (
         "Analyse the following Jolly's Kafe BI data window and return your JSON. "
         "Focus on: where money is being made/lost, labour vs food-cost imbalance, "
@@ -395,24 +388,28 @@ async def _generate_insights(overview: dict) -> dict:
         f"DATA:\n{json.dumps(payload, indent=2)}"
     )
 
-    # Use send_message (single-shot) — partial JSON is not useful to the UI
-    # so streaming buys nothing here. send_message is universally available
-    # in emergentintegrations; stream_message is newer and may not be present.
-    # Catch every exception so the real cause (invalid key, rate limit, network,
-    # SDK mismatch) is surfaced to the admin instead of a bare 500.
+    # Catch every exception so the real cause (invalid key, rate limit, network)
+    # is surfaced to the admin instead of a bare 500.
     try:
-        response = await chat.send_message(UserMessage(text=user_text))
+        msg = client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=2048,
+            system=_AI_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_text}],
+        )
     except HTTPException:
         raise
-    except Exception as e:  # noqa: BLE001 — bubble up readable cause to the UI
+    except Exception as e:  # noqa: BLE001
         import logging
         logging.exception("BI AI insights LLM call failed")
-        msg = str(e) or e.__class__.__name__
-        # Strip very long stack traces from the visible error so the toast stays readable.
-        snippet = msg.splitlines()[0][:240]
+        snippet = (str(e) or e.__class__.__name__).splitlines()[0][:240]
         raise HTTPException(502, f"AI provider error ({provider}): {snippet}")
 
-    full = (response or "").strip() if isinstance(response, str) else str(response).strip()
+    full = ""
+    for block in (msg.content or []):
+        if getattr(block, "type", "") == "text":
+            full += getattr(block, "text", "")
+    full = full.strip()
     if not full:
         raise HTTPException(502, "AI provider returned an empty response")
 

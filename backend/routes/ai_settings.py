@@ -108,14 +108,21 @@ async def test_ai_settings(body: TestKeyBody, user: dict = Depends(get_super_adm
     if not key:
         raise HTTPException(400, "api_key cannot be empty")
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        chat = LlmChat(
-            api_key=key,
-            session_id="bi-ai-key-test",
-            system_message="Reply only with the word 'ok'.",
-        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
-        resp = await chat.send_message(UserMessage(text="ping"))
-        out = (resp or "").strip() if isinstance(resp, str) else str(resp).strip()
+        # Use the official Anthropic SDK so production (Railway) doesn't need
+        # the private emergentintegrations index.
+        import anthropic
+        client = anthropic.Anthropic(api_key=key)
+        msg = client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=16,
+            system="Reply only with the word 'ok'.",
+            messages=[{"role": "user", "content": "ping"}],
+        )
+        out = ""
+        for block in (msg.content or []):
+            if getattr(block, "type", "") == "text":
+                out += getattr(block, "text", "")
+        out = out.strip()
         if not out:
             return {"ok": False, "message": "Provider returned an empty response"}
         return {"ok": True, "message": "Key works", "preview": out[:80]}
