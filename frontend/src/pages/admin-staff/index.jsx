@@ -4,7 +4,7 @@ import { Users, ArrowLeft, Plus, Pencil, Trash2, Check, X } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 
-const EMPTY = { name: '', forename: '', surname: '', ni_number: '', dob: '', address: '', employee_no: '', start_date: '', hourly_rate: '', weekly_hours_target: '', account_email: '', location_ids: [] };
+const EMPTY = { name: '', forename: '', surname: '', ni_number: '', dob: '', address: '', employee_no: '', start_date: '', hourly_rate: '', weekly_hours_target: '', account_email: '', location_ids: [], active: true };
 
 const FIELDS = [
   { key: 'name',         label: 'Name',        type: 'text',  required: true, placeholder: 'Full name (for matching)' },
@@ -45,11 +45,12 @@ const AdminStaff = () => {
 
   const fetchLocations = async () => {
     try { setLocations(await api.adminGetLocations()); }
-    catch { /* non-fatal — checkbox group will just be empty */ }
+    // Surface during dev — silent catches previously hid a typo here.
+    catch (err) { console.warn('admin-staff: failed to load locations', err); }
   };
 
-  const openNew = () => { setForm({ ...EMPTY, location_ids: [] }); setEditing('new'); };
-  const openEdit = (s) => { setForm({ ...EMPTY, ...s, location_ids: Array.isArray(s.location_ids) ? s.location_ids : [] }); setEditing(s); };
+  const openNew = () => { setForm({ ...EMPTY, location_ids: [], active: true }); setEditing('new'); };
+  const openEdit = (s) => { setForm({ ...EMPTY, ...s, location_ids: Array.isArray(s.location_ids) ? s.location_ids : [], active: s.active !== false }); setEditing(s); };
   const closeForm = () => { setEditing(null); setForm(EMPTY); };
 
   const toggleLocation = (locId) => {
@@ -68,6 +69,7 @@ const AdminStaff = () => {
         hourly_rate: form.hourly_rate === '' || form.hourly_rate == null ? 0 : parseFloat(form.hourly_rate) || 0,
         weekly_hours_target: form.weekly_hours_target === '' || form.weekly_hours_target == null ? 0 : parseFloat(form.weekly_hours_target) || 0,
         location_ids: Array.isArray(form.location_ids) ? form.location_ids : [],
+        active: form.active !== false,
       };
       if (editing === 'new') await api.adminCreateStaff(payload);
       else await api.adminUpdateStaff(editing.id, payload);
@@ -81,6 +83,16 @@ const AdminStaff = () => {
     if (!window.confirm(`Delete ${s.name}? This cannot be undone.`)) return;
     try { await api.adminDeleteStaff(s.id); await fetchStaff(); }
     catch (err) { alert('Delete failed: ' + err.message); }
+  };
+
+  // Quick toggle from the table — avoids opening the drawer just to mark
+  // someone as on leave / left the business.
+  const toggleActive = async (s) => {
+    const nextActive = !(s.active !== false);
+    try {
+      await api.adminUpdateStaff(s.id, { active: nextActive });
+      await fetchStaff();
+    } catch (err) { alert('Update failed: ' + err.message); }
   };
 
   if (authLoading) return <div className="flex items-center justify-center h-64"><div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" /></div>;
@@ -132,12 +144,13 @@ const AdminStaff = () => {
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>Start Date</th>
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>£/hr</th>
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>Locations</th>
+                  <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>Status</th>
                   <th className="px-3 py-2.5 text-right text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {staff.map(s => (
-                  <tr key={s.id} data-testid={`staff-row-${s.id}`} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+                  <tr key={s.id} data-testid={`staff-row-${s.id}`} style={{ borderTop: '1px solid rgba(0,0,0,0.04)', opacity: s.active === false ? 0.55 : 1 }}>
                     <td className="px-3 py-2.5 text-sm font-medium" style={{ color: '#1D1D1F', ...font }}>
                       <div>{s.name}</div>
                       {(s.forename || s.surname) && (
@@ -168,6 +181,24 @@ const AdminStaff = () => {
                           </div>
                         );
                       })()}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <button
+                        data-testid={`staff-active-row-${s.id}`}
+                        onClick={() => toggleActive(s)}
+                        title="Click to toggle"
+                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold active:scale-95"
+                        style={{
+                          background: s.active === false ? 'rgba(142,142,147,0.15)' : 'rgba(52,199,89,0.15)',
+                          color: s.active === false ? '#6E6E73' : '#1F8A3E',
+                          ...font,
+                        }}>
+                        <span style={{
+                          width: 6, height: 6, borderRadius: '50%',
+                          background: s.active === false ? '#8E8E93' : '#34C759',
+                        }} />
+                        {s.active === false ? 'Inactive' : 'Active'}
+                      </button>
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       <button data-testid={`edit-staff-${s.id}`} onClick={() => openEdit(s)}
@@ -231,6 +262,37 @@ const AdminStaff = () => {
                   )}
                 </div>
               ))}
+
+              {/* Active toggle — when off, the staff member is hidden from
+                  the rota scheduler and AI-suggest roster but their
+                  history remains intact. */}
+              <div data-testid="staff-field-active" className="flex items-center justify-between rounded-lg p-3" style={{ background: '#FFFFFF', boxShadow: '0 0 0 1px rgba(0,0,0,0.08)' }}>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: '#1D1D1F', ...font }}>Active</p>
+                  <p className="text-[11px]" style={{ color: '#86868B', ...font }}>
+                    {form.active === false
+                      ? 'Hidden from shift scheduling. Existing shifts are kept.'
+                      : 'Available for shift scheduling and AI rota suggestions.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  data-testid="staff-active-toggle"
+                  onClick={() => setForm(prev => ({ ...prev, active: !(prev.active !== false) }))}
+                  aria-pressed={form.active !== false}
+                  style={{
+                    width: 50, height: 30, borderRadius: 999, border: 0, cursor: 'pointer',
+                    background: form.active === false ? '#D1D1D6' : '#34C759',
+                    position: 'relative', transition: 'background 0.2s',
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute', top: 3, left: form.active === false ? 3 : 23,
+                    width: 24, height: 24, borderRadius: '50%', background: '#FFFFFF',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s',
+                  }} />
+                </button>
+              </div>
 
               {/* Locations multi-select — pick every site this staff member
                   works at. Leaving all blank means "all sites". */}

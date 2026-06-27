@@ -34,6 +34,10 @@ class StaffMember(BaseModel):
     # as "all sites" so legacy records continue to appear in every
     # location's rota until a manager refines it.
     location_ids: list = []
+    # Active flag — set to False when a staff member leaves or is on
+    # extended leave. Inactive staff don't appear on rota dropdowns or in
+    # the AI-suggest roster, but their historical shifts are preserved.
+    active: bool = True
     # Optional login link — when an account with this email logs in we can
     # automatically scope their view (e.g. /jkhive/shifts) to their own
     # rota. Lower-cased on write so comparisons are case-insensitive.
@@ -52,6 +56,7 @@ class StaffMemberUpdate(BaseModel):
     hourly_rate: Optional[float] = None
     weekly_hours_target: Optional[float] = None
     location_ids: Optional[list] = None
+    active: Optional[bool] = None
     account_email: Optional[str] = None
 
 

@@ -403,18 +403,20 @@ async def ai_suggest_week(body: AISuggestBody, user: dict = Depends(get_admin_us
 
     staff_rows = list(staff_collection.find(
         {},
-        {"_id": 0, "id": 1, "name": 1, "hourly_rate": 1, "weekly_hours_target": 1, "location_ids": 1},
+        {"_id": 0, "id": 1, "name": 1, "hourly_rate": 1, "weekly_hours_target": 1, "location_ids": 1, "active": 1},
     ))
     if not staff_rows:
         raise HTTPException(400, "No staff members configured — add staff before requesting an AI rota.")
-    # Filter to staff who work at this location. Empty/missing location_ids
-    # = legacy record assumed to work anywhere.
+    # Filter to active staff who work at this location. Empty/missing
+    # location_ids = legacy record assumed to work anywhere; missing
+    # `active` defaults to True.
     staff_rows = [
         s for s in staff_rows
-        if not s.get("location_ids") or body.location_id in (s.get("location_ids") or [])
+        if s.get("active", True) is not False
+        and (not s.get("location_ids") or body.location_id in (s.get("location_ids") or []))
     ]
     if not staff_rows:
-        raise HTTPException(400, "No staff are assigned to this location. Add staff to this site first.")
+        raise HTTPException(400, "No active staff are assigned to this location. Add or re-activate staff first.")
     # Roster sent to Claude. Cap to first 30 to keep prompt size sane.
     roster = [
         {

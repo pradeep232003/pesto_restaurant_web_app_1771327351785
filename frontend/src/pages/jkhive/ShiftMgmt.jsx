@@ -67,10 +67,12 @@ const ShiftMgmt = () => {
         isAdmin ? api.adminListStaff().catch(() => []) : Promise.resolve([]),
       ]);
       setShifts(rows || []);
-      // Scope the staff roster to people who work at this location. Legacy
-      // records with no `location_ids` (empty array / missing field) are
-      // treated as "available everywhere" so they don't silently vanish.
+      // Scope the staff roster to people who work at this location AND
+      // are currently Active. Legacy records with no `location_ids` and no
+      // explicit `active` field are treated as "available everywhere" so
+      // they don't silently vanish.
       const scopedStaff = (staff || []).filter(s => {
+        if (s.active === false) return false;
         const ids = Array.isArray(s.location_ids) ? s.location_ids : [];
         return ids.length === 0 || ids.includes(adminLocationId);
       });
