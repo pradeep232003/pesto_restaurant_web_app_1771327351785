@@ -833,6 +833,12 @@ class ApiService {
   async documentsDelete(docId) {
     return this.fetch(`/api/admin/documents/${docId}`, { method: 'DELETE' });
   }
+  async documentsUpdate(docId, patch) {
+    return this.fetch(`/api/admin/documents/${docId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  }
 
   // ============== ROUTINE TEMPS (opening / closing) ==============
   async submitRoutineTemp(data) { return this.fetch('/api/admin/routine-temps', { method: 'POST', body: JSON.stringify(data) }); }

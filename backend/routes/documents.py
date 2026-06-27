@@ -19,6 +19,7 @@ import gridfs
 from bson import ObjectId
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from auth import get_admin_user, get_staff_or_above
 from db import db
@@ -80,10 +81,19 @@ async def upload_document(
     location_id: str = Form(...),
     title: str = Form(...),
     category: str = Form("Other"),
+    expires_at: Optional[str] = Form(None),  # YYYY-MM-DD or "" / None for N/A
     user: dict = Depends(get_staff_or_above),
 ):
     title = (title or "").strip() or file.filename or "Untitled"
     category = (category or "Other").strip() or "Other"
+    expires_at = (expires_at or "").strip() or None
+    if expires_at:
+        # Reject obviously malformed dates so the audit pack stays trustworthy.
+        try:
+            from datetime import date as _date
+            _date.fromisoformat(expires_at)
+        except Exception:
+            raise HTTPException(400, "expires_at must be YYYY-MM-DD")
 
     # Stream the upload into GridFS to keep memory flat. We rely on FastAPI's
     # SpooledTemporaryFile under the hood (`file.file`).
@@ -113,6 +123,7 @@ async def upload_document(
         "content_type": content_type,
         "size": len(blob),
         "file_id": str(file_id),  # store as string for JSON safety
+        "expires_at": expires_at,  # YYYY-MM-DD or None (N/A — non-expiring doc)
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
         "uploaded_by": user.get("email", ""),
         "uploaded_by_name": user.get("name", ""),
@@ -160,3 +171,42 @@ async def delete_document(doc_id: str, user: dict = Depends(get_admin_user)):
         pass  # tolerate orphan GridFS; we still want the metadata gone
     documents.delete_one({"id": doc_id})
     return {"deleted": True}
+
+
+class DocumentPatch(BaseModel):
+    title: Optional[str] = None
+    category: Optional[str] = None
+    # Empty string clears the expiry (renders as N/A). None leaves it untouched.
+    expires_at: Optional[str] = None
+
+
+@router.patch("/{doc_id}")
+async def update_document(doc_id: str, body: DocumentPatch, user: dict = Depends(get_admin_user)):
+    rec = documents.find_one({"id": doc_id})
+    if not rec:
+        raise HTTPException(404, "Not found")
+    update: dict = {}
+    if body.title is not None:
+        t = body.title.strip()
+        if not t:
+            raise HTTPException(400, "title cannot be empty")
+        update["title"] = t
+    if body.category is not None:
+        update["category"] = body.category.strip() or "Other"
+    if body.expires_at is not None:
+        val = (body.expires_at or "").strip()
+        if val:
+            try:
+                from datetime import date as _date
+                _date.fromisoformat(val)
+            except Exception:
+                raise HTTPException(400, "expires_at must be YYYY-MM-DD")
+            update["expires_at"] = val
+        else:
+            update["expires_at"] = None  # cleared → N/A
+    if update:
+        update["edited_at"] = datetime.now(timezone.utc).isoformat()
+        update["edited_by"] = user.get("email", "")
+        update["edited_by_name"] = user.get("name", "")
+        documents.update_one({"id": doc_id}, {"$set": update})
+    return _doc_to_dict(documents.find_one({"id": doc_id}))

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Upload, FileText, Image as ImageIcon, FileSpreadsheet,
-  Eye, Download, Trash2, X, FolderOpen, Loader2,
+  Eye, Download, Trash2, X, FolderOpen, Loader2, CalendarClock, Pencil,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -23,6 +23,30 @@ const fmtDateTime = (iso) => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+};
+
+const fmtShortDate = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' });
+};
+
+/** Derive a status pill spec for the document's expiry date.
+ *  - null/missing  → "N/A"  (doc doesn't expire)
+ *  - in the past   → "Expired"
+ *  - ≤ 30 days     → "Expiring"
+ *  - > 30 days     → "OK" (with date)
+ */
+const expirySpec = (expires_at) => {
+  if (!expires_at) return { label: 'N/A',     bg: 'rgba(0,0,0,0.04)',     fg: '#86868B', daysLeft: null };
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const exp = new Date(expires_at);
+  if (Number.isNaN(exp.getTime())) return { label: 'N/A', bg: 'rgba(0,0,0,0.04)', fg: '#86868B', daysLeft: null };
+  const days = Math.round((exp - today) / 86400000);
+  if (days < 0)  return { label: `Expired (${fmtShortDate(expires_at)})`, bg: 'rgba(255,59,48,0.12)',  fg: '#C0392B', daysLeft: days };
+  if (days <= 30) return { label: `Expiring in ${days}d`,                 bg: 'rgba(255,149,0,0.16)',  fg: '#A35E00', daysLeft: days };
+  return { label: `Expires ${fmtShortDate(expires_at)}`,                   bg: 'rgba(52,199,89,0.14)',  fg: '#1B7A35', daysLeft: days };
 };
 
 /** Decide which icon to show for the file's content type. */
@@ -50,8 +74,13 @@ const Documents = () => {
   const [file, setFile] = useState(null);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Policies');
+  const [expiresAt, setExpiresAt] = useState(''); // empty = N/A / non-expiring
   const [categories, setCategories] = useState(['Policies', 'Certificates', 'Training', 'Risk Assessments', 'Suppliers', 'HACCP', 'Other']);
   const [uploading, setUploading] = useState(false);
+
+  // Inline expiry editor
+  const [editingExpiryFor, setEditingExpiryFor] = useState(null); // doc.id or null
+  const [editExpiryValue, setEditExpiryValue] = useState('');
 
   // Filter
   const [filterCategory, setFilterCategory] = useState('');
@@ -114,9 +143,10 @@ const Documents = () => {
       fd.append('location_id', adminLocationId);
       fd.append('title', title.trim());
       fd.append('category', category);
+      if (expiresAt) fd.append('expires_at', expiresAt);
       await api.documentsUpload(fd);
       // Reset form & refresh
-      setFile(null); setTitle(''); setCategory('Policies'); setShowUpload(false);
+      setFile(null); setTitle(''); setCategory('Policies'); setExpiresAt(''); setShowUpload(false);
       await load();
     } catch (err) {
       setError(err.message);
@@ -164,6 +194,22 @@ const Documents = () => {
     try {
       await api.documentsDelete(doc.id);
       setDocs(d => d.filter(x => x.id !== doc.id));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const startEditExpiry = (doc) => {
+    setEditingExpiryFor(doc.id);
+    setEditExpiryValue(doc.expires_at || '');
+  };
+
+  const saveExpiry = async (doc) => {
+    try {
+      // Empty string clears the expiry → backend stores null → renders as N/A.
+      const updated = await api.documentsUpdate(doc.id, { expires_at: editExpiryValue });
+      setDocs(prev => prev.map(d => (d.id === doc.id ? { ...d, ...updated } : d)));
+      setEditingExpiryFor(null);
     } catch (err) {
       setError(err.message);
     }
@@ -271,6 +317,16 @@ const Documents = () => {
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </label>
+          <label style={{ display: 'block', marginBottom: 14 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Expires on <span style={{ textTransform: 'none', fontWeight: 500, color: '#86868B' }}>· leave blank if N/A</span></span>
+            <input
+              data-testid="documents-expiry-input"
+              type="date"
+              value={expiresAt}
+              onChange={e => setExpiresAt(e.target.value)}
+              style={{ display: 'block', marginTop: 4, width: '100%', padding: '10px 12px', borderRadius: 10, background: '#F5F5F7', border: 0, fontSize: 14, color: '#1D1D1F', ...FONT }}
+            />
+          </label>
           <button
             data-testid="documents-submit-upload"
             disabled={uploading || !file || !title.trim()}
@@ -324,6 +380,52 @@ const Documents = () => {
                       {fmtSize(doc.size)} · {fmtDateTime(doc.uploaded_at)}
                       {doc.uploaded_by_name && ` · ${doc.uploaded_by_name}`}
                     </p>
+                    {(() => {
+                      const spec = expirySpec(doc.expires_at);
+                      const isEditing = editingExpiryFor === doc.id;
+                      return (
+                        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          {!isEditing && (
+                            <span data-testid={`documents-expiry-chip-${doc.id}`}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                padding: '3px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                                background: spec.bg, color: spec.fg,
+                              }}>
+                              <CalendarClock size={11} strokeWidth={2.4} /> {spec.label}
+                            </span>
+                          )}
+                          {isAdmin && !isEditing && (
+                            <button
+                              data-testid={`documents-edit-expiry-${doc.id}`}
+                              onClick={() => startEditExpiry(doc)}
+                              aria-label="Edit expiry"
+                              style={{ background: 'transparent', border: 0, padding: 2, color: '#86868B', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 11, ...FONT }}
+                            >
+                              <Pencil size={11} /> {doc.expires_at ? 'Edit' : 'Set expiry'}
+                            </button>
+                          )}
+                          {isEditing && (
+                            <>
+                              <input
+                                data-testid={`documents-expiry-edit-${doc.id}`}
+                                type="date"
+                                value={editExpiryValue}
+                                onChange={e => setEditExpiryValue(e.target.value)}
+                                style={{ padding: '4px 6px', borderRadius: 8, background: '#F5F5F7', border: 0, fontSize: 12, color: '#1D1D1F', ...FONT }}
+                              />
+                              <button data-testid={`documents-expiry-save-${doc.id}`}
+                                onClick={() => saveExpiry(doc)}
+                                style={{ background: '#1D1D1F', color: '#FFFFFF', border: 0, borderRadius: 999, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', ...FONT }}
+                              >Save</button>
+                              <button onClick={() => setEditingExpiryFor(null)}
+                                style={{ background: 'transparent', color: '#86868B', border: 0, padding: '4px 6px', fontSize: 11, cursor: 'pointer', ...FONT }}
+                              >Cancel</button>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                     {can && (

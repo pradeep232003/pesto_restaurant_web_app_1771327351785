@@ -19,7 +19,7 @@ Full-stack restaurant ops platform: Apple-inspired UX, multi-location, role-gate
 - Weekly Check hub filters tiles by per-location `applicable_routines`
 - **Weekly Checklist compliance** now uses union-coverage (mirrors hub: partial run ≠ 100%)
 - **Inspection Mode** ("EHO-ready audit pack") — new admin page `/jkhive/inspection` with date-range picker, headline compliance %, per-routine status pills, probes, recent calibrations, legionella, staff, templates summary, and Print/Save-PDF (A4 print CSS). Backend: `GET /api/admin/inspection/pack`.
-- **Documents** module — new `/jkhive/documents` page with upload (multipart, 25 MB cap), category filter, grouped listing, in-app preview (PDFs in iframe, images in `<img>`), download, admin-only delete. Backend: GridFS-backed `routes/documents.py`.
+- **Documents** module — new `/jkhive/documents` page with upload (multipart, 25 MB cap), category filter, grouped listing, in-app preview (PDFs in iframe, images in `<img>`), download, admin-only delete. Backend: GridFS-backed `routes/documents.py`. **Expiry tracking**: optional `expires_at` field on upload + inline admin edit; rows show Expired / Expiring / OK / N/A chips; Inspection Mode lists expired & expiring-within-60-days docs.
 - Hot/Cold "No holding today" idempotent toggle; Checklist "All Done" tick; weekly/monthly tick retention over period
 - Bulk cooling requires "Cooled Temp" to mark Done; Washer comment required <55 wash / <82 rinse
 - Daily Check tile auto-jumps to single template; Tick timestamps "Ticked on X by Y"

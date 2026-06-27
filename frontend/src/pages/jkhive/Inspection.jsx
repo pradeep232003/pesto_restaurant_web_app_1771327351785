@@ -328,6 +328,50 @@ const Inspection = () => {
           </Section>
 
           {/* Templates summary */}
+          <Section
+            title="Documents on file"
+            icon={ClipboardList}
+            count={`${pack.documents?.total ?? 0} on file · ${pack.documents?.with_expiry ?? 0} tracked`}
+          >
+            {(pack.documents?.expired?.length ?? 0) > 0 && (
+              <div data-testid="inspection-expired-docs" style={{ marginBottom: 10 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#C0392B', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 4px' }}>
+                  Expired ({pack.documents.expired.length})
+                </p>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {pack.documents.expired.map(d => (
+                    <li key={d.id} style={{ fontSize: 13, color: '#C0392B', padding: '2px 0' }}>
+                      {d.title} <span style={{ color: '#86868B' }}>· {d.category} · expired {fmtDate(d.expires_at)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {(pack.documents?.expiring_soon?.length ?? 0) > 0 && (
+              <div data-testid="inspection-expiring-docs" style={{ marginBottom: 10 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#A35E00', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 4px' }}>
+                  Expiring within 60 days ({pack.documents.expiring_soon.length})
+                </p>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {pack.documents.expiring_soon.map(d => (
+                    <li key={d.id} style={{ fontSize: 13, color: '#A35E00', padding: '2px 0' }}>
+                      {d.title} <span style={{ color: '#86868B' }}>· {d.category} · expires {fmtDate(d.expires_at)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {(pack.documents?.total ?? 0) === 0 && (
+              <p style={{ fontSize: 13, color: '#86868B', margin: 0 }}>No documents uploaded for this site.</p>
+            )}
+            {(pack.documents?.total ?? 0) > 0
+              && (pack.documents?.expired?.length ?? 0) === 0
+              && (pack.documents?.expiring_soon?.length ?? 0) === 0 && (
+              <p style={{ fontSize: 13, color: '#1B7A35', margin: 0 }}>All tracked documents are in date.</p>
+            )}
+          </Section>
+
+          {/* Templates summary */}
           <Section title="Operational checklists" icon={ClipboardList}>
             {['daily', 'weekly', 'monthly'].map(cadence => {
               const list = pack.templates[cadence] || [];

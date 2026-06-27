@@ -74,6 +74,20 @@ async def get_pack(
         .sort("name", 1)
     )
 
+    # --- Documents on file at this site, with expiry tracking. Anything
+    # expiring within 60 days or already expired is highlighted for the EHO.
+    docs_rows = list(db["documents"].find({"location_id": location_id}, {"_id": 0}).sort("uploaded_at", -1).limit(200))
+    today = date.today().isoformat()
+    soon = (date.today() + timedelta(days=60)).isoformat()
+    expiring_soon = [d for d in docs_rows if d.get("expires_at") and today <= d["expires_at"] <= soon]
+    expired = [d for d in docs_rows if d.get("expires_at") and d["expires_at"] < today]
+    documents_summary = {
+        "total": len(docs_rows),
+        "with_expiry": sum(1 for d in docs_rows if d.get("expires_at")),
+        "expired": expired,
+        "expiring_soon": expiring_soon,
+    }
+
     # --- Templates summary (count by cadence)
     tpl_q = {
         "$or": [
@@ -105,5 +119,6 @@ async def get_pack(
         "recent_calibrations": recent_calibrations,
         "legionella": legionella,
         "staff": staff,
+        "documents": documents_summary,
         "templates": templates_summary,
     }
