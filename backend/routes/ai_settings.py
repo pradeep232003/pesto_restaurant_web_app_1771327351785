@@ -108,21 +108,34 @@ async def test_ai_settings(body: TestKeyBody, user: dict = Depends(get_super_adm
     if not key:
         raise HTTPException(400, "api_key cannot be empty")
     try:
-        # Use the official Anthropic SDK so production (Railway) doesn't need
-        # the private emergentintegrations index.
-        import anthropic
-        client = anthropic.Anthropic(api_key=key)
-        msg = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
-            max_tokens=16,
-            system="Reply only with the word 'ok'.",
-            messages=[{"role": "user", "content": "ping"}],
-        )
-        out = ""
-        for block in (msg.content or []):
-            if getattr(block, "type", "") == "text":
-                out += getattr(block, "text", "")
-        out = out.strip()
+        # Direct REST call to Anthropic — uses httpx (already a FastAPI
+        # transitive dep) so production hosts don't need to install
+        # anything extra.
+        import httpx
+        req = {
+            "model": "claude-sonnet-4-5-20250929",
+            "max_tokens": 16,
+            "system": "Reply only with the word 'ok'.",
+            "messages": [{"role": "user", "content": "ping"}],
+        }
+        headers = {
+            "x-api-key": key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.post("https://api.anthropic.com/v1/messages", json=req, headers=headers)
+        if resp.status_code >= 400:
+            try:
+                err = resp.json().get("error", {}).get("message", resp.text)
+            except Exception:
+                err = resp.text
+            return {"ok": False, "message": f"{resp.status_code} — {err[:200]}"}
+        data = resp.json()
+        out = "".join(
+            block.get("text", "") for block in (data.get("content") or [])
+            if block.get("type") == "text"
+        ).strip()
         if not out:
             return {"ok": False, "message": "Provider returned an empty response"}
         return {"ok": True, "message": "Key works", "preview": out[:80]}

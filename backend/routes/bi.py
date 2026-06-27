@@ -362,11 +362,11 @@ def _extract_json(text: str) -> dict:
 
 
 async def _generate_insights(overview: dict) -> dict:
-    """Call Claude Sonnet 4.5 directly via the official Anthropic SDK.
+    """Call Claude Sonnet 4.5 directly via Anthropic's REST API using httpx.
 
-    We deliberately use the official `anthropic` package (PyPI) rather than
-    `emergentintegrations` so production (Railway) — which doesn't have access
-    to the private Emergent package index — works the same as the dev env."""
+    We deliberately avoid any external SDK so the function works on any host
+    (Railway, Vercel, bare VPS) without installing extra packages — httpx is
+    already a FastAPI transitive dependency."""
     from routes.ai_settings import get_active_ai_key, get_active_ai_provider
     api_key = get_active_ai_key()
     if not api_key:
@@ -376,8 +376,7 @@ async def _generate_insights(overview: dict) -> dict:
         )
     provider = get_active_ai_provider()
 
-    import anthropic
-    client = anthropic.Anthropic(api_key=api_key)
+    import httpx
 
     payload = _summarise_for_llm(overview)
     user_text = (
@@ -388,28 +387,42 @@ async def _generate_insights(overview: dict) -> dict:
         f"DATA:\n{json.dumps(payload, indent=2)}"
     )
 
-    # Catch every exception so the real cause (invalid key, rate limit, network)
-    # is surfaced to the admin instead of a bare 500.
+    req = {
+        "model": "claude-sonnet-4-5-20250929",
+        "max_tokens": 2048,
+        "system": _AI_SYSTEM_PROMPT,
+        "messages": [{"role": "user", "content": user_text}],
+    }
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+
     try:
-        msg = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
-            max_tokens=2048,
-            system=_AI_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_text}],
-        )
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post("https://api.anthropic.com/v1/messages", json=req, headers=headers)
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
         import logging
-        logging.exception("BI AI insights LLM call failed")
+        logging.exception("BI AI insights HTTP call failed")
         snippet = (str(e) or e.__class__.__name__).splitlines()[0][:240]
         raise HTTPException(502, f"AI provider error ({provider}): {snippet}")
 
-    full = ""
-    for block in (msg.content or []):
-        if getattr(block, "type", "") == "text":
-            full += getattr(block, "text", "")
-    full = full.strip()
+    if resp.status_code >= 400:
+        # Surface Anthropic's own error verbatim — much more useful than a generic message.
+        try:
+            err = resp.json().get("error", {}).get("message", resp.text)
+        except Exception:
+            err = resp.text
+        raise HTTPException(502, f"AI provider error ({provider}, {resp.status_code}): {err[:240]}")
+
+    data = resp.json()
+    full = "".join(
+        block.get("text", "") for block in (data.get("content") or [])
+        if block.get("type") == "text"
+    ).strip()
     if not full:
         raise HTTPException(502, "AI provider returned an empty response")
 
