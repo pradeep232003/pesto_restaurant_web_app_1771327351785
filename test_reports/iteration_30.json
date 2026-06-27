@@ -1,0 +1,36 @@
+{
+  "summary": "Frontend-only review of new RotaCloud-style Shift Grid on /jkhive/shifts. Logged in as super_admin, picked Timperley, exercised desktop (1920x1080) and mobile (390x844) flows. Grid renders with correct headers, quick-add popover + Day preset successfully POSTs and the new shift block appears in the cell, clicking the block opens ShiftModal, HTML5 drag-and-drop moves a shift to a different date via PATCH and the block re-renders in the new cell. Mobile keeps the day-card list and hides the grid. Found ONE regression: on desktop the mobile day-card list is also displayed alongside the grid because inline `display:'flex'` overrides Tailwind's `md:hidden` class.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ShiftMgmt (mobile day-card list wrapper)",
+        "issue": "On desktop (>=768px / md+), the per-day mobile card list is rendered ALONGSIDE the new ShiftGrid instead of being hidden. Root cause: the wrapper div uses both className='md:hidden' AND inline style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}. Inline styles win over Tailwind utility classes, so `display: flex` overrides `display: none` from md:hidden, causing both views to show at >=md viewports. Verified at 1920x1080: day-card visible=True AND grid visible=True. At 390x844 (mobile), behaviour is correct (grid hidden, day-cards visible).",
+        "selector": "/app/frontend/src/pages/jkhive/ShiftMgmt.jsx line ~309: <div className={isAdmin ? 'md:hidden' : ''} style={{ display: 'flex', ... }}>",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix the md:hidden regression in ShiftMgmt.jsx (~line 309). Move `display:flex` out of inline style into a className (e.g., 'flex flex-col gap-2.5 mb-4 md:hidden' for admins, or wrap the inline-styled flex container inside an outer <div className='md:hidden'> wrapper). Inline `display:flex` must NOT live on the same element that owns `md:hidden`."
+  ],
+  "critical_code_review_comments": [
+    "ShiftMgmt.jsx (~309): inline display:flex collides with md:hidden — HIGH (described above).",
+    "ShiftGrid handleDragOver: setDropTarget only when key changes is fine, but onDragLeave resets dropTarget when the pointer crosses internal children, which may cause flicker on cells containing existing blocks; consider using onDragEnter/onDragLeave with relatedTarget containment check.",
+    "ShiftGrid empty-cell add zone uses opacity 0 with mouseEnter/mouseLeave style toggles. This relies on direct DOM mutation rather than React state — works for visuals but bypasses React; acceptable.",
+    "QuickAddPopover positions itself with anchor coords from getBoundingClientRect() + window.scrollY. If the page is scrolled before clicking a cell deep down the grid, popover top may push below viewport; the clamp `Math.min(anchor.top, window.innerHeight + window.scrollY - 260)` helps but doesn't account for cells already near the bottom — minor.",
+    "ShiftMgmt.jsx is ~888 lines (ShiftMgmt + ShiftGrid + QuickAddPopover + ShiftModal in one file). Recommend splitting ShiftGrid and ShiftModal into their own files for maintainability.",
+    "ShiftGrid uses HTML5 drag-and-drop which is not supported on touch devices; on tablet (>=md but touch) the drag UX will silently fail. Consider noting this in UX or adding pointer-based fallback later."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only iteration)", "frontend": "~88% (7/8 checklist items pass; 1 regression on hidden md:hidden override)"},
+  "test_credentials": "admin@jollys.com / Admin123! (super_admin)",
+  "seed_data_creation": "Created 1 draft shift (Alice Brown, Mon 22 Jun, 09:00-17:00) via quick-add Day preset, then drag-moved it to Tue 23 Jun. Left in place — visible to /jkhive/shifts on the week of 22 Jun 2026.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Confirmed working: 1) shifts-grid rendering with Mon-Sun headers + dates + per-row staff names + per-row weekly totals column. 2) Empty-cell click opens shifts-quick-add. shifts-preset-day creates a shift (POST /api/admin/shifts) and it appears in the cell after auto-reload. 3) Click shifts-grid-block-{id} opens shift-modal. 4) HTML5 drag from cell A (Alice/Mon) to cell B (Alice/Tue) MOVED the shift — block moved into the target cell after reload (PATCH /api/admin/shifts/{id} with {staff_id,date}). Native Playwright mouse drag fired HTML5 events successfully here. 5) Mobile 390x844: shifts-grid hidden, shifts-day-* visible, all controls (copy-week, publish-week, prev/next, today, staff filter) present and rendered. ONLY regression: at desktop the day-card list ALSO renders below the grid because inline display:flex overrides md:hidden. This is the single fix needed.",
+  "rca of the issue": "Bug: 'Mobile day-card list visible on desktop alongside the grid'. Repro: Login as super_admin, pick a location, open /jkhive/shifts at viewport width >=768px. Observed: both <ShiftGrid> and the per-day card list are stacked. Expected: only the grid is visible. RCA: In /app/frontend/src/pages/jkhive/ShiftMgmt.jsx (~line 309), the day-card list wrapper has `className={isAdmin ? 'md:hidden' : ''}` AND `style={{ display: 'flex', ... }}`. CSS specificity: an element's `style` attribute beats any class selector regardless of !important-less Tailwind. So `display: none` injected by `md:hidden` at >=768px is overridden by inline `display: flex`. Mitigation: either (a) remove `display: flex`/`flex-direction`/`gap` from inline style and express them as classNames; or (b) wrap the inline-styled flex container in an extra parent div that owns the `md:hidden` class. Option (b) is the smallest diff and lowest risk."
+}

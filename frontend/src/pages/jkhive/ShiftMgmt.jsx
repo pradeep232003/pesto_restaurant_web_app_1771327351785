@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Plus, ChevronLeft, ChevronRight, X, Trash2, Users, Clock, Copy, Send, FileEdit,
@@ -290,8 +290,23 @@ const ShiftMgmt = () => {
 
       {!loading && (
         <>
-          {/* Per-day list */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+          {/* Desktop / tablet grid view (RotaCloud-style) — admin only. */}
+          {isAdmin && (
+            <div className="hidden md:block">
+              <ShiftGrid
+                weekStart={weekStart}
+                staffList={staffList}
+                shifts={visibleShifts}
+                staffFilter={staffFilter}
+                locationId={adminLocationId}
+                onChanged={load}
+                onEditShift={(s) => setEditing(s)}
+              />
+            </div>
+          )}
+
+          {/* Per-day list — primary view on mobile, fallback when no staff exist. */}
+          <div className={isAdmin ? 'md:hidden' : ''} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
             {Array.from({ length: 7 }, (_, i) => {
               const d = addDays(weekStart, i);
               const iso = toIso(d);
@@ -390,6 +405,352 @@ const ShiftMgmt = () => {
         />
       )}
     </div>
+  );
+};
+
+/**
+ * ShiftGrid — RotaCloud-style desktop matrix.
+ *
+ * Rows = staff (filtered to one if staffFilter is set).
+ * Columns = the 7 days of the week (Mon → Sun).
+ * Click an empty cell → small inline popover for start/end + role → creates a shift.
+ * Click a shift block → opens the full edit modal (delegated to parent).
+ * Drag a shift block → drop it on another cell to MOVE the shift
+ *   (changes staff_id and/or date in one PATCH).
+ *
+ * Only rendered on `md:` and above; mobile keeps the day-card list which
+ * is more thumb-friendly for staff viewing their own week.
+ */
+const ShiftGrid = ({ weekStart, staffList, shifts, staffFilter, locationId, onChanged, onEditShift }) => {
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
+  const rows = useMemo(() => {
+    const list = staffFilter ? staffList.filter(s => s.id === staffFilter) : staffList;
+    // Sort by name for a stable layout regardless of API ordering.
+    return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [staffList, staffFilter]);
+
+  // Bucket shifts by `${staff_id}|${date}` so cell lookup is O(1).
+  const byCell = useMemo(() => {
+    const map = {};
+    for (const s of shifts) {
+      const key = `${s.staff_id}|${s.date}`;
+      (map[key] = map[key] || []).push(s);
+    }
+    return map;
+  }, [shifts]);
+
+  // Per-staff weekly totals (hours) for the right-hand summary column.
+  const totalsByStaff = useMemo(() => {
+    const out = {};
+    for (const s of shifts) {
+      if (!s.staff_id) continue;
+      out[s.staff_id] = (out[s.staff_id] || 0) + (s.hours || 0);
+    }
+    return out;
+  }, [shifts]);
+
+  // Inline quick-add popover state. Anchored to the clicked cell so the
+  // editor never covers the cell itself.
+  const [popover, setPopover] = useState(null); // { staffId, date, anchor }
+  const [dropTarget, setDropTarget] = useState(null); // `${staffId}|${date}` while a drag is over it
+  const [busy, setBusy] = useState(false);
+  const dragShift = useRef(null);
+
+  const closePopover = () => setPopover(null);
+
+  const onCellClick = (staffId, dateIso, ev) => {
+    if (busy) return;
+    const rect = ev.currentTarget.getBoundingClientRect();
+    setPopover({
+      staffId,
+      date: dateIso,
+      // Position popover just below the clicked cell.
+      anchor: { left: rect.left + window.scrollX, top: rect.bottom + window.scrollY + 4 },
+    });
+  };
+
+  const quickCreate = async ({ start_time, end_time, role }) => {
+    if (!popover) return;
+    setBusy(true);
+    try {
+      await api.shiftCreate({
+        location_id: locationId,
+        staff_id: popover.staffId,
+        date: popover.date,
+        start_time,
+        end_time,
+        role: role || '',
+        notes: '',
+      });
+      closePopover();
+      await onChanged();
+    } catch (e) {
+      // Surface error inline — keep popover open so the manager can retry.
+      window.alert(e.message || 'Could not create shift');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDragStart = (shift, ev) => {
+    dragShift.current = shift;
+    try { ev.dataTransfer.effectAllowed = 'move'; } catch { /* ignore */ }
+  };
+
+  const handleDragEnd = () => {
+    dragShift.current = null;
+    setDropTarget(null);
+  };
+
+  const handleDragOver = (key, ev) => {
+    ev.preventDefault();
+    try { ev.dataTransfer.dropEffect = 'move'; } catch { /* ignore */ }
+    if (dropTarget !== key) setDropTarget(key);
+  };
+
+  const handleDrop = async (staffId, dateIso, ev) => {
+    ev.preventDefault();
+    const s = dragShift.current;
+    dragShift.current = null;
+    setDropTarget(null);
+    if (!s) return;
+    // No-op if dropped on the same cell.
+    if (s.staff_id === staffId && s.date === dateIso) return;
+    setBusy(true);
+    try {
+      await api.shiftUpdate(s.id, { staff_id: staffId, date: dateIso });
+      await onChanged();
+    } catch (e) {
+      window.alert(e.message || 'Could not move shift');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const todayIso = toIso(new Date());
+
+  if (rows.length === 0) {
+    return (
+      <div style={{ background: '#FFFFFF', borderRadius: 14, padding: 24, marginBottom: 16, textAlign: 'center', color: '#86868B', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+        No staff set up for this location yet. Add staff under Workforce to start building rotas.
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid="shifts-grid" style={{ background: '#FFFFFF', borderRadius: 14, marginBottom: 16, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+      <div style={{ overflowX: 'auto' }}>
+        <div style={{ minWidth: 880 }}>
+          {/* Header row */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '180px repeat(7, minmax(110px, 1fr)) 84px',
+            background: '#FAFAFC',
+            borderBottom: '1px solid #ECECEF',
+            ...FONT,
+          }}>
+            <div style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Staff</div>
+            {days.map((d) => {
+              const iso = toIso(d);
+              const isToday = iso === todayIso;
+              return (
+                <div key={iso} style={{
+                  padding: '10px 8px',
+                  textAlign: 'center',
+                  borderLeft: '1px solid #ECECEF',
+                  background: isToday ? 'rgba(0,122,255,0.06)' : 'transparent',
+                }}>
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    {DAY_NAMES[(d.getDay() + 6) % 7]}
+                  </p>
+                  <p style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 700, color: isToday ? '#007AFF' : '#1D1D1F' }}>
+                    {d.getDate()}
+                  </p>
+                </div>
+              );
+            })}
+            <div style={{ padding: '10px 8px', textAlign: 'center', borderLeft: '1px solid #ECECEF', fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total</div>
+          </div>
+
+          {/* Body rows */}
+          {rows.map((staff, rowIdx) => (
+            <div key={staff.id} style={{
+              display: 'grid',
+              gridTemplateColumns: '180px repeat(7, minmax(110px, 1fr)) 84px',
+              borderBottom: rowIdx === rows.length - 1 ? 'none' : '1px solid #ECECEF',
+              minHeight: 76,
+            }}>
+              <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2 }}>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1D1D1F' }}>{staff.name}</p>
+                {staff.role && (
+                  <p style={{ margin: 0, fontSize: 10, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{staff.role}</p>
+                )}
+              </div>
+              {days.map((d) => {
+                const iso = toIso(d);
+                const key = `${staff.id}|${iso}`;
+                const cellShifts = byCell[key] || [];
+                const isToday = iso === todayIso;
+                const isDrop = dropTarget === key;
+                return (
+                  <div
+                    key={iso}
+                    data-testid={`shifts-cell-${staff.id}-${iso}`}
+                    onClick={(ev) => { if (cellShifts.length === 0) onCellClick(staff.id, iso, ev); }}
+                    onDragOver={(ev) => handleDragOver(key, ev)}
+                    onDragLeave={() => { if (dropTarget === key) setDropTarget(null); }}
+                    onDrop={(ev) => handleDrop(staff.id, iso, ev)}
+                    style={{
+                      borderLeft: '1px solid #ECECEF',
+                      padding: 4,
+                      background: isDrop ? 'rgba(0,122,255,0.12)' : (isToday ? 'rgba(0,122,255,0.03)' : 'transparent'),
+                      cursor: cellShifts.length === 0 ? 'pointer' : 'default',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                      position: 'relative',
+                      transition: 'background 0.15s',
+                    }}
+                  >
+                    {cellShifts.length === 0 ? (
+                      <div style={{
+                        flex: 1, minHeight: 64,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#C7C7CC', opacity: 0,
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.opacity = 1; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.opacity = 0; }}>
+                        <Plus size={16} />
+                      </div>
+                    ) : cellShifts.map(s => (
+                      <button
+                        key={s.id}
+                        data-testid={`shifts-grid-block-${s.id}`}
+                        draggable
+                        onDragStart={(ev) => handleDragStart(s, ev)}
+                        onDragEnd={handleDragEnd}
+                        onClick={(ev) => { ev.stopPropagation(); onEditShift(s); }}
+                        title={`${s.start_time}–${s.end_time}${s.role ? ' · ' + s.role : ''}${s.notes ? '\n' + s.notes : ''}`}
+                        style={{
+                          textAlign: 'left',
+                          border: 0,
+                          padding: '6px 8px',
+                          borderRadius: 8,
+                          background: s.published ? 'rgba(0,122,255,0.10)' : 'rgba(255,149,0,0.14)',
+                          borderLeft: `3px solid ${s.published ? '#007AFF' : '#FF9500'}`,
+                          color: '#1D1D1F',
+                          cursor: 'grab',
+                          fontFamily: 'inherit',
+                          display: 'flex', flexDirection: 'column', gap: 2,
+                        }}
+                      >
+                        <span style={{ fontSize: 11, fontWeight: 700 }}>
+                          {s.start_time}–{s.end_time}
+                        </span>
+                        <span style={{ fontSize: 10, color: '#86868B', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {(s.hours || 0).toFixed(1)}h
+                          {s.role && <span>· {s.role}</span>}
+                          {!s.published && (
+                            <span style={{ marginLeft: 'auto', padding: '0 4px', borderRadius: 4, background: 'rgba(255,149,0,0.25)', color: '#A35E00', fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Draft</span>
+                          )}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
+              <div style={{ borderLeft: '1px solid #ECECEF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#1D1D1F' }}>
+                {(totalsByStaff[staff.id] || 0).toFixed(1)}h
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {popover && (
+        <QuickAddPopover
+          anchor={popover.anchor}
+          busy={busy}
+          onClose={closePopover}
+          onCreate={quickCreate}
+        />
+      )}
+    </div>
+  );
+};
+
+/**
+ * Tiny inline popover for the empty-cell quick-add. Offers three common
+ * presets plus a custom start/end time + role. Anchored at a fixed
+ * page-coordinate so it tracks the clicked cell on the X axis but stays
+ * inside the viewport on the Y axis.
+ */
+const QuickAddPopover = ({ anchor, busy, onClose, onCreate }) => {
+  const [start, setStart] = useState('09:00');
+  const [end, setEnd] = useState('17:00');
+  const [role, setRole] = useState('');
+
+  // Clamp so the popover never overflows the right edge.
+  const POPOVER_W = 280;
+  const left = Math.max(8, Math.min(anchor.left, window.innerWidth - POPOVER_W - 8));
+  const top = Math.min(anchor.top, window.innerHeight + window.scrollY - 260);
+
+  const preset = (s, e) => () => onCreate({ start_time: s, end_time: e, role });
+
+  return (
+    <>
+      {/* Click-outside catcher */}
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'transparent' }} />
+      <div data-testid="shifts-quick-add" style={{
+        position: 'absolute', zIndex: 60,
+        left, top, width: POPOVER_W,
+        background: '#FFFFFF', borderRadius: 14,
+        boxShadow: '0 12px 32px rgba(0,0,0,0.16)', border: '1px solid #ECECEF',
+        padding: 12, ...FONT,
+      }}>
+        <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Quick add</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+          <button data-testid="shifts-preset-morning" disabled={busy} onClick={preset('08:00', '14:00')}
+            style={{ padding: '8px 6px', borderRadius: 8, border: 0, background: '#F5F5F7', fontSize: 11, fontWeight: 700, cursor: 'pointer', ...FONT }}>
+            Morning · 8–14
+          </button>
+          <button data-testid="shifts-preset-evening" disabled={busy} onClick={preset('14:00', '22:00')}
+            style={{ padding: '8px 6px', borderRadius: 8, border: 0, background: '#F5F5F7', fontSize: 11, fontWeight: 700, cursor: 'pointer', ...FONT }}>
+            Evening · 14–22
+          </button>
+          <button data-testid="shifts-preset-day" disabled={busy} onClick={preset('09:00', '17:00')}
+            style={{ padding: '8px 6px', borderRadius: 8, border: 0, background: '#F5F5F7', fontSize: 11, fontWeight: 700, cursor: 'pointer', ...FONT }}>
+            Day · 9–17
+          </button>
+          <button data-testid="shifts-preset-close" disabled={busy} onClick={preset('17:00', '23:00')}
+            style={{ padding: '8px 6px', borderRadius: 8, border: 0, background: '#F5F5F7', fontSize: 11, fontWeight: 700, cursor: 'pointer', ...FONT }}>
+            Close · 17–23
+          </button>
+        </div>
+        <div style={{ height: 1, background: '#ECECEF', margin: '6px 0 10px' }} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+          <label>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Start</span>
+            <input data-testid="shifts-quick-start" type="time" value={start} onChange={e => setStart(e.target.value)}
+              style={{ display: 'block', marginTop: 2, width: '100%', padding: '6px 8px', borderRadius: 8, background: '#F5F5F7', border: 0, fontSize: 13, ...FONT }} />
+          </label>
+          <label>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>End</span>
+            <input data-testid="shifts-quick-end" type="time" value={end} onChange={e => setEnd(e.target.value)}
+              style={{ display: 'block', marginTop: 2, width: '100%', padding: '6px 8px', borderRadius: 8, background: '#F5F5F7', border: 0, fontSize: 13, ...FONT }} />
+          </label>
+        </div>
+        <label style={{ display: 'block', marginBottom: 10 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Role (optional)</span>
+          <input data-testid="shifts-quick-role" value={role} onChange={e => setRole(e.target.value)} placeholder="Barista, Kitchen…"
+            style={{ display: 'block', marginTop: 2, width: '100%', padding: '6px 8px', borderRadius: 8, background: '#F5F5F7', border: 0, fontSize: 13, ...FONT }} />
+        </label>
+        <button data-testid="shifts-quick-create" disabled={busy} onClick={() => onCreate({ start_time: start, end_time: end, role })}
+          style={{ width: '100%', padding: '10px 12px', borderRadius: 999, border: 0, background: '#1D1D1F', color: '#FFFFFF', fontSize: 13, fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1, ...FONT }}>
+          {busy ? 'Adding…' : 'Add shift'}
+        </button>
+      </div>
+    </>
   );
 };
 
