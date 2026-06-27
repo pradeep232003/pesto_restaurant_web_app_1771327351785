@@ -63,6 +63,13 @@ const JKHiveLayout = () => {
     return location.pathname === to || location.pathname.startsWith(to + '/');
   };
 
+  // Wider pages opt into a desktop-friendly max width. Shift Mgmt's
+  // RotaCloud-style grid needs the room on laptops; mobile is unaffected
+  // because the value is just a max — narrow screens still fill the width.
+  const WIDE_ROUTES = ['/jkhive/shifts'];
+  const isWide = WIDE_ROUTES.some(r => location.pathname === r || location.pathname.startsWith(r + '/'));
+  const contentMax = isWide ? '1280px' : '768px';
+
   React.useEffect(() => {
     if (!loading && !isAuthenticated) navigate('/admin-login?return=/jkhive');
   }, [loading, isAuthenticated, navigate]);
@@ -76,7 +83,7 @@ const JKHiveLayout = () => {
   return (
     <div style={{ minHeight: '100vh', background: '#F2F2F7', fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, sans-serif' }}>
       <header style={{ position: 'sticky', top: 0, zIndex: 30, background: 'rgba(242,242,247,0.92)', backdropFilter: 'saturate(180%) blur(16px)', WebkitBackdropFilter: 'saturate(180%) blur(16px)', borderBottom: '0.5px solid rgba(0,0,0,0.08)' }}>
-        <div style={{ maxWidth: '768px', margin: '0 auto', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ maxWidth: contentMax, margin: '0 auto', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <button
             data-testid="jkhive-location-pill"
             onClick={() => setPickerOpen(true)}
@@ -112,7 +119,7 @@ const JKHiveLayout = () => {
         />
       )}
 
-      <main style={{ maxWidth: '768px', margin: '0 auto', padding: '8px 20px 140px 20px' }}>
+      <main style={{ maxWidth: contentMax, margin: '0 auto', padding: '8px 20px 140px 20px' }}>
         <Outlet />
       </main>
 
