@@ -64,9 +64,10 @@ const JKHiveLayout = () => {
   };
 
   // Wider pages opt into a desktop-friendly max width. Shift Mgmt's
-  // RotaCloud-style grid needs the room on laptops; mobile is unaffected
-  // because the value is just a max — narrow screens still fill the width.
-  const WIDE_ROUTES = ['/jkhive/shifts'];
+  // RotaCloud-style grid + the BI dashboard + the Sales Summary charts
+  // all benefit from the room on laptops; mobile is unaffected because
+  // the value is just a max — narrow screens still fill the width.
+  const WIDE_ROUTES = ['/jkhive/shifts', '/jkhive/bi', '/jkhive/sales-summary'];
   const isWide = WIDE_ROUTES.some(r => location.pathname === r || location.pathname.startsWith(r + '/'));
   const contentMax = isWide ? '1280px' : '768px';
 
