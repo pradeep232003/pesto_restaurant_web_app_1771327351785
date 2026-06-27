@@ -30,6 +30,10 @@ class StaffMember(BaseModel):
     # Optional target hours per week, used by AI rota auto-suggest to
     # balance schedules. 0 means "no preference".
     weekly_hours_target: float = 0.0
+    # Sites the staff member is permitted to work at. Empty list = treated
+    # as "all sites" so legacy records continue to appear in every
+    # location's rota until a manager refines it.
+    location_ids: list = []
     # Optional login link — when an account with this email logs in we can
     # automatically scope their view (e.g. /jkhive/shifts) to their own
     # rota. Lower-cased on write so comparisons are case-insensitive.
@@ -47,6 +51,7 @@ class StaffMemberUpdate(BaseModel):
     start_date: Optional[str] = None
     hourly_rate: Optional[float] = None
     weekly_hours_target: Optional[float] = None
+    location_ids: Optional[list] = None
     account_email: Optional[str] = None
 
 

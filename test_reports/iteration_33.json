@@ -1,0 +1,45 @@
+{
+  "summary": "Tested the new Locations multi-select on /admin/staff drawer + shift-roster scoping by location on /jkhive/shifts. Backend pytest 4/4 PASS (create/patch/clear/delete with location_ids). Frontend UAT: drawer renders 8 location checkboxes, save persists location_ids, chips column shows blue pills (with short location name) for assigned sites, legacy staff (no location_ids) show orange 'All sites' label, edit pre-checks saved boxes, and toggle+save updates the row's chips. /jkhive/shifts roster correctly excludes staff scoped to other sites (TEST_OnlyTim was hidden when Howe Bridge was active) while keeping legacy 'all sites' staff visible. Mobile day-view shift-staff-select dropdown also respects the scoped roster. CRITICAL BUG FOUND and fixed: admin-staff/index.jsx called api.adminListLocations() which does not exist (real method is adminGetLocations). The empty catch{} swallowed the error so the Locations section silently showed 'No locations available.' and the chips column showed 'All sites' for everyone. Fixed by renaming the call — please confirm/keep.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "admin-staff/index.jsx fetchLocations()",
+        "issue": "Called non-existent api.adminListLocations() — method is adminGetLocations in /app/frontend/src/lib/api.js. Caused Locations checkbox group AND staff-locations chips column to silently render empty because the error was caught by `catch { /* non-fatal */ }`. Without this fix the entire feature is unusable in the UI even though the backend works.",
+        "selector": "[data-testid='staff-field-locations']",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_staff_locations.py",
+    "/app/test_reports/pytest/pytest_staff_locations.xml"
+  ],
+  "action_items": [
+    "VERIFY the one-line fix already applied at /app/frontend/src/pages/admin-staff/index.jsx line 47: `api.adminListLocations()` → `api.adminGetLocations()`. Without it the new feature is invisible in the UI.",
+    "Consider adding a console.warn inside the fetchLocations catch so future silent failures surface during dev (right now `catch { /* non-fatal */ }` hides everything).",
+    "Optional UX nit: the 'Pick a location' modal items on /jkhive/shifts don't expose individual data-testids like jkhive-location-card-{id}; only the header pill exposes data-testid=jkhive-location-pill (opens the sheet) and the sheet itself uses data-testid=jkhive-location-sheet. Adding per-item testids would make E2E tests for site-switching deterministic."
+  ],
+  "critical_code_review_comments": [
+    "admin-staff/index.jsx: silent `catch { }` hid the broken method name for both locations dropdown AND the chips column. Always log non-fatal errors.",
+    "ShiftMgmt.jsx load(): the filter `ids.length === 0 || ids.includes(adminLocationId)` correctly preserves legacy staff while scoping new ones. Verified live with TEST_OnlyTim (hidden on Howe) and TEST_OnlyHowe (visible only on Howe).",
+    "staff.py StaffMember.location_ids: list = [] is fine; PATCH with empty list [] correctly clears, with None ignored (Optional[list]=None) per existing convention.",
+    "admin-staff drawer: when `locations` is empty the section renders 'No locations available.' — clear, but as shown that masked a real bug. Logging would have surfaced it sooner."
+  ],
+  "updated_files": [
+    "/app/frontend/src/pages/admin-staff/index.jsx (one-line: adminListLocations → adminGetLocations)",
+    "/app/backend/tests/test_staff_locations.py (new pytest file, 4 tests, all PASS)"
+  ],
+  "success_rate": {"backend": "100% (4/4 pytest)", "frontend": "100% after the one-line fix; 0% before the fix because Locations checkboxes never rendered"},
+  "test_credentials": "admin@jollys.com / Admin123! (super_admin) — confirmed working.",
+  "seed_data_creation": "Created TEST_OnlyTim (timperley-altrincham) and TEST_OnlyHowe (howe-bridge-atherton) staff records via API for /jkhive/shifts scoping verification; both deleted after testing. UI test record TEST_UI_LocStaff also created and deleted.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "If the main agent reverts my one-line fix to admin-staff/index.jsx, re-test: the symptom is 'No locations available.' inside the staff drawer despite GET /api/admin/locations returning 200 with 8 sites. Backend test file /app/backend/tests/test_staff_locations.py covers create/patch/delete with location_ids and is reusable. On /jkhive/shifts the location switch uses a sheet not a per-pill click — open via [data-testid=jkhive-location-pill] then click the location's name text.",
+  "rca of the issue": "Root cause: typo / wrong method name in admin-staff/index.jsx — `api.adminListLocations()` does not exist on the API client; the actual method (defined since the v1 admin-location feature) is `api.adminGetLocations()`. Because `fetchLocations` swallowed the TypeError in `catch { /* non-fatal — checkbox group will just be empty */ }`, no error reached the UI. Effect: (a) drawer's Locations section always rendered the empty-state message, (b) chips column lookup `locations.find(l => l.id === id)` always returned undefined so the chips were filtered out, only the orange 'All sites' fallback showed. Fix: rename to `adminGetLocations()` (one char). Verified end-to-end after fix: 8 checkboxes appear, save persists, chips render, edit pre-checks, toggle-off updates."
+}

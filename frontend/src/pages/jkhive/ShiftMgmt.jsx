@@ -67,7 +67,14 @@ const ShiftMgmt = () => {
         isAdmin ? api.adminListStaff().catch(() => []) : Promise.resolve([]),
       ]);
       setShifts(rows || []);
-      setStaffList(staff || []);
+      // Scope the staff roster to people who work at this location. Legacy
+      // records with no `location_ids` (empty array / missing field) are
+      // treated as "available everywhere" so they don't silently vanish.
+      const scopedStaff = (staff || []).filter(s => {
+        const ids = Array.isArray(s.location_ids) ? s.location_ids : [];
+        return ids.length === 0 || ids.includes(adminLocationId);
+      });
+      setStaffList(scopedStaff);
     } catch (err) {
       setError(err.message || 'Failed to load shifts');
     } finally {

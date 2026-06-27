@@ -4,7 +4,7 @@ import { Users, ArrowLeft, Plus, Pencil, Trash2, Check, X } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 
-const EMPTY = { name: '', forename: '', surname: '', ni_number: '', dob: '', address: '', employee_no: '', start_date: '', hourly_rate: '', weekly_hours_target: '', account_email: '' };
+const EMPTY = { name: '', forename: '', surname: '', ni_number: '', dob: '', address: '', employee_no: '', start_date: '', hourly_rate: '', weekly_hours_target: '', account_email: '', location_ids: [] };
 
 const FIELDS = [
   { key: 'name',         label: 'Name',        type: 'text',  required: true, placeholder: 'Full name (for matching)' },
@@ -24,6 +24,7 @@ const AdminStaff = () => {
   const navigate = useNavigate();
   const { isAuthenticated, isAdmin, loading: authLoading } = useAuth();
   const [staff, setStaff] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(null); // staff object or 'new'
   const [form, setForm] = useState(EMPTY);
@@ -33,7 +34,7 @@ const AdminStaff = () => {
     if (!authLoading && (!isAuthenticated || !isAdmin)) navigate('/admin-login');
   }, [authLoading, isAuthenticated, isAdmin, navigate]);
 
-  useEffect(() => { if (isAdmin) fetchStaff(); }, [isAdmin]);
+  useEffect(() => { if (isAdmin) { fetchStaff(); fetchLocations(); } }, [isAdmin]);
 
   const fetchStaff = async () => {
     setLoading(true);
@@ -42,9 +43,21 @@ const AdminStaff = () => {
     finally { setLoading(false); }
   };
 
-  const openNew = () => { setForm(EMPTY); setEditing('new'); };
-  const openEdit = (s) => { setForm({ ...EMPTY, ...s }); setEditing(s); };
+  const fetchLocations = async () => {
+    try { setLocations(await api.adminGetLocations()); }
+    catch { /* non-fatal — checkbox group will just be empty */ }
+  };
+
+  const openNew = () => { setForm({ ...EMPTY, location_ids: [] }); setEditing('new'); };
+  const openEdit = (s) => { setForm({ ...EMPTY, ...s, location_ids: Array.isArray(s.location_ids) ? s.location_ids : [] }); setEditing(s); };
   const closeForm = () => { setEditing(null); setForm(EMPTY); };
+
+  const toggleLocation = (locId) => {
+    setForm(prev => {
+      const cur = Array.isArray(prev.location_ids) ? prev.location_ids : [];
+      return { ...prev, location_ids: cur.includes(locId) ? cur.filter(x => x !== locId) : [...cur, locId] };
+    });
+  };
 
   const handleSave = async () => {
     if (!form.name?.trim()) { alert('Name is required'); return; }
@@ -54,6 +67,7 @@ const AdminStaff = () => {
         ...form,
         hourly_rate: form.hourly_rate === '' || form.hourly_rate == null ? 0 : parseFloat(form.hourly_rate) || 0,
         weekly_hours_target: form.weekly_hours_target === '' || form.weekly_hours_target == null ? 0 : parseFloat(form.weekly_hours_target) || 0,
+        location_ids: Array.isArray(form.location_ids) ? form.location_ids : [],
       };
       if (editing === 'new') await api.adminCreateStaff(payload);
       else await api.adminUpdateStaff(editing.id, payload);
@@ -117,6 +131,7 @@ const AdminStaff = () => {
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>DoB</th>
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>Start Date</th>
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>£/hr</th>
+                  <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>Locations</th>
                   <th className="px-3 py-2.5 text-right text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>Actions</th>
                 </tr>
               </thead>
@@ -134,6 +149,26 @@ const AdminStaff = () => {
                     <td className="px-3 py-2.5 text-sm" style={{ color: '#1D1D1F', ...font }}>{s.dob || '—'}</td>
                     <td className="px-3 py-2.5 text-sm" style={{ color: '#1D1D1F', ...font }}>{s.start_date || '—'}</td>
                     <td className="px-3 py-2.5 text-sm" style={{ color: '#1D1D1F', ...font }} data-testid={`staff-hourly-${s.id}`}>{s.hourly_rate > 0 ? `£${Number(s.hourly_rate).toFixed(2)}` : '—'}</td>
+                    <td className="px-3 py-2.5 text-sm" data-testid={`staff-locations-${s.id}`}>
+                      {(() => {
+                        const ids = Array.isArray(s.location_ids) ? s.location_ids : [];
+                        if (ids.length === 0) {
+                          return <span className="text-[11px]" style={{ color: '#FF9500', ...font }}>All sites</span>;
+                        }
+                        const names = ids
+                          .map(id => locations.find(l => l.id === id)?.name)
+                          .filter(Boolean);
+                        return (
+                          <div className="flex flex-wrap gap-1" style={{ maxWidth: 220 }}>
+                            {names.map(n => (
+                              <span key={n} className="px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ background: 'rgba(0,122,255,0.12)', color: '#0A66C2', ...font }}>
+                                {n.split(',')[0]}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </td>
                     <td className="px-3 py-2.5 text-right">
                       <button data-testid={`edit-staff-${s.id}`} onClick={() => openEdit(s)}
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs active:scale-95 mr-2"
@@ -196,6 +231,38 @@ const AdminStaff = () => {
                   )}
                 </div>
               ))}
+
+              {/* Locations multi-select — pick every site this staff member
+                  works at. Leaving all blank means "all sites". */}
+              <div data-testid="staff-field-locations">
+                <label className="block text-[11px] font-medium mb-1" style={{ color: '#86868B', ...font }}>
+                  Locations <span className="font-normal">(tick every site they work at — none = all sites)</span>
+                </label>
+                {locations.length === 0 ? (
+                  <p className="text-xs" style={{ color: '#86868B', ...font }}>No locations available.</p>
+                ) : (
+                  <div className="rounded-lg p-2 space-y-1" style={{ background: '#FFFFFF', boxShadow: '0 0 0 1px rgba(0,0,0,0.08)' }}>
+                    {locations.map(loc => {
+                      const checked = (form.location_ids || []).includes(loc.id);
+                      return (
+                        <label key={loc.id}
+                          data-testid={`staff-location-${loc.id}`}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-gray-50"
+                          style={{ ...font }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleLocation(loc.id)}
+                            style={{ width: 16, height: 16, accentColor: '#34C759', cursor: 'pointer' }}
+                          />
+                          <span className="text-sm" style={{ color: '#1D1D1F' }}>{loc.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               <div className="flex gap-2 pt-3">
                 <button data-testid="save-staff-btn" disabled={saving} onClick={handleSave}
                   className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold active:scale-95 disabled:opacity-50"
