@@ -115,7 +115,7 @@ const AIInsightsPanel = ({ insights, loading, cached, generatedAt, error, keyInf
               Add an AI key to unlock insights.
             </p>
             <p className="text-xs mb-3" style={{ ...font, opacity: 0.85 }}>
-              Use your Emergent universal key (free for any provider) or your own Anthropic Claude key.
+              Use your own Anthropic Claude key.
             </p>
             <button
               data-testid="bi-ai-add-key-cta"
@@ -258,7 +258,9 @@ const AIInsightsPanel = ({ insights, loading, cached, generatedAt, error, keyInf
  *  characters via the parent's keyInfo prop. */
 const AIKeyModal = ({ open, keyInfo, onClose, onSaved }) => {
   const [apiKey, setApiKey] = useState('');
-  const [provider, setProvider] = useState('emergent');
+  // Anthropic is the only supported provider in the UI — the user
+  // explicitly opted out of the Emergent universal key path.
+  const provider = 'anthropic';
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -267,7 +269,6 @@ const AIKeyModal = ({ open, keyInfo, onClose, onSaved }) => {
   useEffect(() => {
     if (open) {
       setApiKey('');
-      setProvider(keyInfo?.provider || 'emergent');
       setError('');
     }
   }, [open, keyInfo]);
@@ -342,22 +343,6 @@ const AIKeyModal = ({ open, keyInfo, onClose, onSaved }) => {
           )}
         </div>
 
-        <label style={{ display: 'block', marginBottom: 12 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Provider</span>
-          <select
-            data-testid="bi-ai-key-provider"
-            value={provider}
-            onChange={(e) => setProvider(e.target.value)}
-            style={{ display: 'block', marginTop: 4, width: '100%', padding: '10px 12px', borderRadius: 10, background: '#F5F5F7', border: 0, fontSize: 14, color: '#1D1D1F', ...font }}
-          >
-            <option value="emergent">Emergent universal key (recommended)</option>
-            <option value="anthropic">Anthropic Claude (direct)</option>
-          </select>
-          <p style={{ margin: '6px 0 0', fontSize: 11, color: '#86868B' }}>
-            Emergent universal keys start with <code>sk-emergent-…</code>. Anthropic keys start with <code>sk-ant-…</code>.
-          </p>
-        </label>
-
         <label style={{ display: 'block', marginBottom: 14 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>API key</span>
           <input
@@ -366,9 +351,12 @@ const AIKeyModal = ({ open, keyInfo, onClose, onSaved }) => {
             autoComplete="new-password"
             value={apiKey}
             onChange={(e) => { setApiKey(e.target.value); if (error) setError(''); }}
-            placeholder={provider === 'emergent' ? 'sk-emergent-…' : 'sk-ant-…'}
+            placeholder="sk-ant-…"
             style={{ display: 'block', marginTop: 4, width: '100%', padding: '12px 14px', borderRadius: 10, background: '#F5F5F7', border: error ? '1px solid #FF3B30' : 0, fontSize: 14, color: '#1D1D1F', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
           />
+          <p style={{ margin: '6px 0 0', fontSize: 11, color: '#86868B' }}>
+            Anthropic Claude keys start with <code>sk-ant-…</code>.
+          </p>
         </label>
 
         {error && (
@@ -402,11 +390,9 @@ const AIKeyModal = ({ open, keyInfo, onClose, onSaved }) => {
         </div>
 
         <p style={{ marginTop: 14, fontSize: 11, color: '#86868B', lineHeight: 1.5 }}>
-          Don&apos;t have a key? Visit your{' '}
-          <a href="https://app.emergent.sh/profile" target="_blank" rel="noreferrer" style={{ color: '#007AFF', textDecoration: 'none' }}>Emergent profile</a>
-          {' '}for the universal key, or{' '}
+          Don&apos;t have a key? Visit{' '}
           <a href="https://console.anthropic.com/" target="_blank" rel="noreferrer" style={{ color: '#007AFF', textDecoration: 'none' }}>console.anthropic.com</a>
-          {' '}for a direct Claude key.
+          {' '}for a Claude key.
         </p>
       </div>
     </div>
