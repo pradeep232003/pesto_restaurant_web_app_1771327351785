@@ -524,6 +524,7 @@ class ApiService {
     const params = new URLSearchParams();
     if (filters.start_date) params.append('start_date', filters.start_date);
     if (filters.end_date) params.append('end_date', filters.end_date);
+    if (filters.location_id) params.append('location_id', filters.location_id);
     const qs = params.toString();
     return this.fetch(`/api/admin/daily-sales/summary${qs ? `?${qs}` : ''}`);
   }

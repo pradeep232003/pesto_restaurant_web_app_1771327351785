@@ -131,14 +131,21 @@ async def delete_daily_sales(entry_id: str, user: dict = Depends(get_admin_user)
 async def sales_summary(
     start_date: str = Query(None),
     end_date: str = Query(None),
+    location_id: str = Query(None, description="Filter to a single site; omit for all"),
     user: dict = Depends(get_admin_user),
 ):
-    """Get sales summary with totals by location and staff hours (admin/super_admin)"""
+    """Get sales summary with totals by location and staff hours (admin/super_admin).
+
+    Optional `location_id` narrows the entire summary to one site so the UI
+    can offer an "All sites" toggle vs per-site drill-down. A daily
+    timeseries is also returned for charting (date, sales, cash)."""
     query = {}
     if start_date:
         query.setdefault("date", {})["$gte"] = start_date
     if end_date:
         query.setdefault("date", {})["$lte"] = end_date
+    if location_id:
+        query["location_id"] = location_id
 
     entries = list(daily_sales_collection.find(query, {"_id": 0}))
 
@@ -146,12 +153,21 @@ async def sales_summary(
     total_cash = 0
     by_location = {}
     staff_hours_map = {}
+    timeseries_map: dict = {}  # date -> {sales, cash, entries}
 
     for e in entries:
         s = e.get("sales", 0) or 0
         c = e.get("cash_taken", 0) or 0
         total_sales += s
         total_cash += c
+
+        # Daily timeseries: accumulate sales/cash by ISO date.
+        d_iso = (e.get("date") or "")[:10]
+        if d_iso:
+            slot = timeseries_map.setdefault(d_iso, {"sales": 0, "cash": 0, "entries": 0})
+            slot["sales"] += s
+            slot["cash"] += c
+            slot["entries"] += 1
 
         loc = e.get("location_id", "unknown")
         if loc not in by_location:
@@ -201,6 +217,10 @@ async def sales_summary(
         "total_entries": len(entries),
         "by_location": by_location,
         "staff_hours": staff_hours_list,
+        "timeseries": [
+            {"date": d, "sales": round(v["sales"], 2), "cash": round(v["cash"], 2), "entries": v["entries"]}
+            for d, v in sorted(timeseries_map.items())
+        ],
     }
 
 
