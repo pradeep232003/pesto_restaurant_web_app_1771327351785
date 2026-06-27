@@ -832,6 +832,9 @@ class ApiService {
   async shiftCopyWeek(body) {
     return this.fetch('/api/admin/shifts/copy-week', { method: 'POST', body: JSON.stringify(body) });
   }
+  async shiftPublishWeek(body) {
+    return this.fetch('/api/admin/shifts/publish-week', { method: 'POST', body: JSON.stringify(body) });
+  }
 
   // ============== INSPECTION PACK (EHO-ready audit bundle) ==============
   async adminInspectionPack({ location_id, start_date, end_date } = {}) {

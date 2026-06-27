@@ -78,12 +78,11 @@ async def list_shifts(
     user: dict = Depends(get_staff_or_above),
 ):
     q: dict = {"location_id": location_id}
-    # Non-admin staff users only see their own shifts. We resolve the staff
-    # record by `account_email` (set by an admin in the staff form). If no
-    # such record exists, we return an empty list rather than leaking the
-    # full rota.
+    # Non-admin staff users only see their own *published* shifts. Drafts
+    # are management-only. Email match is case-insensitive.
     role = user.get("role", "")
-    if role not in ("admin", "super_admin"):
+    is_staff_only = role not in ("admin", "super_admin")
+    if is_staff_only:
         email = (user.get("email") or "").strip().lower()
         if not email:
             return []
@@ -91,6 +90,7 @@ async def list_shifts(
         if not rec:
             return []
         q["staff_id"] = rec["id"]
+        q["published"] = True
     if start_date or end_date:
         q["date"] = {}
         if start_date:
@@ -99,6 +99,73 @@ async def list_shifts(
             q["date"]["$lte"] = end_date
     rows = list(shifts_collection.find(q, {"_id": 0}).sort([("date", 1), ("start_time", 1)]).limit(2000))
     return [_decorate(r) for r in rows]
+
+
+class PublishWeekBody(BaseModel):
+    location_id: str
+    start_date: str  # YYYY-MM-DD inclusive
+    end_date: str    # YYYY-MM-DD inclusive
+    notify: bool = True
+
+
+@router.post("/publish-week")
+async def publish_week(body: PublishWeekBody, user: dict = Depends(get_admin_user)):
+    """Mark every draft shift in the range as published, and (optionally)
+    fire a push notification to each affected staff member's subscribed
+    devices. Already-published shifts are left untouched."""
+    res = shifts_collection.update_many(
+        {
+            "location_id": body.location_id,
+            "date": {"$gte": body.start_date, "$lte": body.end_date},
+            "published": {"$ne": True},
+        },
+        {"$set": {
+            "published": True,
+            "published_at": datetime.now(timezone.utc).isoformat(),
+            "published_by": user.get("email", ""),
+            "published_by_name": user.get("name", ""),
+        }},
+    )
+    published_count = res.modified_count
+
+    notified = 0
+    if body.notify and published_count:
+        # Group newly-published shifts by staff_id so each person gets one
+        # push, not one per shift. We re-query the freshly-flagged rows.
+        rows = list(shifts_collection.find(
+            {
+                "location_id": body.location_id,
+                "date": {"$gte": body.start_date, "$lte": body.end_date},
+                "published_at": {"$exists": True},
+            },
+            {"_id": 0, "staff_id": 1, "date": 1, "start_time": 1, "end_time": 1, "staff_name": 1},
+        ))
+        per_staff: dict = {}
+        for r in rows:
+            per_staff.setdefault(r.get("staff_id", ""), []).append(r)
+
+        from routes.push import send_push_to_user
+        for staff_id, shifts in per_staff.items():
+            staff_rec = staff_collection.find_one(
+                {"id": staff_id}, {"_id": 0, "account_email": 1, "name": 1},
+            )
+            if not staff_rec or not staff_rec.get("account_email"):
+                continue
+            count = len(shifts)
+            first = min(shifts, key=lambda s: s.get("date", "9999"))
+            body_text = (
+                f"{count} shift{'s' if count != 1 else ''} published. "
+                f"First: {first.get('date')} {first.get('start_time')}–{first.get('end_time')}."
+            )
+            if send_push_to_user(staff_rec["account_email"], {
+                "title": "New rota published",
+                "body": body_text,
+                "tag": f"shift-publish-{body.start_date}",
+                "url": "/jkhive/shifts",
+            }):
+                notified += 1
+
+    return {"published": published_count, "notified": notified}
 
 
 class CopyWeekBody(BaseModel):
@@ -190,6 +257,9 @@ async def add_shift(body: ShiftBody, user: dict = Depends(get_admin_user)):
         "end_time": body.end_time,
         "role": body.role,
         "notes": body.notes,
+        # New shifts start as drafts so the manager can edit freely before
+        # alerting staff. They become visible to staff only after Publish.
+        "published": False,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "created_by": user.get("email", ""),
         "created_by_name": user.get("name", ""),
@@ -207,6 +277,9 @@ async def update_shift(shift_id: str, body: ShiftPatch, user: dict = Depends(get
     if "staff_id" in update:
         update["staff_name"] = _resolve_staff_name(update["staff_id"])
     if update:
+        # Any edit reverts the shift to "draft" so the manager has a chance
+        # to re-review before notifying staff of the change.
+        update.setdefault("published", False)
         update["updated_at"] = datetime.now(timezone.utc).isoformat()
         update["updated_by"] = user.get("email", "")
         update["updated_by_name"] = user.get("name", "")

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Plus, ChevronLeft, ChevronRight, X, Trash2, Users, Clock, Copy,
+  ArrowLeft, Plus, ChevronLeft, ChevronRight, X, Trash2, Users, Clock, Copy, Send, FileEdit,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -47,6 +47,8 @@ const ShiftMgmt = () => {
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(null); // shift object or new template
   const [copyBusy, setCopyBusy] = useState(false);
+  const [publishBusy, setPublishBusy] = useState(false);
+  const [publishMsg, setPublishMsg] = useState('');
 
   const locName = useMemo(() => locations.find(l => l.id === adminLocationId)?.name || '', [locations, adminLocationId]);
 
@@ -97,6 +99,41 @@ const ShiftMgmt = () => {
     }
   };
 
+  // "Publish week" — flip every draft shift in the current view to
+  // published and notify each affected staff member by push. Idempotent:
+  // already-published shifts are skipped silently.
+  const publishWeek = async () => {
+    const draftCount = shifts.filter(s => !s.published).length;
+    if (draftCount === 0) {
+      setPublishMsg('Nothing to publish — this week is already up to date.');
+      return;
+    }
+    if (!window.confirm(`Publish ${draftCount} draft shift${draftCount === 1 ? '' : 's'} and notify the staff involved?`)) return;
+    setPublishBusy(true);
+    setPublishMsg('');
+    setError('');
+    try {
+      const res = await api.shiftPublishWeek({
+        location_id: adminLocationId,
+        start_date: toIso(weekStart),
+        end_date: toIso(weekEnd),
+        notify: true,
+      });
+      setPublishMsg(`Published ${res.published} shift${res.published === 1 ? '' : 's'} · notified ${res.notified} staff member${res.notified === 1 ? '' : 's'}.`);
+      await load();
+    } catch (err) {
+      setError(err.message || 'Could not publish week');
+    } finally {
+      setPublishBusy(false);
+    }
+  };
+
+  // Wage cost for the visible window — sums hours × hourly_rate from the
+  // staff records. Falls back to 0 for staff without an hourly rate set.
+  const rateById = useMemo(() => Object.fromEntries(
+    (staffList || []).map(s => [s.id, Number(s.hourly_rate) || 0]),
+  ), [staffList]);
+
   if (!adminLocationId) {
     return (
       <div style={{ padding: 24, ...FONT }}>
@@ -126,6 +163,12 @@ const ShiftMgmt = () => {
   }, {});
   const totalsList = Object.values(totals).sort((a, b) => b.hours - a.hours);
   const weekHours = totalsList.reduce((s, r) => s + r.hours, 0);
+  // Estimated wage for the visible window. Visible to admin only.
+  const weekCost = isAdmin
+    ? visibleShifts.reduce((sum, s) => sum + (s.hours || 0) * (rateById[s.staff_id] || 0), 0)
+    : 0;
+  // Draft count = unpublished shifts in the visible window.
+  const draftCount = visibleShifts.filter(s => !s.published).length;
 
   return (
     <div data-testid="shifts-page" style={{ paddingBottom: 110, ...FONT }}>
@@ -150,36 +193,58 @@ const ShiftMgmt = () => {
         <p className="text-[13px] mt-1" style={{ color: '#86868B' }}>{locName}</p>
       </div>
 
-      {/* Admin tools row — per-staff filter + Copy-last-week. Hidden for
-          regular staff so their view stays focused on their own shifts. */}
+      {/* Admin tools row — per-staff filter + Copy-last-week + Publish.
+          Hidden for regular staff so their view stays focused on their own shifts. */}
       {isAdmin && (
-        <div style={{
-          background: '#FFFFFF', borderRadius: 14, padding: 10, marginBottom: 10,
-          display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-        }}>
-          <select
-            data-testid="shifts-staff-filter"
-            value={staffFilter}
-            onChange={e => setStaffFilter(e.target.value)}
-            style={{ flex: '1 1 160px', padding: '8px 10px', borderRadius: 9, background: '#F5F5F7', border: 0, fontSize: 13, color: '#1D1D1F', ...FONT }}
-          >
-            <option value="">Everyone</option>
-            {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <button
-            data-testid="shifts-copy-week"
-            onClick={copyLastWeek}
-            disabled={copyBusy}
-            style={{
-              padding: '8px 12px', borderRadius: 999, border: 0,
-              background: '#1D1D1F', color: '#FFFFFF', fontSize: 12, fontWeight: 700,
-              cursor: copyBusy ? 'not-allowed' : 'pointer', opacity: copyBusy ? 0.5 : 1,
-              display: 'inline-flex', alignItems: 'center', gap: 4, ...FONT,
-            }}>
-            <Copy size={12} /> {copyBusy ? 'Copying…' : 'Copy last week'}
-          </button>
-        </div>
+        <>
+          <div style={{
+            background: '#FFFFFF', borderRadius: 14, padding: 10, marginBottom: 8,
+            display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+          }}>
+            <select
+              data-testid="shifts-staff-filter"
+              value={staffFilter}
+              onChange={e => setStaffFilter(e.target.value)}
+              style={{ flex: '1 1 140px', padding: '8px 10px', borderRadius: 9, background: '#F5F5F7', border: 0, fontSize: 13, color: '#1D1D1F', ...FONT }}
+            >
+              <option value="">Everyone</option>
+              {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <button
+              data-testid="shifts-copy-week"
+              onClick={copyLastWeek}
+              disabled={copyBusy}
+              style={{
+                padding: '8px 12px', borderRadius: 999, border: 0,
+                background: '#F5F5F7', color: '#1D1D1F', fontSize: 12, fontWeight: 700,
+                cursor: copyBusy ? 'not-allowed' : 'pointer', opacity: copyBusy ? 0.5 : 1,
+                display: 'inline-flex', alignItems: 'center', gap: 4, ...FONT,
+              }}>
+              <Copy size={12} /> {copyBusy ? 'Copying…' : 'Copy last week'}
+            </button>
+            <button
+              data-testid="shifts-publish-week"
+              onClick={publishWeek}
+              disabled={publishBusy || draftCount === 0}
+              style={{
+                padding: '8px 14px', borderRadius: 999, border: 0,
+                background: draftCount === 0 ? '#F5F5F7' : '#34C759',
+                color: draftCount === 0 ? '#86868B' : '#FFFFFF',
+                fontSize: 12, fontWeight: 700,
+                cursor: (publishBusy || draftCount === 0) ? 'not-allowed' : 'pointer',
+                opacity: publishBusy ? 0.6 : 1,
+                display: 'inline-flex', alignItems: 'center', gap: 4, ...FONT,
+              }}>
+              <Send size={12} /> {publishBusy ? 'Publishing…' : (draftCount > 0 ? `Publish (${draftCount})` : 'Published')}
+            </button>
+          </div>
+          {publishMsg && (
+            <div data-testid="shifts-publish-msg" style={{ background: 'rgba(52,199,89,0.12)', color: '#1B7A35', borderRadius: 12, padding: '8px 12px', marginBottom: 10, fontSize: 12, ...FONT }}>
+              {publishMsg}
+            </div>
+          )}
+        </>
       )}
 
       {/* Week navigator */}
@@ -197,6 +262,10 @@ const ShiftMgmt = () => {
           <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1D1D1F', ...FONT }}>{fmtRange(weekStart, weekEnd)}</p>
           <p style={{ margin: 0, fontSize: 11, color: '#86868B' }}>
             {visibleShifts.length} shift{visibleShifts.length === 1 ? '' : 's'} · {weekHours.toFixed(1)}h total
+            {isAdmin && weekCost > 0 && ` · £${weekCost.toFixed(2)}`}
+            {isAdmin && draftCount > 0 && (
+              <span style={{ color: '#A35E00', marginLeft: 6 }}>· {draftCount} draft{draftCount === 1 ? '' : 's'}</span>
+            )}
           </p>
         </div>
         <button data-testid="shifts-this-week"
@@ -260,13 +329,20 @@ const ShiftMgmt = () => {
                           disabled={!isAdmin}
                           style={{
                             display: 'grid', gridTemplateColumns: '1fr auto', gap: 6,
-                            padding: '8px 10px', borderRadius: 10, background: '#F9F9FB',
+                            padding: '8px 10px', borderRadius: 10,
+                            background: s.published ? '#F9F9FB' : 'rgba(255,149,0,0.10)',
+                            borderLeft: s.published ? 'none' : '3px solid #FF9500',
                             border: 0, cursor: isAdmin ? 'pointer' : 'default', textAlign: 'left',
                             ...FONT,
                           }}>
                           <div style={{ minWidth: 0 }}>
-                            <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#1D1D1F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#1D1D1F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
                               {s.staff_name}
+                              {isAdmin && !s.published && (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: '1px 6px', borderRadius: 999, background: 'rgba(255,149,0,0.18)', color: '#A35E00', fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                                  <FileEdit size={8} /> Draft
+                                </span>
+                              )}
                             </p>
                             <p style={{ margin: '2px 0 0', fontSize: 11, color: '#86868B' }}>
                               {s.start_time} – {s.end_time}{s.role && ` · ${s.role}`}
