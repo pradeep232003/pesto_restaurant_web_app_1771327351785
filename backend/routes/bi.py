@@ -1,5 +1,5 @@
 """
-Business Intelligence (BI) — super_admin only.
+Business Intelligence (BI) — admin + super_admin.
 
 Aggregates Daily Sales + Staff Hours + Staff hourly_rate + Menu Recipes
 into KPI metrics (Labour %, Food Cost %, Revenue) per location and overall.
@@ -21,7 +21,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db import db, daily_sales_collection, menu_items_collection, locations_collection
-from auth import get_super_admin
+from auth import get_admin_user
 
 router = APIRouter(prefix="/api/admin/bi", tags=["bi"])
 
@@ -105,7 +105,7 @@ async def bi_overview(
     start_date: Optional[str] = Query(None, description="YYYY-MM-DD inclusive"),
     end_date: Optional[str] = Query(None, description="YYYY-MM-DD inclusive"),
     location_id: Optional[str] = Query(None),
-    user: dict = Depends(get_super_admin),
+    user: dict = Depends(get_admin_user),
 ):
     """
     Returns BI overview:
@@ -239,10 +239,10 @@ def _compute_overview(start_date: Optional[str], end_date: Optional[str], locati
 @router.get("/menu-cost")
 async def menu_cost_breakdown(
     location_id: Optional[str] = Query(None),
-    user: dict = Depends(get_super_admin),
+    user: dict = Depends(get_admin_user),
 ):
     """
-    Per-menu-item recipe cost & margin breakdown — super_admin only.
+    Per-menu-item recipe cost & margin breakdown — admin+.
     Returns list of items with computed cost, margin £, margin %.
     """
     query: dict = {}
@@ -438,7 +438,7 @@ async def bi_ai_insights(
     end_date: Optional[str] = Query(None),
     location_id: Optional[str] = Query(None),
     refresh: bool = Query(False, description="Bypass the 30-min cache"),
-    user: dict = Depends(get_super_admin),
+    user: dict = Depends(get_admin_user),
 ):
     overview = _compute_overview(start_date, end_date, location_id)
 

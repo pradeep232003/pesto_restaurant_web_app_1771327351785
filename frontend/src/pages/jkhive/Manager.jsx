@@ -25,10 +25,10 @@ const Manager = () => {
 
       <SectionLabel>Analytics</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
-        {isSuperAdmin ? (
+        {isAdmin ? (
           <Tile testId="tile-business-intelligence" to="/jkhive/bi" icon={LineChart} color="#007AFF" title="Business Intelligence" subtitle="AI-powered analytics" />
         ) : (
-          <Tile testId="tile-business-intelligence" comingSoon icon={LineChart} color="#007AFF" title="Business Intelligence" subtitle="Super admin only" />
+          <Tile testId="tile-business-intelligence" comingSoon icon={LineChart} color="#007AFF" title="Business Intelligence" subtitle="Admin only" />
         )}
         <Tile testId="tile-food-wastage"          comingSoon icon={Trash2}    color="#FF3B30" title="Food Wastage"          subtitle="Track all food loss" />
       </div>

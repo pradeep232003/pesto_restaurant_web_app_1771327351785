@@ -296,7 +296,7 @@ const AppRouter = () => {
         <Route path="inspection" element={<AdminOnly><JKHiveInspection /></AdminOnly>} />
         <Route path="documents" element={<JKHiveDocuments />} />
         <Route path="shifts" element={<JKHiveShiftMgmt />} />
-        <Route path="bi" element={<SuperAdminOnly><AdminBI /></SuperAdminOnly>} />
+        <Route path="bi" element={<AdminOnly><AdminBI /></AdminOnly>} />
         <Route path="menu" element={<JKHiveMenu />} />
         <Route path="daily-checks" element={<JKHiveDailyChecks />} />
         <Route path="kitchen-closedown" element={<JKHiveKitchenClosedown />} />
