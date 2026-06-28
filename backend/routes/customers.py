@@ -149,6 +149,10 @@ async def customer_login(data: CustomerLogin, response: Response):
     if not verify_password(data.password, customer["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
+    # Stamp last-login so the admin Users dashboard can sort by activity.
+    now_iso = datetime.now(timezone.utc).isoformat()
+    customers_collection.update_one({"email": email}, {"$set": {"last_login_at": now_iso}})
+
     token = jwt.encode(
         {"sub": customer["id"], "email": email, "type": "customer_access",
          "exp": datetime.now(timezone.utc) + timedelta(days=30)},
@@ -203,7 +207,7 @@ async def customer_google_session(request: Request, response: Response):
     if existing:
         customers_collection.update_one(
             {"email": email},
-            {"$set": {"name": name, "picture": picture, "google_linked": True}},
+            {"$set": {"name": name, "picture": picture, "google_linked": True, "last_login_at": datetime.now(timezone.utc).isoformat()}},
         )
         customer_id = existing["id"]
     else:
@@ -213,6 +217,7 @@ async def customer_google_session(request: Request, response: Response):
             "password_hash": "", "email_verified": True, "phone_verified": False,
             "google_linked": True, "picture": picture,
             "created_at": datetime.now(timezone.utc).isoformat(),
+            "last_login_at": datetime.now(timezone.utc).isoformat(),
         })
 
     token = jwt.encode(
@@ -259,7 +264,7 @@ async def customer_google_login(request: Request, response: Response):
     if existing:
         customers_collection.update_one(
             {"email": email},
-            {"$set": {"name": name, "picture": picture, "google_linked": True}},
+            {"$set": {"name": name, "picture": picture, "google_linked": True, "last_login_at": datetime.now(timezone.utc).isoformat()}},
         )
         customer_id = existing["id"]
     else:
@@ -269,6 +274,7 @@ async def customer_google_login(request: Request, response: Response):
             "password_hash": "", "email_verified": True, "phone_verified": False,
             "google_linked": True, "picture": picture,
             "created_at": datetime.now(timezone.utc).isoformat(),
+            "last_login_at": datetime.now(timezone.utc).isoformat(),
         })
 
     token = jwt.encode(

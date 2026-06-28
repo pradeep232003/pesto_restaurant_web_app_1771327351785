@@ -11,6 +11,27 @@ const ROLE_CONFIG = {
   super_admin: { label: 'Super Admin', color: '#FF9500', bg: 'rgba(255,149,0,0.1)' },
 };
 
+/**
+ * Friendly "last login" formatter.
+ *  - < 1 min  → "just now"
+ *  - < 1 hour → "12 min ago"
+ *  - < 24 hr  → "3 hr ago"
+ *  - < 7 days → "2 days ago"
+ *  - older    → "12 Feb 2026, 09:14"
+ *  - missing  → "Never"
+ */
+const formatLastLogin = (iso) => {
+  if (!iso) return 'Never';
+  const ts = new Date(iso);
+  if (Number.isNaN(ts.getTime())) return '—';
+  const diffSec = Math.max(0, (Date.now() - ts.getTime()) / 1000);
+  if (diffSec < 60) return 'just now';
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)} min ago`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} hr ago`;
+  if (diffSec < 604800) return `${Math.floor(diffSec / 86400)} days ago`;
+  return ts.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
 const AdminUsers = () => {
   const navigate = useNavigate();
   const { isAuthenticated, isSuperAdmin, loading: authLoading } = useAuth();
@@ -109,13 +130,14 @@ const AdminUsers = () => {
                 <th className="text-left px-5 py-3.5 text-xs font-medium uppercase tracking-wider" style={{ color: '#86868B' }}>Email</th>
                 <th className="text-left px-5 py-3.5 text-xs font-medium uppercase tracking-wider hidden sm:table-cell" style={{ color: '#86868B' }}>Phone</th>
                 <th className="text-left px-5 py-3.5 text-xs font-medium uppercase tracking-wider" style={{ color: '#86868B' }}>Current Role</th>
+                <th className="text-left px-5 py-3.5 text-xs font-medium uppercase tracking-wider hidden md:table-cell" style={{ color: '#86868B' }}>Last Login</th>
                 <th className="text-left px-5 py-3.5 text-xs font-medium uppercase tracking-wider" style={{ color: '#86868B' }}>Action</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-12 text-center" style={{ color: '#86868B' }}>
+                  <td colSpan={6} className="px-5 py-12 text-center" style={{ color: '#86868B' }}>
                     {search ? 'No customers match your search.' : 'No registered customers yet.'}
                   </td>
                 </tr>
@@ -131,6 +153,9 @@ const AdminUsers = () => {
                       <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium" style={{ background: rc.bg, color: rc.color }}>
                         {rc.label}
                       </span>
+                    </td>
+                    <td className="px-5 py-3.5 hidden md:table-cell" data-testid={`last-login-${customer.id}`} style={{ color: customer.last_login_at ? '#3A3A3C' : '#C7C7CC', fontVariantNumeric: 'tabular-nums' }}>
+                      {formatLastLogin(customer.last_login_at)}
                     </td>
                     <td className="px-5 py-3.5">
                       <select

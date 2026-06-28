@@ -31,6 +31,16 @@ async def login(request: Request, response: Response, credentials: LoginRequest)
     clear_failed_attempts(email)
     clear_failed_attempts(client_ip)
 
+    # Stamp last-login for admin/staff so the super_admin Users dashboard can
+    # surface activity. We mirror the timestamp on the matching customer doc
+    # (the source of the Users table) so customer + staff logins share a
+    # single field.
+    from datetime import datetime, timezone as _tz
+    now_iso = datetime.now(_tz.utc).isoformat()
+    users_collection.update_one({"_id": user["_id"]}, {"$set": {"last_login_at": now_iso}})
+    from db import customers_collection as _customers
+    _customers.update_one({"email": email}, {"$set": {"last_login_at": now_iso}})
+
     user_id = str(user["_id"])
     access_token = create_access_token(user_id, email, user.get("role", "user"))
     refresh_token = create_refresh_token(user_id)
