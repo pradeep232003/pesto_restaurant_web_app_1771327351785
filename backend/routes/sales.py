@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from datetime import datetime, timezone
-from db import daily_sales_collection, customers_collection, edit_log_collection
+from db import daily_sales_collection, customers_collection, edit_log_collection, db
 from auth import get_staff_or_above, get_admin_user
 from models import DailySalesCreate
 import uuid
@@ -149,6 +149,13 @@ async def sales_summary(
 
     entries = list(daily_sales_collection.find(query, {"_id": 0}))
 
+    # Build a name → hourly_rate map once so we can compute labour cost
+    # per location while iterating entries (avoids repeated DB lookups).
+    staff_rate_map = {
+        (s.get("name") or "").strip().lower(): float(s.get("hourly_rate") or 0)
+        for s in db["staff_members"].find({}, {"_id": 0, "name": 1, "hourly_rate": 1})
+    }
+
     total_sales = 0
     total_cash = 0
     by_location = {}
@@ -171,7 +178,7 @@ async def sales_summary(
 
         loc = e.get("location_id", "unknown")
         if loc not in by_location:
-            by_location[loc] = {"sales": 0, "cash": 0, "days": 0}
+            by_location[loc] = {"sales": 0, "cash": 0, "days": 0, "labour_hours": 0, "labour_cost": 0}
         by_location[loc]["sales"] += s
         by_location[loc]["cash"] += c
         by_location[loc]["days"] += 1
@@ -203,6 +210,13 @@ async def sales_summary(
                 "end_time": end,
                 "hours": hrs,
             })
+
+            # Accumulate labour at the location level so the front-end can
+            # plot Labour % of revenue per site. Falls back to 0 if the
+            # staff record has no hourly_rate yet (rate=0 → cost=0).
+            rate = staff_rate_map.get(name.lower(), 0)
+            by_location[loc]["labour_hours"] = round(by_location[loc]["labour_hours"] + hrs, 2)
+            by_location[loc]["labour_cost"] = round(by_location[loc]["labour_cost"] + hrs * rate, 2)
 
     staff_hours_list = sorted(
         [{"name": k, "total_hours": v["total_hours"], "shifts": v["shifts"],

@@ -65,7 +65,7 @@ const PRIORITY_META = {
 };
 
 /** Sparkle-headed panel that renders Claude's structured BI analysis. */
-const AIInsightsPanel = ({ insights, loading, cached, generatedAt, error, keyInfo, onRefresh, onOpenKeyModal, onRetryAfterKey }) => {
+const AIInsightsPanel = ({ insights, loading, cached, generatedAt, error, keyInfo, canManageKey, onRefresh, onOpenKeyModal, onRetryAfterKey }) => {
   const palette = HEALTH_COLORS[insights?.health_label] || HEALTH_COLORS.Healthy;
   const score = insights?.health_score ?? null;
   const keyMissing = keyInfo && !keyInfo.has_key;
@@ -86,15 +86,26 @@ const AIInsightsPanel = ({ insights, loading, cached, generatedAt, error, keyInf
             </span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              data-testid="bi-ai-configure-key"
-              onClick={onOpenKeyModal}
-              className="px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 active:scale-95"
-              style={{ background: 'rgba(255,255,255,0.18)', color: '#FFFFFF', border: 0, ...font }}
-              title={keyInfo?.has_key ? `Active key ends ${keyInfo.last4} (${keyInfo.source})` : 'No API key configured'}
-            >
-              <KeyRound size={11} /> {keyInfo?.has_key ? `Key · ${keyInfo.last4}` : 'Add key'}
-            </button>
+            {canManageKey ? (
+              <button
+                data-testid="bi-ai-configure-key"
+                onClick={onOpenKeyModal}
+                className="px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 active:scale-95"
+                style={{ background: 'rgba(255,255,255,0.18)', color: '#FFFFFF', border: 0, ...font }}
+                title={keyInfo?.has_key ? `Active key ends ${keyInfo.last4} (${keyInfo.source})` : 'No API key configured'}
+              >
+                <KeyRound size={11} /> {keyInfo?.has_key ? `Key · ${keyInfo.last4}` : 'Add key'}
+              </button>
+            ) : keyInfo?.has_key ? (
+              <span
+                data-testid="bi-ai-key-readonly"
+                className="px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1"
+                style={{ background: 'rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.85)', ...font }}
+                title="Only a Super Admin can change the API key"
+              >
+                <KeyRound size={11} /> Key · {keyInfo.last4}
+              </span>
+            ) : null}
             <button
               data-testid="bi-ai-refresh"
               onClick={onRefresh}
@@ -112,19 +123,21 @@ const AIInsightsPanel = ({ insights, loading, cached, generatedAt, error, keyInf
         {keyMissing && !insights && !loading && (
           <div data-testid="bi-ai-no-key">
             <p className="text-base sm:text-lg leading-snug mb-2" style={{ ...font, fontWeight: 500 }}>
-              Add an AI key to unlock insights.
+              {canManageKey ? 'Add an AI key to unlock insights.' : 'AI insights are disabled — no API key configured.'}
             </p>
             <p className="text-xs mb-3" style={{ ...font, opacity: 0.85 }}>
-              Use your own Anthropic Claude key.
+              {canManageKey ? 'Use your own Anthropic Claude key.' : 'Ask a Super Admin to add an Anthropic Claude key.'}
             </p>
-            <button
-              data-testid="bi-ai-add-key-cta"
-              onClick={onOpenKeyModal}
-              className="px-3.5 py-2 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 active:scale-95"
-              style={{ background: '#FFFFFF', color: '#1D1D1F', border: 0, ...font }}
-            >
-              <KeyRound size={12} /> Configure AI key
-            </button>
+            {canManageKey && (
+              <button
+                data-testid="bi-ai-add-key-cta"
+                onClick={onOpenKeyModal}
+                className="px-3.5 py-2 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 active:scale-95"
+                style={{ background: '#FFFFFF', color: '#1D1D1F', border: 0, ...font }}
+              >
+                <KeyRound size={12} /> Configure AI key
+              </button>
+            )}
           </div>
         )}
         {insights && (
@@ -146,7 +159,7 @@ const AIInsightsPanel = ({ insights, loading, cached, generatedAt, error, keyInf
         {error && !keyMissing && (
           <div className="mt-3">
             <p className="text-xs" style={{ ...font, color: '#FFE5E5' }}>{error}</p>
-            {isKeyError && (
+            {isKeyError && canManageKey && (
               <button
                 data-testid="bi-ai-error-add-key"
                 onClick={onOpenKeyModal}
@@ -155,6 +168,11 @@ const AIInsightsPanel = ({ insights, loading, cached, generatedAt, error, keyInf
               >
                 <KeyRound size={11} /> Add API key
               </button>
+            )}
+            {isKeyError && !canManageKey && (
+              <p className="mt-2 text-[11px]" style={{ ...font, opacity: 0.85 }}>
+                Please ask a Super Admin to update the AI key.
+              </p>
             )}
             {!isKeyError && (
               <button
@@ -441,7 +459,7 @@ const AIKeyModal = ({ open, keyInfo, onClose, onSaved }) => {
 
 const AdminBI = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, isAdmin, loading: authLoading } = useAuth();
+  const { isAuthenticated, isAdmin, isSuperAdmin, loading: authLoading } = useAuth();
   const { locations } = useLocation2();
   const routerLocation = useLocation();
   // When mounted under /jkhive/bi, we render in mobile-first mode with a
@@ -666,11 +684,12 @@ const AdminBI = () => {
         keyInfo={aiKeyInfo}
         onRefresh={() => fetchAi(true)}
         onOpenKeyModal={() => setShowAiKeyModal(true)}
+        canManageKey={isSuperAdmin}
         onRetryAfterKey={() => { setAiError(''); fetchAi(true); }}
       />
 
       <AIKeyModal
-        open={showAiKeyModal}
+        open={showAiKeyModal && isSuperAdmin}
         keyInfo={aiKeyInfo}
         onClose={() => setShowAiKeyModal(false)}
         onSaved={() => { setShowAiKeyModal(false); setAiError(''); fetchAi(true); }}

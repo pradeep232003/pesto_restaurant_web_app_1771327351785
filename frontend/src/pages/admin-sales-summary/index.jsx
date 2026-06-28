@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip, Legend,
+  CartesianGrid, Tooltip, Legend, Cell,
 } from 'recharts';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -323,6 +323,68 @@ const AdminSalesSummary = () => {
               )}
             </div>
           )}
+
+          {/* Labour % by Revenue (per location) — manager-level scorecard.
+              Hidden when no labour cost is reported (e.g. staff lack hourly
+              rates) so the card doesn't sit empty. */}
+          {(() => {
+            const labourRows = Object.entries(data.by_location)
+              .map(([locId, loc]) => ({
+                locId,
+                name: getLocationName(locId),
+                sales: loc.sales || 0,
+                hours: loc.labour_hours || 0,
+                cost: loc.labour_cost || 0,
+                pct: loc.sales > 0 ? (loc.labour_cost || 0) / loc.sales * 100 : 0,
+              }))
+              .filter(r => r.cost > 0)
+              .sort((a, b) => b.sales - a.sales);
+            if (labourRows.length === 0) return null;
+            const overallPct = (() => {
+              const totalCost = labourRows.reduce((a, b) => a + b.cost, 0);
+              const totalRev = labourRows.reduce((a, b) => a + b.sales, 0);
+              return totalRev > 0 ? (totalCost / totalRev) * 100 : 0;
+            })();
+            // Industry guideline for hospitality is ~30% labour. Tint each
+            // bar so managers can spot outliers at a glance.
+            const tint = (p) => p <= 28 ? '#34C759' : p <= 35 ? '#FF9500' : '#FF3B30';
+            return (
+              <div className="p-4 sm:p-5" data-testid="labour-by-location-card" style={cardStyle}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold flex items-center gap-2" style={{ color: '#1D1D1F', ...font }}>
+                    <TrendingUp size={16} /> Labour % by Revenue
+                  </h3>
+                  <span className="text-[11px]" style={{ color: overallPct <= 28 ? '#1F8A3E' : overallPct <= 35 ? '#A35E00' : '#C0392B', ...font, fontWeight: 700 }}>
+                    Overall {overallPct.toFixed(1)}%
+                  </span>
+                </div>
+                <div style={{ width: '100%', height: Math.max(180, labourRows.length * 44 + 40) }}>
+                  <ResponsiveContainer>
+                    <BarChart data={labourRows} layout="vertical" margin={{ top: 4, right: 32, left: 0, bottom: 0 }}>
+                      <XAxis type="number" tickFormatter={(v) => `${v.toFixed(0)}%`} tick={{ fontSize: 11, fill: '#86868B' }} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#1D1D1F' }} axisLine={false} tickLine={false} width={110} />
+                      <Tooltip
+                        cursor={{ fill: 'rgba(0,0,0,0.04)' }}
+                        formatter={(value, _key, ctx) => {
+                          const row = ctx.payload;
+                          return [`${value.toFixed(1)}%  ·  ${fmtMoney(row.cost)} on ${fmtMoney(row.sales)}`, 'Labour %'];
+                        }}
+                        contentStyle={{ background: '#FFFFFF', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 12, fontSize: 12 }}
+                      />
+                      <Bar dataKey="pct" radius={[0, 8, 8, 0]}>
+                        {labourRows.map((r, i) => (
+                          <Cell key={i} fill={tint(r.pct)} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <p className="text-[11px] mt-1" style={{ color: '#86868B', ...font }}>
+                  Industry guideline: aim for under 30%. Green ≤ 28%, amber 28–35%, red 35%+.
+                </p>
+              </div>
+            );
+          })()}
 
           {/* Staff Hours */}
           <div className="p-4 sm:p-5" style={cardStyle}>

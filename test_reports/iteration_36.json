@@ -1,0 +1,40 @@
+{
+  "summary": "Verified both deliverables. (1) BI key gating: super_admin sees the editable 'Key · last4' pill (data-testid='bi-ai-configure-key' x1) and the AIKeyModal is reachable; admin-role (test_admin_bi@jollys.com) sees 0 instances of bi-ai-configure-key, bi-ai-add-key-cta, bi-ai-error-add-key and the modal does not open; admin still receives 403 on PUT /api/admin/ai-settings. (2) Labour % by Revenue card: GET /api/admin/daily-sales/summary now returns by_location[loc].labour_hours and labour_cost for every location; with hourly_rate=12.5 seeded on a staff name appearing in daily_sales, the front-end card 'labour-by-location-card' renders on /jkhive/sales-summary ABOVE 'Total Hours by Staff' with horizontal bars, threshold note and an 'Overall X.X%' tag; when no staff have hourly_rate the card is hidden (graceful fallback). All 5 backend regression tests pass. Existing sales/by-location/staff-hours rendering still works.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_labour_and_bi_gating.py",
+    "/app/test_reports/pytest/pytest_labour_and_bi_gating.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ai_settings router uses PUT (not POST) for set_ai_settings — kept lock via get_super_admin Depends; admin -> 403 confirmed.",
+    "sales.py: staff name lookup uses .strip().lower() consistently between staff_rate_map and staff_hours iteration — case mismatches will silently produce labour_cost=0. Consider documenting the case-insensitive contract or normalising at ingest time so a 'john' vs 'John' record cannot create dual rows.",
+    "by_location[loc] is initialised with labour_hours=0 and labour_cost=0 — so the API shape is stable even when no staff hours are logged (frontend filter `cost > 0` then hides the card). Good defensive coding.",
+    "admin-bi/index.jsx correctly AND-gates the modal `open={showAiKeyModal && isSuperAdmin}` so an admin who somehow toggled the state could not see the modal — defence in depth ✓.",
+    "Routes.jsx still has the stale `Routes;` stray statement & unused `SuperAdminOnly` wrapper noted in iteration 34. Cosmetic only."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_labour_and_bi_gating.py"
+  ],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "100% (super_admin gating + admin gating + labour card placement + threshold note + Overall pct + recharts bars + regression on sales trend & by-location all verified)"},
+  "test_credentials": "Super admin: admin@jollys.com / Admin123!  |  Admin role: test_admin_bi@jollys.com / AdminBI123!",
+  "seed_data_creation": "During testing inserted a staff_members doc {id:'TEST_labour_seed_john', name:'John', hourly_rate:12.5} so labour_cost would be non-zero for the April-2026 daily_sales (only 4 entries exist, all on 24-25 Apr 2026). Cleanup performed at end (delete_one matched 1). For future runs: either re-seed via Admin → Staff PATCH hourly_rate, or the labour card will be hidden (which is the correct graceful behaviour).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "daily_sales collection only has 4 entries on 2026-04-24/25; default sales-summary range is month-to-date so the labour card looks 'hidden' on first load — that is correct graceful behaviour, not a bug. To exercise the populated path: set From=2026-04-01 To=2026-04-30 and ensure at least one staff_members record's name matches a staff_hours.name in daily_sales with hourly_rate set (>0). Backend rate limiter (429) kicks in fairly aggressively on rapid login attempts — wait 30-60s between auth retries. Super admin /jkhive/bi already has an AI key configured (last4=0364) so 'Add key' CTA will be 0; to see bi-ai-add-key-cta you'd need to DELETE /api/admin/ai-settings first.",
+  "verification_evidence": {
+    "backend_pytest": "5 passed: test_admin_put_ai_settings_forbidden, test_super_admin_get_ai_settings_ok, test_summary_includes_labour_keys, test_labour_cost_populated_when_rate_set, test_admin_can_get_bi",
+    "super_admin_bi_selectors": "bi-ai-configure-key=1, bi-ai-add-key-cta=0 (key already set), kpis=4",
+    "admin_bi_selectors": "bi-ai-configure-key=0, bi-ai-add-key-cta=0, bi-ai-key-readonly=0 (ai-settings 403 so keyInfo undefined), bi-ai-error-add-key=0, modal=0, kpis=4 — page renders gracefully",
+    "labour_card_render": "labour-by-location-card=1, ordering check labour-y=1047 < staff-y=1361 (card sits ABOVE 'Total Hours by Staff'), 'Overall 3.6%' tag visible, threshold note 'Green ≤ 28%, amber 28–35%, red 35%+' visible, recharts bars present",
+    "regression": "Sales Trend chart, Sales by Location, Total Hours by Staff all render as before"
+  }
+}
