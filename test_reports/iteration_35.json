@@ -1,0 +1,39 @@
+{
+  "summary": "Verified the AI Suggest opening-hours bug fix. Added /app/backend/tests/test_ai_rota_opening_hours.py with 9 unit tests on _clamp_shift_to_hours (all PASS), 1 integration test for the 400 'no opening hours' branch (PASS), and 2 end-to-end tests covering Sunday-closed + weekday buffer behaviour (xfail in preview because the AI key returns 401 from Anthropic — confirmed via response detail 'AI provider error (emergent, 401): invalid x-api-key'). Total: 10 passed + 2 xfailed (expected), 0 failed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/admin/shifts/ai-suggest-week", "issue": "Preview env AI key is invalid (Anthropic 401). End-to-end Sunday-closed clamp behaviour cannot be exercised live; only the pre-LLM branches (400 no-opening-hours) and pure-function clamp logic are verified."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ai_rota_opening_hours.py",
+    "/app/test_reports/pytest/pytest_ai_rota_opening_hours.xml"
+  ],
+  "action_items": [
+    "When a real Anthropic key is configured in the preview env, re-run TestApiSundayClosed (two xfail tests will become real assertions) to confirm Claude+clamp end-to-end.",
+    "Cosmetic: consider adding a frontend Cypress/Playwright e2e that mocks the AI response so the apply-flow can be exercised in CI without a live LLM."
+  ],
+  "critical_code_review_comments": [
+    "_clamp_shift_to_hours correctly handles the {dropped, trimmed, unchanged, invalid-hhmm, close<=open, end<=start, sub-30-min-after-clamp} matrix.",
+    "Endpoint correctly raises HTTPException(400) (not 500) when opening_hours dict is empty — confirmed via real API call.",
+    "Endpoint injects SITE_OPENING_HOURS into the Claude prompt as expected (lines 507-508 of routes/shifts.py).",
+    "Post-LLM cleanup loop (lines 588-619) calls _clamp_shift_to_hours for every shift, drops closed-day shifts, and appends an 'Adjustments:' note to reasoning when overrides occurred — code path is correct by inspection.",
+    "Minor: /app/backend/routes/shifts.py is now 692 lines — approaching the 700-line guideline; consider splitting the AI-rota helpers into routes/shifts_ai.py for clarity."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ai_rota_opening_hours.py"
+  ],
+  "success_rate": {"backend": "100% (10/10 runnable; 2 xfail expected without live LLM key)", "frontend": "not retested — selectors confirmed present in source (shifts-ai-suggest, shifts-ai-error)"},
+  "test_credentials": "Super admin: admin@jollys.com / Admin123!",
+  "seed_data_creation": "None — tests snapshot opening_hours via fixture and restore after each test so DB state is preserved.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Preview env Anthropic key currently invalid (401). For live end-to-end testing of the AI rota path, configure a valid key in Admin → AI Settings, then run `pytest /app/backend/tests/test_ai_rota_opening_hours.py::TestApiSundayClosed -v` and the two xfail tests will exercise the Sunday-closed drop + weekday buffer clamp paths against a real Claude response. UI testing on /jkhive/shifts requires picking a location from the 'Pick a location' modal first; data-testid='shifts-ai-suggest' and data-testid='shifts-ai-error' are stable selectors. Note: rapid login retries hit a 429 lockout — wait ~60s between login attempts.",
+  "rca of the issue": "Original bug: /api/admin/shifts/ai-suggest-week ignored site opening hours, so Claude could return shifts on closed days or outside operating windows. Fix: (1) helpers _hhmm_to_min, _location_opening_hours, _clamp_shift_to_hours, _WEEKDAY_KEYS added; (2) endpoint now fetches opening_hours, returns HTTP 400 when empty, injects SITE_OPENING_HOURS into the Claude prompt, and post-processes every returned shift via _clamp_shift_to_hours (drop closed days, trim to open-30/close+30 buffer, drop sub-30-min results); (3) reasoning string gets an 'Adjustments:' suffix when overrides happened. Verified by direct unit tests on _clamp_shift_to_hours (closed-day → None, 06:00 with 09:00 open → 08:30, 22:00 with 17:00 close → 17:30, sub-30-min result → None, close<=open → None) and an API call confirming 400 (not 500) when opening_hours is forced to {}."
+}

@@ -24,6 +24,7 @@ router = APIRouter(prefix="/api/admin/shifts", tags=["shifts"])
 shifts_collection = db["shifts"]
 staff_collection = db["staff_members"]
 daily_sales_collection = db["daily_sales"]
+site_settings_collection = db["site_settings"]
 
 
 def _hours_between(start: str, end: str) -> float:
@@ -366,17 +367,24 @@ def _recent_shift_pattern(location_id: str, target_start: _date) -> list:
 
 _AI_ROTA_SYSTEM = (
     "You are the rota planner for Jolly's Kafe, a UK restaurant chain. "
-    "You are given (a) the last 4 weeks of daily sales for a single site, "
-    "(b) the current staff roster with their hourly rate and weekly hours "
-    "target (0 = flexible), and (c) the last 4 weeks of historical shifts. "
+    "You are given (a) the SITE OPENING HOURS for each day of the week, "
+    "(b) the last 4 weeks of daily sales for the site, "
+    "(c) the current staff roster with their hourly rate and weekly hours "
+    "target (0 = flexible), and (d) the last 4 weeks of historical shifts. "
     "Generate a DRAFT 7-day rota for the requested target week (Mon→Sun). "
     "Rules:\n"
-    "1. Respect each staff member's weekly_hours_target if > 0 (±2h tolerance).\n"
-    "2. Bias shift density to busier weekdays based on the sales footfall pattern.\n"
-    "3. Honour each staff member's typical day-of-week/role pattern when present.\n"
-    "4. Use HH:MM 24h times. Common patterns: 08:00-14:00, 09:00-17:00, 14:00-22:00, 17:00-23:00.\n"
-    "5. Do NOT schedule the same staff member for two overlapping shifts on the same day.\n"
-    "6. Output STRICT JSON with the shape:\n"
+    "1. NEVER schedule a shift outside the site's opening window for that "
+    "weekday. If the site is closed (no open/close time), do not schedule "
+    "anyone for that day. Allow up to 30 min before open for prep and up "
+    "to 30 min after close for clean-down — never more.\n"
+    "2. Respect each staff member's weekly_hours_target if > 0 (±2h tolerance).\n"
+    "3. Bias shift density to busier weekdays based on the sales footfall pattern.\n"
+    "4. Honour each staff member's typical day-of-week/role pattern when present.\n"
+    "5. Use HH:MM 24h times. Pick patterns that fit inside the opening "
+    "window (e.g. for a 09:00-17:00 day you could use 08:30-13:00, "
+    "12:00-17:30 — never 06:00 or 22:00).\n"
+    "6. Do NOT schedule the same staff member for two overlapping shifts on the same day.\n"
+    "7. Output STRICT JSON with the shape:\n"
     "{\n"
     "  \"reasoning\": \"<1-2 sentence overview>\",\n"
     "  \"shifts\": [\n"
@@ -386,6 +394,51 @@ _AI_ROTA_SYSTEM = (
     "}\n"
     "Return ONLY the JSON object. No markdown, no commentary."
 )
+
+
+# UK weekday → opening_hours dict key. Locations store hours as
+# {"monday": {"open": "08:00", "close": "17:00"}, ...}.
+_WEEKDAY_KEYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+
+def _hhmm_to_min(s: str) -> int:
+    """Parse 'HH:MM' → minutes-since-midnight. Returns -1 if invalid so callers
+    can drop the row instead of crashing."""
+    try:
+        h, m = s.split(":")
+        return int(h) * 60 + int(m)
+    except Exception:  # noqa: BLE001
+        return -1
+
+
+def _location_opening_hours(location_id: str) -> dict:
+    """Returns the {weekday: {open, close}} dict, or an empty dict if the
+    site has none configured (which means we shouldn't AI-suggest anything)."""
+    settings = site_settings_collection.find_one({"location_id": location_id}) or {}
+    return settings.get("opening_hours") or {}
+
+
+def _clamp_shift_to_hours(shift_start: str, shift_end: str, day_hours: dict) -> Optional[tuple]:
+    """Clamp a proposed shift into the site's opening window for that day,
+    with a 30-min prep buffer either side. Returns (start, end) HH:MM or
+    None if the day is closed / the shift cannot fit at all."""
+    if not day_hours:
+        return None
+    open_t = _hhmm_to_min(day_hours.get("open", ""))
+    close_t = _hhmm_to_min(day_hours.get("close", ""))
+    if open_t < 0 or close_t < 0 or close_t <= open_t:
+        return None
+    earliest = max(0, open_t - 30)   # 30 min prep before open
+    latest = min(24 * 60, close_t + 30)  # 30 min wrap-up after close
+    s = _hhmm_to_min(shift_start)
+    e = _hhmm_to_min(shift_end)
+    if s < 0 or e < 0 or e <= s:
+        return None
+    s = max(s, earliest)
+    e = min(e, latest)
+    if e - s < 30:  # too short to be useful after clamping
+        return None
+    return (f"{s // 60:02d}:{s % 60:02d}", f"{e // 60:02d}:{e % 60:02d}")
 
 
 @router.post("/ai-suggest-week")
@@ -431,14 +484,28 @@ async def ai_suggest_week(body: AISuggestBody, user: dict = Depends(get_admin_us
 
     sales_history = _last_four_weeks_sales(body.location_id, target_start)
     shift_history = _recent_shift_pattern(body.location_id, target_start)
+    opening_hours = _location_opening_hours(body.location_id)
+    if not opening_hours:
+        raise HTTPException(
+            400,
+            "This location has no opening hours configured. Set them in Admin → Locations before running AI Suggest.",
+        )
 
     target_dates = [(target_start + _td(days=i)).isoformat() for i in range(7)]
+    # Map each target date to its opening window so Claude can't pick times
+    # outside hours and so we can clamp anything weird it returns.
+    target_hours = {
+        d: opening_hours.get(_WEEKDAY_KEYS[(target_start + _td(days=i)).weekday()]) or {}
+        for i, d in enumerate(target_dates)
+    }
 
     user_text = (
         "Build a draft rota for the week starting "
         f"{target_start.isoformat()} (Mon) through "
         f"{(target_start + _td(days=6)).isoformat()} (Sun).\n\n"
         f"TARGET_DATES: {target_dates}\n\n"
+        f"SITE_OPENING_HOURS (date → open/close window, empty = CLOSED that day, "
+        f"do NOT schedule anyone):\n{json.dumps(target_hours, indent=2)}\n\n"
         f"ROSTER ({len(roster)} staff):\n{json.dumps(roster, indent=2)}\n\n"
         f"SALES_HISTORY (last 4 weeks, daily takings £):\n{json.dumps(sales_history, indent=2)}\n\n"
         f"RECENT_SHIFTS (last 4 weeks):\n{json.dumps(shift_history, indent=2)}"
@@ -516,6 +583,8 @@ async def ai_suggest_week(body: AISuggestBody, user: dict = Depends(get_admin_us
     name_to_id = {(s["name"] or "").strip().lower(): s["staff_id"] for s in roster}
 
     cleaned = []
+    dropped_closed = 0
+    clamped = 0
     for s in raw_shifts:
         sid = (s.get("staff_id") or "").strip()
         if sid not in valid_ids:
@@ -529,6 +598,16 @@ async def ai_suggest_week(body: AISuggestBody, user: dict = Depends(get_admin_us
         en = (s.get("end_time") or "").strip()
         if not st or not en:
             continue
+        # Enforce opening hours: clamp to window (with the prep buffer) or
+        # drop the shift entirely if the site is closed that day.
+        clamped_pair = _clamp_shift_to_hours(st, en, target_hours.get(d) or {})
+        if clamped_pair is None:
+            dropped_closed += 1
+            continue
+        new_st, new_en = clamped_pair
+        if (new_st, new_en) != (st, en):
+            clamped += 1
+            st, en = new_st, new_en
         cleaned.append({
             "staff_id": sid,
             "staff_name": next((r["name"] for r in roster if r["staff_id"] == sid), ""),
@@ -539,8 +618,19 @@ async def ai_suggest_week(body: AISuggestBody, user: dict = Depends(get_admin_us
             "hours": _hours_between(st, en),
         })
 
+    # Append a note when we had to override the LLM so the manager sees
+    # what happened — opening hours always win.
+    reasoning = parsed.get("reasoning", "") or ""
+    if dropped_closed or clamped:
+        note_bits = []
+        if dropped_closed:
+            note_bits.append(f"{dropped_closed} shift{'s' if dropped_closed != 1 else ''} dropped (site closed)")
+        if clamped:
+            note_bits.append(f"{clamped} shift{'s' if clamped != 1 else ''} trimmed to opening hours")
+        reasoning = (reasoning + " " if reasoning else "") + "Adjustments: " + ", ".join(note_bits) + "."
+
     return {
-        "reasoning": parsed.get("reasoning", ""),
+        "reasoning": reasoning,
         "target_start": target_start.isoformat(),
         "shifts": cleaned,
     }
