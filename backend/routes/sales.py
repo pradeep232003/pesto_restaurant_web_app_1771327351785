@@ -218,6 +218,14 @@ async def sales_summary(
             by_location[loc]["labour_hours"] = round(by_location[loc]["labour_hours"] + hrs, 2)
             by_location[loc]["labour_cost"] = round(by_location[loc]["labour_cost"] + hrs * rate, 2)
 
+            # Also fold into the daily timeseries so the front-end can plot
+            # Labour % of revenue over time at the same granularity as
+            # the Sales Trend chart (daily/weekly/monthly/yearly).
+            if d_iso:
+                slot = timeseries_map.setdefault(d_iso, {"sales": 0, "cash": 0, "entries": 0})
+                slot["labour_hours"] = slot.get("labour_hours", 0) + hrs
+                slot["labour_cost"] = slot.get("labour_cost", 0) + hrs * rate
+
     staff_hours_list = sorted(
         [{"name": k, "total_hours": v["total_hours"], "shifts": v["shifts"],
           "daily": sorted(v["daily"], key=lambda x: x["date"], reverse=True)}
@@ -232,7 +240,14 @@ async def sales_summary(
         "by_location": by_location,
         "staff_hours": staff_hours_list,
         "timeseries": [
-            {"date": d, "sales": round(v["sales"], 2), "cash": round(v["cash"], 2), "entries": v["entries"]}
+            {
+                "date": d,
+                "sales": round(v["sales"], 2),
+                "cash": round(v["cash"], 2),
+                "entries": v["entries"],
+                "labour_hours": round(v.get("labour_hours", 0), 2),
+                "labour_cost": round(v.get("labour_cost", 0), 2),
+            }
             for d, v in sorted(timeseries_map.items())
         ],
     }

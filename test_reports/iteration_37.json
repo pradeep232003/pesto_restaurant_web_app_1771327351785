@@ -1,0 +1,37 @@
+{
+  "summary": "Verified the Labour % by Revenue card was converted from a per-location BarChart to a time-series AreaChart that mirrors the Sales Trend pattern. Backend (sales.py) /api/admin/daily-sales/summary now returns a timeseries array where every row carries the new keys labour_hours and labour_cost (rounded 2dp) computed from staff_members.hourly_rate keyed by lowercase name. Frontend (admin-sales-summary/index.jsx) has an independent labourGranularity state with 4 toggle buttons (daily/weekly/monthly/yearly), rollUp() carries the new fields through buckets, and the card hides gracefully when no labour_cost > 0 in the range. All 7 backend tests pass and all 9 frontend assertions pass.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "test_report_links": [
+    "/app/backend/tests/test_labour_and_bi_gating.py",
+    "/app/test_reports/pytest/pytest_labour_iter37.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "sales.py reuses the same staff_rate_map for both by_location and timeseries — single pass, no duplication. Good.",
+    "Lowercase name lookup is consistent — but a staff name typed as 'john' in daily_sales.staff_hours and 'John' in staff_members will still match. Document the case-insensitive contract or normalise at ingest.",
+    "Frontend rollUp() filter `labour_cost > 0 || sales > 0` drops buckets that are 0/0 — prevents a flat zero line on weekly/yearly views when only April has data. Sensible.",
+    "Card visibility is gated by `labourTrendData.some(r => r.labour_cost > 0)` — note this filters *after* the granularity rollup, so if the user picks 'yearly' on a non-April range the card may still render with the empty-state text; consider gating on data.timeseries instead so the empty-state copy isn't shown for the rare case of all-zero costs in some buckets. Cosmetic only.",
+    "ReferenceLine thresholds (28 / 35) match the header tinting thresholds in labourOverallPct color choice — single source of truth could be a small constant. Cosmetic."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_labour_and_bi_gating.py (added 2 new tests for timeseries labour keys)"
+  ],
+  "success_rate": { "backend": "100% (7/7)", "frontend": "100% (placement, 4 granularity buttons, default daily, AreaChart svg, 2 ReferenceLines, 0 BarChart bars, Overall pct tint, independence from sales granularity, regression on Sales Trend / by-location / Total Hours all verified)" },
+  "test_credentials": "Super admin: admin@jollys.com / Admin123!  |  Admin role: test_admin_bi@jollys.com / AdminBI123!",
+  "seed_data_creation": "Inserted staff_members {id:'TEST_iter37_seed', name:'Emma', hourly_rate:12.5} so labour_cost would be non-zero in the April-2026 dataset. Cleanup performed at end (delete_one matched 1). Pytest fixture seeded_rate inside test_labour_and_bi_gating.py self-cleans.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "daily_sales has 4 entries on 2026-04-24/25; default sales-summary range is month-to-date so the labour card is correctly hidden on first load — set From=2026-04-01 To=2026-04-30 + click Apply to populate. /jkhive/sales-summary shows a 'Pick a location' modal on first visit which intercepts inputs; pick any location or 'All sites' first. labour-granularity-{daily,weekly,monthly,yearly} are independent from summary-granularity-* — verified by reading inline style.background ('rgb(255,255,255)' = active, 'transparent' = inactive).",
+  "verification_evidence": {
+    "backend_pytest": "7 passed: test_admin_put_ai_settings_forbidden, test_super_admin_get_ai_settings_ok, test_summary_includes_labour_keys, test_labour_cost_populated_when_rate_set, test_timeseries_includes_labour_keys (NEW), test_timeseries_labour_cost_populated_when_rate_set (NEW), test_admin_can_get_bi",
+    "labour_card_render": "labour-by-location-card=1, ordering labour-y=1047 < staff-y=1427 (card sits ABOVE 'Total Hours by Staff') — placement requirement met",
+    "labour_granularity_toggle": "labour-granularity wrapper=1, labour-granularity-daily/-weekly/-monthly/-yearly each present (count=1). Default active=daily (bg=rgb(255,255,255) on daily; transparent on the rest).",
+    "chart_shape": "recharts surface=1 inside labour card, reference-line count=2 (y=28 green dashed + y=35 red dashed), recharts-area count=1 (purple gradient AreaChart), recharts-bar-rectangle count=0 (old BarChart removed).",
+    "card_header_text": "'Labour % by Revenue · Overall 2.1%' tinted GREEN (≤28%). Threshold note 'Green dashed line = 28%, red dashed line = 35%' visible.",
+    "independence": "After clicking summary-granularity-monthly, labour-granularity-daily remained active (bg rgb(255,255,255) on daily, transparent on others). After clicking labour-granularity-weekly, summary-granularity-monthly remained active (bg rgb(255,255,255) on monthly). Confirmed independent state.",
+    "rebucket_on_toggle": "Weekly view shows X-axis label '2026 wk 17' (fmtBucket weekly format) — re-bucketing wired correctly.",
+    "regression": "Sales Trend chart renders (D AreaChart, M BarChart switch still works), Sales by Location list with 3 locations & cash/days, Total Hours by Staff bars (Sarah 14h, John/Emma/Tom/Mike 8h) — all intact.",
+    "graceful_hide": "Default month-to-date (June 2026) returns 0 entries → labour card NOT rendered (no empty axes). Verified before seeding date range."
+  }
+}

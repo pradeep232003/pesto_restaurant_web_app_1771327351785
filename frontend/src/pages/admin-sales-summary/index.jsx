@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip, Legend, Cell,
+  CartesianGrid, Tooltip, Legend, ReferenceLine,
 } from 'recharts';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -34,14 +34,22 @@ const rollUp = (series, granularity) => {
     if (granularity === 'weekly')      key = isoWeek(row.date);
     else if (granularity === 'monthly') key = row.date.slice(0, 7);            // YYYY-MM
     else                                key = row.date.slice(0, 4);            // YYYY
-    if (!acc.has(key)) acc.set(key, { bucket: key, sales: 0, cash: 0, entries: 0 });
+    if (!acc.has(key)) acc.set(key, { bucket: key, sales: 0, cash: 0, entries: 0, labour_hours: 0, labour_cost: 0 });
     const s = acc.get(key);
     s.sales += row.sales;
     s.cash += row.cash;
     s.entries += row.entries;
+    s.labour_hours += (row.labour_hours || 0);
+    s.labour_cost += (row.labour_cost || 0);
   }
   return Array.from(acc.values())
-    .map(r => ({ ...r, sales: +r.sales.toFixed(2), cash: +r.cash.toFixed(2) }))
+    .map(r => ({
+      ...r,
+      sales: +r.sales.toFixed(2),
+      cash: +r.cash.toFixed(2),
+      labour_hours: +r.labour_hours.toFixed(2),
+      labour_cost: +r.labour_cost.toFixed(2),
+    }))
     .sort((a, b) => a.bucket.localeCompare(b.bucket));
 };
 
@@ -76,6 +84,9 @@ const AdminSalesSummary = () => {
   const [endDate, setEndDate] = useState(today);
   const [locationFilter, setLocationFilter] = useState(''); // '' = All sites
   const [granularity, setGranularity] = useState('daily');  // 'daily' | 'weekly' | 'monthly' | 'yearly'
+  // Independent granularity for the Labour % chart so managers can compare
+  // a daily labour view against a weekly/monthly Sales Trend.
+  const [labourGranularity, setLabourGranularity] = useState('daily');
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !isAdmin)) navigate('/admin-login');
@@ -109,6 +120,21 @@ const AdminSalesSummary = () => {
   const getLocationName = (locId) => locations.find(l => l.id === locId)?.name || locId;
 
   const chartData = useMemo(() => rollUp(data?.timeseries || [], granularity), [data, granularity]);
+  const labourTrendData = useMemo(() => {
+    const rolled = rollUp(data?.timeseries || [], labourGranularity);
+    return rolled
+      .map(r => ({
+        ...r,
+        pct: r.sales > 0 ? +((r.labour_cost / r.sales) * 100).toFixed(2) : 0,
+      }))
+      // Drop buckets with no labour cost AND no sales to avoid a flat zero line.
+      .filter(r => r.labour_cost > 0 || r.sales > 0);
+  }, [data, labourGranularity]);
+  const labourOverallPct = useMemo(() => {
+    const totalCost = labourTrendData.reduce((a, r) => a + r.labour_cost, 0);
+    const totalRev = labourTrendData.reduce((a, r) => a + r.sales, 0);
+    return totalRev > 0 ? (totalCost / totalRev) * 100 : 0;
+  }, [labourTrendData]);
   // Friendly average per bucket — handy summary tile.
   const avgPerBucket = chartData.length ? (chartData.reduce((s, r) => s + r.sales, 0) / chartData.length) : 0;
   const peak = chartData.reduce((best, r) => (r.sales > (best?.sales || 0) ? r : best), null);
@@ -324,67 +350,92 @@ const AdminSalesSummary = () => {
             </div>
           )}
 
-          {/* Labour % by Revenue (per location) — manager-level scorecard.
-              Hidden when no labour cost is reported (e.g. staff lack hourly
-              rates) so the card doesn't sit empty. */}
-          {(() => {
-            const labourRows = Object.entries(data.by_location)
-              .map(([locId, loc]) => ({
-                locId,
-                name: getLocationName(locId),
-                sales: loc.sales || 0,
-                hours: loc.labour_hours || 0,
-                cost: loc.labour_cost || 0,
-                pct: loc.sales > 0 ? (loc.labour_cost || 0) / loc.sales * 100 : 0,
-              }))
-              .filter(r => r.cost > 0)
-              .sort((a, b) => b.sales - a.sales);
-            if (labourRows.length === 0) return null;
-            const overallPct = (() => {
-              const totalCost = labourRows.reduce((a, b) => a + b.cost, 0);
-              const totalRev = labourRows.reduce((a, b) => a + b.sales, 0);
-              return totalRev > 0 ? (totalCost / totalRev) * 100 : 0;
-            })();
-            // Industry guideline for hospitality is ~30% labour. Tint each
-            // bar so managers can spot outliers at a glance.
-            const tint = (p) => p <= 28 ? '#34C759' : p <= 35 ? '#FF9500' : '#FF3B30';
-            return (
-              <div className="p-4 sm:p-5" data-testid="labour-by-location-card" style={cardStyle}>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold flex items-center gap-2" style={{ color: '#1D1D1F', ...font }}>
-                    <TrendingUp size={16} /> Labour % by Revenue
-                  </h3>
-                  <span className="text-[11px]" style={{ color: overallPct <= 28 ? '#1F8A3E' : overallPct <= 35 ? '#A35E00' : '#C0392B', ...font, fontWeight: 700 }}>
-                    Overall {overallPct.toFixed(1)}%
+          {/* Labour % by Revenue — manager-level trend chart. Independent
+              granularity toggle mirrors the Sales Trend pattern so managers
+              can flip between Daily/Weekly/Monthly/Yearly without affecting
+              the Sales Trend card above. Card hides when no labour cost has
+              been logged in the date range (e.g. staff lack hourly_rate). */}
+          {labourTrendData.some(r => r.labour_cost > 0) && (
+            <div className="p-4 sm:p-5" data-testid="labour-by-location-card" style={cardStyle}>
+              <div className="flex items-center justify-between mb-3 gap-2">
+                <h3 className="text-sm font-semibold flex items-center gap-2 flex-wrap" style={{ color: '#1D1D1F', ...font }}>
+                  <TrendingUp size={16} /> Labour % by Revenue
+                  <span className="text-[11px] font-medium" style={{ color: labourOverallPct <= 28 ? '#1F8A3E' : labourOverallPct <= 35 ? '#A35E00' : '#C0392B', ...font }}>
+                    · Overall {labourOverallPct.toFixed(1)}%
                   </span>
+                </h3>
+                <div className="flex gap-1 p-1 rounded-xl" style={{ background: '#F5F5F7' }} data-testid="labour-granularity">
+                  {['daily', 'weekly', 'monthly', 'yearly'].map(k => (
+                    <button
+                      key={k}
+                      data-testid={`labour-granularity-${k}`}
+                      onClick={() => setLabourGranularity(k)}
+                      className="px-2 py-1 text-[11px] font-medium rounded-lg transition-all"
+                      style={{
+                        background: labourGranularity === k ? '#FFFFFF' : 'transparent',
+                        color: labourGranularity === k ? '#1D1D1F' : '#86868B',
+                        boxShadow: labourGranularity === k ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                        border: 0, cursor: 'pointer', ...font,
+                      }}
+                    >{k[0].toUpperCase() + k.slice(1)}</button>
+                  ))}
                 </div>
-                <div style={{ width: '100%', height: Math.max(180, labourRows.length * 44 + 40) }}>
+              </div>
+              {labourTrendData.length === 0 ? (
+                <p className="text-sm py-6 text-center" style={{ color: '#86868B', ...font }}>No labour data in this range</p>
+              ) : (
+                <div style={{ width: '100%', height: 240 }}>
                   <ResponsiveContainer>
-                    <BarChart data={labourRows} layout="vertical" margin={{ top: 4, right: 32, left: 0, bottom: 0 }}>
-                      <XAxis type="number" tickFormatter={(v) => `${v.toFixed(0)}%`} tick={{ fontSize: 11, fill: '#86868B' }} axisLine={false} tickLine={false} />
-                      <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#1D1D1F' }} axisLine={false} tickLine={false} width={110} />
-                      <Tooltip
-                        cursor={{ fill: 'rgba(0,0,0,0.04)' }}
-                        formatter={(value, _key, ctx) => {
-                          const row = ctx.payload;
-                          return [`${value.toFixed(1)}%  ·  ${fmtMoney(row.cost)} on ${fmtMoney(row.sales)}`, 'Labour %'];
-                        }}
-                        contentStyle={{ background: '#FFFFFF', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 12, fontSize: 12 }}
+                    <AreaChart data={labourTrendData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="labourPctFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#AF52DE" stopOpacity={0.25} />
+                          <stop offset="100%" stopColor="#AF52DE" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                      <XAxis
+                        dataKey="bucket"
+                        tick={{ fontSize: 11, fill: '#86868B' }}
+                        axisLine={false} tickLine={false}
+                        tickFormatter={(v) => fmtBucket(v, labourGranularity)}
                       />
-                      <Bar dataKey="pct" radius={[0, 8, 8, 0]}>
-                        {labourRows.map((r, i) => (
-                          <Cell key={i} fill={tint(r.pct)} />
-                        ))}
-                      </Bar>
-                    </BarChart>
+                      <YAxis
+                        tick={{ fontSize: 11, fill: '#86868B' }}
+                        axisLine={false} tickLine={false}
+                        tickFormatter={(v) => `${v.toFixed(0)}%`}
+                        domain={[0, (dataMax) => Math.max(40, Math.ceil((dataMax + 5) / 5) * 5)]}
+                      />
+                      <Tooltip
+                        cursor={{ stroke: 'rgba(0,0,0,0.08)' }}
+                        contentStyle={{ background: '#FFFFFF', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 12, fontSize: 12 }}
+                        labelFormatter={(v) => fmtBucket(v, labourGranularity)}
+                        formatter={(value, _name, ctx) => {
+                          const row = ctx.payload;
+                          return [`${value.toFixed(1)}%  ·  ${fmtMoney(row.labour_cost)} on ${fmtMoney(row.sales)}`, 'Labour %'];
+                        }}
+                      />
+                      {/* Industry thresholds — visualised as horizontal guides. */}
+                      <ReferenceLine y={28} stroke="#34C759" strokeDasharray="4 4" />
+                      <ReferenceLine y={35} stroke="#FF3B30" strokeDasharray="4 4" />
+                      <Area
+                        type="monotone"
+                        dataKey="pct"
+                        stroke="#AF52DE"
+                        strokeWidth={2}
+                        fill="url(#labourPctFill)"
+                        dot={{ r: 3, fill: '#AF52DE' }}
+                        activeDot={{ r: 5 }}
+                      />
+                    </AreaChart>
                   </ResponsiveContainer>
                 </div>
-                <p className="text-[11px] mt-1" style={{ color: '#86868B', ...font }}>
-                  Industry guideline: aim for under 30%. Green ≤ 28%, amber 28–35%, red 35%+.
-                </p>
-              </div>
-            );
-          })()}
+              )}
+              <p className="text-[11px] mt-1" style={{ color: '#86868B', ...font }}>
+                Guideline: under 30% is healthy. Green dashed line = 28%, red dashed line = 35%.
+              </p>
+            </div>
+          )}
 
           {/* Staff Hours */}
           <div className="p-4 sm:p-5" style={cardStyle}>

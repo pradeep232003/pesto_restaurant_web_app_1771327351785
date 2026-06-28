@@ -139,6 +139,44 @@ def test_labour_cost_populated_when_rate_set(super_token, seeded_rate):
         f"cost {total_cost} should not exceed total_hours*12.5 = {total_hours * 12.5}"
 
 
+# --- 3b) NEW: timeseries entries must also include labour_hours and labour_cost
+#         so the front-end Labour-trend chart can re-bucket by day/week/month/year. ---
+
+
+def test_timeseries_includes_labour_keys(super_token):
+    r = requests.get(
+        f"{BASE_URL}/api/admin/daily-sales/summary",
+        params={"start_date": "2026-04-01", "end_date": "2026-04-30"},
+        headers={"Authorization": f"Bearer {super_token}"}, timeout=20,
+    )
+    assert r.status_code == 200, f"{r.status_code} {r.text[:200]}"
+    data = r.json()
+    assert "timeseries" in data and isinstance(data["timeseries"], list), \
+        "summary must expose a `timeseries` list"
+    # April 2026 dataset has at least one entry seeded; ensure shape on every row
+    assert len(data["timeseries"]) > 0, "expected at least one timeseries row in April 2026"
+    required = {"date", "sales", "cash", "entries", "labour_hours", "labour_cost"}
+    for row in data["timeseries"]:
+        missing = required - set(row.keys())
+        assert not missing, f"timeseries row missing keys {missing}: {row}"
+        assert isinstance(row["labour_hours"], (int, float))
+        assert isinstance(row["labour_cost"], (int, float))
+
+
+def test_timeseries_labour_cost_populated_when_rate_set(super_token, seeded_rate):
+    r = requests.get(
+        f"{BASE_URL}/api/admin/daily-sales/summary",
+        params={"start_date": "2026-04-01", "end_date": "2026-04-30"},
+        headers={"Authorization": f"Bearer {super_token}"}, timeout=20,
+    )
+    assert r.status_code == 200
+    data = r.json()
+    total_cost = sum((row.get("labour_cost") or 0) for row in data["timeseries"])
+    total_hours = sum((row.get("labour_hours") or 0) for row in data["timeseries"])
+    assert total_hours > 0, "expected labour_hours>0 in timeseries with seeded rate"
+    assert total_cost > 0, f"expected timeseries labour_cost>0 (seeded='{seeded_rate}' rate=12.5)"
+
+
 # --- 4) Regression: admin can still GET BI overview (was the previous fix) ---
 
 def test_admin_can_get_bi(admin_token):
