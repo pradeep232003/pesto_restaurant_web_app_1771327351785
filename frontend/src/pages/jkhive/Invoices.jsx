@@ -221,13 +221,35 @@ const InvoiceCard = ({ invoice, locations, onOpen }) => {
 /** Detail / edit drawer. Admin can change location, edit fields, delete.
  *  Staff get a read-only view with the photo + line items. */
 const InvoiceModal = ({ invoice: initial, isAdmin, locations, onClose, onSaved }) => {
-  const [invoice, setInvoice] = useState(initial);
+  // Defensive normalisation — when an AI-failed scan opens the modal the
+  // invoice_date can be '' or any free-form string. <input type="date">
+  // requires either '' or 'YYYY-MM-DD' so coerce anything else to ''.
+  const safeDate = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '');
+  const [invoice, setInvoice] = useState({
+    ...initial,
+    invoice_date: safeDate(initial?.invoice_date),
+    items: Array.isArray(initial?.items) ? initial.items : [],
+  });
+  const safeLocations = Array.isArray(locations) ? locations : [];
   const [editingFields, setEditingFields] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
-  // Build the image URL with the auth token in a same-origin streaming endpoint.
-  const fileUrl = `${process.env.REACT_APP_BACKEND_URL}/api/admin/invoices/${invoice.id}/file`;
+  // Fetch the image as a blob URL so the <img> tag carries the auth header
+  // (cross-origin <img src> does NOT send Bearer tokens).
+  const [fileUrl, setFileUrl] = useState('');
+  useEffect(() => {
+    let revoke = '';
+    let cancelled = false;
+    (async () => {
+      try {
+        const url = await api.invoiceFileBlobUrl(invoice.id);
+        if (cancelled) URL.revokeObjectURL(url);
+        else { setFileUrl(url); revoke = url; }
+      } catch { /* leave fileUrl '' — preview just won't render */ }
+    })();
+    return () => { cancelled = true; if (revoke) URL.revokeObjectURL(revoke); };
+  }, [invoice.id]);
 
   const save = async () => {
     setBusy(true);
@@ -319,7 +341,9 @@ const InvoiceModal = ({ invoice: initial, isAdmin, locations, onClose, onSaved }
 
         {/* Photo preview */}
         <div style={{ marginBottom: 12, borderRadius: 12, overflow: 'hidden', background: '#F5F5F7' }}>
-          {(invoice.content_type || '').startsWith('image/') ? (
+          {!fileUrl ? (
+            <div style={{ padding: 24, textAlign: 'center', color: '#86868B', fontSize: 12 }}>Loading image…</div>
+          ) : (invoice.content_type || '').startsWith('image/') ? (
             <img data-testid="invoice-image" src={fileUrl} alt="Invoice" style={{ display: 'block', width: '100%', maxHeight: 360, objectFit: 'contain' }} />
           ) : (
             <a href={fileUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 14, color: '#007AFF', fontSize: 13 }}>
@@ -346,7 +370,7 @@ const InvoiceModal = ({ invoice: initial, isAdmin, locations, onClose, onSaved }
                 background: isAdmin ? '#FFFFFF' : '#F5F5F7', boxShadow: '0 0 0 1px rgba(0,0,0,0.06)',
                 fontSize: 13, ...FONT, cursor: isAdmin ? 'pointer' : 'not-allowed',
               }}>
-              {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              {safeLocations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           </div>
         </div>

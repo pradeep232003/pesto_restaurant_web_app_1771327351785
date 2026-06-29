@@ -873,6 +873,15 @@ class ApiService {
   async invoiceDelete(id) {
     return this.fetch(`/api/admin/invoices/${id}`, { method: 'DELETE' });
   }
+  async invoiceFileBlobUrl(id) {
+    const tok = localStorage.getItem('access_token');
+    const res = await fetch(`${API_BASE_URL}/api/admin/invoices/${id}/file`, {
+      headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+    });
+    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  }
 
   // ============== INSPECTION PACK (EHO-ready audit bundle) ==============
   async adminInspectionPack({ location_id, start_date, end_date } = {}) {
