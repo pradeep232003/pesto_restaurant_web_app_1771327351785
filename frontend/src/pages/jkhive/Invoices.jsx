@@ -292,7 +292,23 @@ const AllInvoicesView = ({ loading, list, start, end, location, locations, setSt
 
   const locName = (id) => locations.find(l => l.id === id)?.name || id;
 
+  // Quote-safe CSV cell — RFC4180.
+  const csvCell = (v) => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const downloadCsv = (filename, rows) => {
+    const csv = rows.map(row => row.map(csvCell).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleExport = () => {
+    // Summary CSV — one row per invoice. For the accountant.
     const rows = [
       ['Date', 'Uploaded', 'Supplier', 'Invoice #', 'Location', 'Subtotal £', 'VAT £', 'Total £', 'Items', 'AI status', 'Note'],
       ...list.map(r => [
@@ -309,17 +325,54 @@ const AllInvoicesView = ({ loading, list, start, end, location, locations, setSt
         (r.note || '').replace(/[\r\n]+/g, ' '),
       ]),
     ];
-    const csv = rows.map(row => row.map(cell => {
-      const s = String(cell ?? '');
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    }).join(',')).join('\r\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `invoices_${start || 'all'}_to_${end || 'today'}.csv`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadCsv(`invoices_${start || 'all'}_to_${end || 'today'}.csv`, rows);
+  };
+
+  // Detailed CSV — one row per line item with the parent invoice metadata
+  // repeated on each row. Perfect for local stocktake / item-level
+  // analysis (qty × unit price × supplier × location pivots).
+  const handleExportDetailed = () => {
+    const rows = [[
+      'Date', 'Supplier', 'Invoice #', 'Location',
+      'Item #', 'Description', 'Qty', 'Unit £', 'Line Total £',
+      'Invoice Subtotal £', 'Invoice VAT £', 'Invoice Total £',
+      'AI status', 'Uploaded by', 'Uploaded at',
+    ]];
+    for (const r of list) {
+      const items = Array.isArray(r.items) ? r.items : [];
+      const sharedHead = [
+        r.invoice_date || '',
+        r.supplier || '',
+        r.invoice_number || '',
+        locName(r.location_id),
+      ];
+      const sharedFoot = [
+        ((Number(r.total) || 0) - (Number(r.vat) || 0)).toFixed(2),
+        (Number(r.vat) || 0).toFixed(2),
+        (Number(r.total) || 0).toFixed(2),
+        r.ai_status || '',
+        r.uploaded_by_name || r.uploaded_by || '',
+        (r.uploaded_at || '').slice(0, 19).replace('T', ' '),
+      ];
+      if (items.length === 0) {
+        // Still emit a row so the invoice isn't dropped from the detailed
+        // export — useful for spotting AI-failed scans missing items.
+        rows.push([...sharedHead, '', '(no items extracted)', '', '', '', ...sharedFoot]);
+      } else {
+        items.forEach((it, i) => {
+          rows.push([
+            ...sharedHead,
+            i + 1,
+            it.description || '',
+            (Number(it.qty) || 0).toString(),
+            (Number(it.unit_price) || 0).toFixed(2),
+            (Number(it.line_total) || 0).toFixed(2),
+            ...sharedFoot,
+          ]);
+        });
+      }
+    }
+    downloadCsv(`invoices_items_${start || 'all'}_to_${end || 'today'}.csv`, rows);
   };
 
   return (
@@ -342,7 +395,7 @@ const AllInvoicesView = ({ loading, list, start, end, location, locations, setSt
           data-testid="invoices-export-csv"
           onClick={handleExport}
           disabled={list.length === 0}
-          title="Download as CSV for your accountant"
+          title="Summary CSV (one row per invoice) — send to your accountant"
           style={{
             padding: '8px 14px', borderRadius: 999, border: 0,
             background: list.length === 0 ? '#E5E5EA' : '#1D1D1F',
@@ -352,6 +405,21 @@ const AllInvoicesView = ({ loading, list, start, end, location, locations, setSt
           }}
         >
           <Download size={13} /> Download CSV
+        </button>
+        <button
+          data-testid="invoices-export-all-csv"
+          onClick={handleExportDetailed}
+          disabled={list.length === 0}
+          title="Detailed CSV (one row per line item, with qty + prices) — for stocktake & local analysis"
+          style={{
+            padding: '8px 14px', borderRadius: 999, border: 0,
+            background: list.length === 0 ? '#E5E5EA' : '#5856D6',
+            color: list.length === 0 ? '#86868B' : '#FFFFFF',
+            fontSize: 12, fontWeight: 700, cursor: list.length === 0 ? 'not-allowed' : 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 6, ...FONT,
+          }}
+        >
+          <Download size={13} /> Download all CSV
         </button>
       </div>
 
