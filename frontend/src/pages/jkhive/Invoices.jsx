@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Camera, Upload, X, Trash2, MapPin, Edit3, FileText, Loader2, AlertTriangle, Receipt, Plus, Search,
+  ArrowLeft, Camera, X, Trash2, MapPin, Edit3, FileText, Loader2, AlertTriangle, Receipt, Plus, Search, Download, LayoutGrid, Table as TableIcon,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -38,6 +38,20 @@ const Invoices = () => {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null); // full invoice doc
 
+  // Recent | All — view switcher. Recent = card grid scoped to the current
+  // JKHive location (handover-friendly for staff). All = table for admins
+  // with from/to + location filter + CSV export + spend widgets.
+  const [tab, setTab] = useState('recent');
+
+  // All-view filter state. Default end_date = today; start_date = last 30d.
+  const today = new Date().toISOString().slice(0, 10);
+  const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const [allStart, setAllStart] = useState(monthAgo);
+  const [allEnd, setAllEnd] = useState(today);
+  const [allLocation, setAllLocation] = useState(''); // '' = all locations
+  const [allList, setAllList] = useState([]);
+  const [allLoading, setAllLoading] = useState(false);
+
   useEffect(() => {
     if (!authLoading && !isAuthenticated) navigate('/admin-login');
   }, [authLoading, isAuthenticated, navigate]);
@@ -56,12 +70,26 @@ const Invoices = () => {
   };
   useEffect(() => { load(); }, [adminLocationId]);
 
-  const filtered = list.filter(r =>
-    !search
-      ? true
-      : (r.supplier || '').toLowerCase().includes(search.toLowerCase())
-        || (r.invoice_number || '').toLowerCase().includes(search.toLowerCase()),
-  );
+  // Lazy-load the "All" view only when switched to (and again whenever
+  // filters change). Keeps initial paint fast.
+  const loadAll = async () => {
+    setAllLoading(true);
+    try {
+      const rows = await api.invoicesList({
+        location_id: allLocation || undefined,
+        start_date: allStart || undefined,
+        end_date: allEnd || undefined,
+      });
+      setAllList(rows || []);
+    } catch (e) {
+      setError(e.message || 'Failed to load invoices');
+    } finally {
+      setAllLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (tab === 'all') loadAll();
+  }, [tab, allStart, allEnd, allLocation]);
 
   return (
     <div data-testid="invoices-page" style={{ ...FONT }}>
@@ -75,46 +103,62 @@ const Invoices = () => {
 
       <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1D1D1F', margin: '0 0 4px' }}>Invoices</h1>
       <p style={{ fontSize: 13, color: '#86868B', margin: '0 0 16px' }}>
-        Snap a photo of supplier delivery invoices. AI auto-extracts itemised products, prices, VAT and total.
+        Snap a photo of supplier delivery invoices &amp; purchases. AI auto-extracts itemised products, prices, VAT and Total.
       </p>
 
-      <div style={{ position: 'relative', marginBottom: 12 }}>
-        <Search size={14} style={{ position: 'absolute', left: 12, top: 12, color: '#86868B' }} />
-        <input
-          data-testid="invoices-search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search supplier or invoice #"
-          style={{ width: '100%', padding: '10px 12px 10px 32px', borderRadius: 12, border: 0, background: '#FFFFFF', boxShadow: '0 0 0 1px rgba(0,0,0,0.06)', fontSize: 13, ...FONT }}
-        />
+      {/* Tab switcher — Recent (mobile-friendly card grid) vs All (admin
+          table with date range + location filter + CSV export). */}
+      <div data-testid="invoices-tabs" style={{ display: 'inline-flex', background: '#F5F5F7', borderRadius: 12, padding: 3, marginBottom: 12 }}>
+        {[{ k: 'recent', icon: LayoutGrid, label: 'Recent' }, { k: 'all', icon: TableIcon, label: 'All invoices' }].map(({ k, icon: Icon, label }) => (
+          <button
+            key={k}
+            data-testid={`invoices-tab-${k}`}
+            onClick={() => setTab(k)}
+            style={{
+              border: 0, background: tab === k ? '#FFFFFF' : 'transparent',
+              boxShadow: tab === k ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+              color: tab === k ? '#1D1D1F' : '#86868B',
+              fontSize: 12, fontWeight: 700, padding: '7px 14px', borderRadius: 10,
+              display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', ...FONT,
+            }}
+          >
+            <Icon size={13} /> {label}
+          </button>
+        ))}
       </div>
 
-      {error && (
-        <div data-testid="invoices-error" style={{ background: 'rgba(255,59,48,0.08)', borderRadius: 12, padding: '10px 12px', marginBottom: 12, color: '#C0392B', fontSize: 12, ...FONT, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-          <AlertTriangle size={14} /> <span style={{ flex: 1 }}>{error}</span>
-          <button onClick={() => setError('')} style={{ background: 'none', border: 0, color: '#C0392B', cursor: 'pointer' }}><X size={14} /></button>
-        </div>
+      {tab === 'recent' && (
+        <RecentView
+          loading={loading}
+          list={list}
+          search={search}
+          setSearch={setSearch}
+          isAdmin={isAdmin}
+          locations={locations}
+          onOpen={setEditing}
+        />
       )}
 
-      {loading ? (
-        <div className="flex items-center justify-center h-32"><Loader2 className="animate-spin" size={20} color="#86868B" /></div>
-      ) : filtered.length === 0 ? (
-        <div data-testid="invoices-empty" style={{ background: '#FFFFFF', borderRadius: 14, padding: 32, textAlign: 'center', color: '#86868B', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
-          <Receipt size={28} color="#C7C7CC" style={{ margin: '0 auto 8px' }} />
-          <p style={{ fontSize: 14, margin: 0 }}>No invoices yet for this location.</p>
-          <p style={{ fontSize: 12, marginTop: 4 }}>Tap &quot;Scan Invoice&quot; to snap one with your camera.</p>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-          {filtered.map(r => (
-            <InvoiceCard
-              key={r.id}
-              invoice={r}
-              isAdmin={isAdmin}
-              locations={locations}
-              onOpen={() => setEditing(r)}
-            />
-          ))}
+      {tab === 'all' && (
+        <AllInvoicesView
+          loading={allLoading}
+          list={allList}
+          start={allStart}
+          end={allEnd}
+          location={allLocation}
+          locations={locations}
+          setStart={setAllStart}
+          setEnd={setAllEnd}
+          setLocation={setAllLocation}
+          isAdmin={isAdmin}
+          onOpen={setEditing}
+        />
+      )}
+
+      {error && (
+        <div data-testid="invoices-error" style={{ background: 'rgba(255,59,48,0.08)', borderRadius: 12, padding: '10px 12px', marginTop: 12, color: '#C0392B', fontSize: 12, ...FONT, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <AlertTriangle size={14} /> <span style={{ flex: 1 }}>{error}</span>
+          <button onClick={() => setError('')} style={{ background: 'none', border: 0, color: '#C0392B', cursor: 'pointer' }}><X size={14} /></button>
         </div>
       )}
 
@@ -178,6 +222,241 @@ const ScanButton = ({ adminLocationId, setBusy, busy, setError, onScanned }) => 
     </>
   );
 };
+
+/** Recent view — card grid scoped to the current JKHive location. Same
+ *  search filter as before so staff can still skim a supplier name. */
+const RecentView = ({ loading, list, search, setSearch, isAdmin, locations, onOpen }) => {
+  const filtered = list.filter(r =>
+    !search ? true
+      : (r.supplier || '').toLowerCase().includes(search.toLowerCase())
+        || (r.invoice_number || '').toLowerCase().includes(search.toLowerCase()),
+  );
+
+  return (
+    <>
+      <div style={{ position: 'relative', marginBottom: 12 }}>
+        <Search size={14} style={{ position: 'absolute', left: 12, top: 12, color: '#86868B' }} />
+        <input
+          data-testid="invoices-search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search supplier or invoice #"
+          style={{ width: '100%', padding: '10px 12px 10px 32px', borderRadius: 12, border: 0, background: '#FFFFFF', boxShadow: '0 0 0 1px rgba(0,0,0,0.06)', fontSize: 13, ...FONT }}
+        />
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-32"><Loader2 className="animate-spin" size={20} color="#86868B" /></div>
+      ) : filtered.length === 0 ? (
+        <div data-testid="invoices-empty" style={{ background: '#FFFFFF', borderRadius: 14, padding: 32, textAlign: 'center', color: '#86868B', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+          <Receipt size={28} color="#C7C7CC" style={{ margin: '0 auto 8px' }} />
+          <p style={{ fontSize: 14, margin: 0 }}>No invoices yet for this location.</p>
+          <p style={{ fontSize: 12, marginTop: 4 }}>Tap &quot;Scan Invoice&quot; to snap one with your camera.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+          {filtered.map(r => (
+            <InvoiceCard
+              key={r.id}
+              invoice={r}
+              isAdmin={isAdmin}
+              locations={locations}
+              onOpen={() => onOpen(r)}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+};
+
+/** All Invoices view — table + filters + widgets + CSV download. Primarily
+ *  for admins to share monthly spend with their accountant. */
+const AllInvoicesView = ({ loading, list, start, end, location, locations, setStart, setEnd, setLocation, isAdmin, onOpen }) => {
+  const stats = useMemo(() => {
+    const count = list.length;
+    const totalSpend = list.reduce((a, r) => a + (Number(r.total) || 0), 0);
+    const totalVat = list.reduce((a, r) => a + (Number(r.vat) || 0), 0);
+    const totalSubtotal = totalSpend - totalVat;
+    const avg = count ? totalSpend / count : 0;
+    const bySupplier = list.reduce((acc, r) => {
+      const k = (r.supplier || '—').trim() || '—';
+      acc[k] = (acc[k] || 0) + (Number(r.total) || 0);
+      return acc;
+    }, {});
+    const topSupplier = Object.entries(bySupplier).sort((a, b) => b[1] - a[1])[0];
+    return { count, totalSpend, totalVat, totalSubtotal, avg, topSupplier };
+  }, [list]);
+
+  const locName = (id) => locations.find(l => l.id === id)?.name || id;
+
+  const handleExport = () => {
+    const rows = [
+      ['Date', 'Uploaded', 'Supplier', 'Invoice #', 'Location', 'Subtotal £', 'VAT £', 'Total £', 'Items', 'AI status', 'Note'],
+      ...list.map(r => [
+        r.invoice_date || '',
+        (r.uploaded_at || '').slice(0, 10),
+        r.supplier || '',
+        r.invoice_number || '',
+        locName(r.location_id),
+        ((Number(r.total) || 0) - (Number(r.vat) || 0)).toFixed(2),
+        (Number(r.vat) || 0).toFixed(2),
+        (Number(r.total) || 0).toFixed(2),
+        (r.items || []).length,
+        r.ai_status || '',
+        (r.note || '').replace(/[\r\n]+/g, ' '),
+      ]),
+    ];
+    const csv = rows.map(row => row.map(cell => {
+      const s = String(cell ?? '');
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    }).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `invoices_${start || 'all'}_to_${end || 'today'}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <>
+      <div data-testid="invoices-all-filters" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'flex-end' }}>
+        <FilterField label="From">
+          <input data-testid="invoices-all-from" type="date" value={start} onChange={e => setStart(e.target.value)} style={dateInput} />
+        </FilterField>
+        <FilterField label="To">
+          <input data-testid="invoices-all-to" type="date" value={end} onChange={e => setEnd(e.target.value)} style={dateInput} />
+        </FilterField>
+        <FilterField label="Location">
+          <select data-testid="invoices-all-location" value={location} onChange={e => setLocation(e.target.value)} style={{ ...dateInput, minWidth: 160 }}>
+            <option value="">All locations</option>
+            {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </FilterField>
+        <div style={{ flex: 1 }} />
+        <button
+          data-testid="invoices-export-csv"
+          onClick={handleExport}
+          disabled={list.length === 0}
+          title="Download as CSV for your accountant"
+          style={{
+            padding: '8px 14px', borderRadius: 999, border: 0,
+            background: list.length === 0 ? '#E5E5EA' : '#1D1D1F',
+            color: list.length === 0 ? '#86868B' : '#FFFFFF',
+            fontSize: 12, fontWeight: 700, cursor: list.length === 0 ? 'not-allowed' : 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 6, ...FONT,
+          }}
+        >
+          <Download size={13} /> Download CSV
+        </button>
+      </div>
+
+      <div data-testid="invoices-widgets" style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', marginBottom: 14 }}>
+        <Widget testId="widget-total-spend" label="Total Purchases" value={fmtMoney(stats.totalSpend)} accent="#1D1D1F" sub={`${stats.count} invoice${stats.count === 1 ? '' : 's'}`} />
+        <Widget testId="widget-vat" label="VAT" value={fmtMoney(stats.totalVat)} accent="#FF9500" sub="Reclaimable" />
+        <Widget testId="widget-net" label="Net (ex VAT)" value={fmtMoney(stats.totalSubtotal)} accent="#34C759" sub="Sub-total" />
+        <Widget testId="widget-avg" label="Avg Invoice" value={fmtMoney(stats.avg)} accent="#5856D6" sub="Per scan" />
+        {stats.topSupplier && (
+          <Widget
+            testId="widget-top-supplier"
+            label="Top Supplier"
+            value={stats.topSupplier[0].length > 18 ? stats.topSupplier[0].slice(0, 18) + '…' : stats.topSupplier[0]}
+            accent="#007AFF"
+            sub={fmtMoney(stats.topSupplier[1])}
+          />
+        )}
+      </div>
+
+      <div data-testid="invoices-all-table-wrap" style={{ background: '#FFFFFF', borderRadius: 14, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+        {loading ? (
+          <div className="flex items-center justify-center h-32"><Loader2 className="animate-spin" size={20} color="#86868B" /></div>
+        ) : list.length === 0 ? (
+          <p style={{ padding: 32, textAlign: 'center', color: '#86868B', fontSize: 13, ...FONT, margin: 0 }}>
+            No invoices in this date range.
+          </p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table data-testid="invoices-all-table" style={{ width: '100%', borderCollapse: 'collapse', ...FONT }}>
+              <thead style={{ background: '#FAFAFC' }}>
+                <tr>
+                  {['Date', 'Supplier', 'Invoice #', 'Location', 'Items', 'Net £', 'VAT £', 'Total £', ''].map(h => (
+                    <th key={h} style={{ textAlign: h.endsWith('£') || h === 'Items' ? 'right' : 'left', padding: '10px 12px', fontSize: 10, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid #ECECEF', whiteSpace: 'nowrap' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {list.map(r => {
+                  const net = (Number(r.total) || 0) - (Number(r.vat) || 0);
+                  return (
+                    <tr key={r.id} data-testid={`invoices-all-row-${r.id}`} style={{ borderBottom: '1px solid #F2F2F4' }}>
+                      <td style={td}>{r.invoice_date || (r.uploaded_at || '').slice(0, 10)}</td>
+                      <td style={{ ...td, fontWeight: 600, color: '#1D1D1F' }}>{r.supplier || '—'}</td>
+                      <td style={td}>{r.invoice_number || '—'}</td>
+                      <td style={td}>{locName(r.location_id)}</td>
+                      <td style={{ ...td, textAlign: 'right' }}>{(r.items || []).length}</td>
+                      <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(net)}</td>
+                      <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#86868B' }}>{fmtMoney(r.vat)}</td>
+                      <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: '#1D1D1F' }}>{fmtMoney(r.total)}</td>
+                      <td style={{ ...td, textAlign: 'right' }}>
+                        <button
+                          data-testid={`invoices-all-open-${r.id}`}
+                          onClick={() => onOpen(r)}
+                          style={{ border: 0, background: '#F5F5F7', borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', color: '#1D1D1F', ...FONT }}
+                        >
+                          Open
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr style={{ background: '#FAFAFC' }}>
+                  <td style={{ ...td, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', fontSize: 10 }} colSpan={5}>Totals</td>
+                  <td style={{ ...td, textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(stats.totalSubtotal)}</td>
+                  <td style={{ ...td, textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: '#FF9500' }}>{fmtMoney(stats.totalVat)}</td>
+                  <td style={{ ...td, textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: '#1D1D1F' }}>{fmtMoney(stats.totalSpend)}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+      {!isAdmin && (
+        <p style={{ marginTop: 8, fontSize: 11, color: '#86868B', textAlign: 'center' }}>
+          Read-only — only an Admin can change a row&apos;s location or delete it.
+        </p>
+      )}
+    </>
+  );
+};
+
+const td = { padding: '10px 12px', fontSize: 12, color: '#3A3A3C', whiteSpace: 'nowrap' };
+const dateInput = {
+  padding: '7px 10px', borderRadius: 10, border: 0, background: '#FFFFFF',
+  boxShadow: '0 0 0 1px rgba(0,0,0,0.06)', fontSize: 12, fontFamily: 'Outfit, sans-serif',
+};
+
+const FilterField = ({ label, children }) => (
+  <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <span style={{ fontSize: 10, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
+    {children}
+  </label>
+);
+
+const Widget = ({ testId, label, value, accent, sub }) => (
+  <div data-testid={testId} style={{ background: '#FFFFFF', borderRadius: 12, padding: '12px 14px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)', borderLeft: `3px solid ${accent}`, ...FONT }}>
+    <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</p>
+    <p style={{ margin: '2px 0 0', fontSize: 18, fontWeight: 700, color: '#1D1D1F', fontVariantNumeric: 'tabular-nums' }}>{value}</p>
+    {sub && <p style={{ margin: '2px 0 0', fontSize: 11, color: '#86868B' }}>{sub}</p>}
+  </div>
+);
+
 
 const InvoiceCard = ({ invoice, locations, onOpen }) => {
   const loc = locations.find(l => l.id === invoice.location_id);

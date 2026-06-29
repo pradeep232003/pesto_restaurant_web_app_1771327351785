@@ -50,7 +50,7 @@ const Intelligence = () => {
           icon={Receipt}
           color="#5856D6"
           title="Invoices"
-          subtitle="Scan supplier deliveries"
+          subtitle="Scan deliveries & purchases"
         />
       </div>
 

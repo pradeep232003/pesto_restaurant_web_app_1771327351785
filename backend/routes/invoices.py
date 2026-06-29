@@ -216,17 +216,29 @@ async def _extract_invoice(image_bytes: bytes, media_type: str) -> dict:
 async def list_invoices(
     location_id: Optional[str] = Query(None),
     supplier: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None, description="YYYY-MM-DD — match invoice_date OR uploaded_at"),
+    end_date: Optional[str] = Query(None),
     user: dict = Depends(get_staff_or_above),
 ):
-    """Newest invoices first. Staff are auto-scoped to their assigned location
-    list when their account is linked to a staff record."""
+    """Newest invoices first. Filters: location, supplier substring, and an
+    inclusive date range (matches either the printed invoice_date or the
+    uploaded_at timestamp so scans without a parsed invoice_date still
+    appear in their upload window)."""
     q: dict = {}
     if location_id:
         q["location_id"] = location_id
     if supplier:
-        # Case-insensitive substring match — supplier names vary in case.
         q["supplier"] = {"$regex": re.escape(supplier), "$options": "i"}
-    rows = list(invoices.find(q).sort("uploaded_at", -1).limit(500))
+    if start_date or end_date:
+        # Cover both fields with one $or — date range matches either.
+        s = start_date or "0000-01-01"
+        e = end_date or "9999-12-31"
+        e_upload = e + "T23:59:59.999Z"  # inclusive end-of-day for uploaded_at
+        q["$or"] = [
+            {"invoice_date": {"$gte": s, "$lte": e}},
+            {"uploaded_at": {"$gte": s, "$lte": e_upload}},
+        ]
+    rows = list(invoices.find(q).sort("uploaded_at", -1).limit(2000))
     return [_strip(r) for r in rows]
 
 
