@@ -50,6 +50,7 @@ import JKHiveProfile from './pages/jkhive/Profile';
 import JKHiveInspection from './pages/jkhive/Inspection';
 import JKHiveDocuments from './pages/jkhive/Documents';
 import JKHiveShiftMgmt from './pages/jkhive/ShiftMgmt';
+import JKHiveInvoices from './pages/jkhive/Invoices';
 import JKHiveDailySales from './pages/jkhive-daily-sales';
 import JKHiveSalesSummary from './pages/jkhive-sales-summary';
 import JKHiveIncome from './pages/jkhive-income';
@@ -295,6 +296,7 @@ const AppRouter = () => {
         <Route path="compliance" element={<JKHiveCompliance />} />
         <Route path="inspection" element={<AdminOnly><JKHiveInspection /></AdminOnly>} />
         <Route path="documents" element={<JKHiveDocuments />} />
+        <Route path="invoices" element={<JKHiveInvoices />} />
         <Route path="shifts" element={<JKHiveShiftMgmt />} />
         <Route path="bi" element={<AdminOnly><AdminBI /></AdminOnly>} />
         <Route path="menu" element={<JKHiveMenu />} />
@@ -420,3 +422,4 @@ const Routes = () => {
 };
 
 export default Routes;
+ Routes;

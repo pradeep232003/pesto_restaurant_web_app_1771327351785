@@ -842,6 +842,38 @@ class ApiService {
     return this.fetch('/api/admin/shifts/bulk-create', { method: 'POST', body: JSON.stringify(body) });
   }
 
+  // Invoices — supplier delivery invoices scanned by staff.
+  async invoicesList({ location_id, supplier } = {}) {
+    const qs = new URLSearchParams();
+    if (location_id) qs.set('location_id', location_id);
+    if (supplier) qs.set('supplier', supplier);
+    return this.fetch(`/api/admin/invoices${qs.toString() ? `?${qs.toString()}` : ''}`);
+  }
+  async invoiceScan(formData) {
+    // Multipart — bypass this.fetch() so the browser sets Content-Type
+    // with the multipart boundary itself. Mirrors adminUploadMenuImage.
+    const headers = {};
+    const storedToken = localStorage.getItem('access_token');
+    if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+    const response = await fetch(`${API_BASE_URL}/api/admin/invoices/scan`, {
+      method: 'POST',
+      credentials: API_BASE_URL ? 'include' : 'same-origin',
+      headers,
+      body: formData,
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Scan failed: ${response.status}`);
+    }
+    return response.json();
+  }
+  async invoiceUpdate(id, body) {
+    return this.fetch(`/api/admin/invoices/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+  async invoiceDelete(id) {
+    return this.fetch(`/api/admin/invoices/${id}`, { method: 'DELETE' });
+  }
+
   // ============== INSPECTION PACK (EHO-ready audit bundle) ==============
   async adminInspectionPack({ location_id, start_date, end_date } = {}) {
     const qs = new URLSearchParams(

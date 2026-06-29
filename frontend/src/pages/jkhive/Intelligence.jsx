@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Package, Trash2, ChefHat, Salad, BarChart3, Sparkles, DollarSign, UtensilsCrossed, FileCheck, ClipboardCheck, FolderOpen, Award } from 'lucide-react';
+import { Shield, Package, Trash2, ChefHat, Salad, BarChart3, Sparkles, DollarSign, UtensilsCrossed, FileCheck, ClipboardCheck, FolderOpen, Award, Receipt } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -43,6 +43,14 @@ const Intelligence = () => {
           color="#FF2D55"
           title="Inventory"
           subtitle="Stock taking & FIFO"
+        />
+        <Tile
+          testId="tile-invoices"
+          to="/jkhive/invoices"
+          icon={Receipt}
+          color="#5856D6"
+          title="Invoices"
+          subtitle="Scan supplier deliveries"
         />
       </div>
 

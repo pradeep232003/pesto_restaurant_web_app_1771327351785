@@ -114,6 +114,7 @@ from routes.inspection import router as inspection_router
 from routes.documents import router as documents_router
 from routes.ai_settings import router as ai_settings_router
 from routes.shifts import router as shifts_router
+from routes.invoices import router as invoices_router
 
 app.include_router(auth_router)
 app.include_router(locations_router)
@@ -162,6 +163,7 @@ app.include_router(inspection_router)
 app.include_router(documents_router)
 app.include_router(ai_settings_router)
 app.include_router(shifts_router)
+app.include_router(invoices_router)
 
 # ============== PUBLIC ENDPOINTS ==============
 

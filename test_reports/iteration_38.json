@@ -1,0 +1,52 @@
+{
+  "summary": "Tested the new Invoices module (JKHive Operate tile). Backend: all 7 pytest cases pass — scan endpoint gracefully degrades to ai_status='failed' with the raw image saved when the Anthropic key is invalid (the critical fallback acceptance criterion), GET list returns the doc, GET /file streams the raw PNG with correct content-type, admin PATCH persists all fields incl. items+totals, admin DELETE removes doc + GridFS file and subsequent GET returns 404, and unauth PATCH/DELETE return 401/403. Frontend: Operate tile order Daily Sales/Inventory/Invoices is correct, navigating to /jkhive/invoices was BROKEN (404 Page Not Found) due to a missing <Route path='invoices'> entry in Routes.jsx — testing agent fixed this. After the route fix, the page renders with the gradient Scan button, search input, and the 1280px wide layout on desktop. Uploading a tiny PNG via the file input successfully creates an invoice card (200 with ai_status='failed'). However, clicking the card to open InvoiceModal CRASHES the component tree with a React error caught by ErrorBoundary — modal never opens, so location-edit / delete-button / ai-failed-banner assertions could not be verified. This is a critical render-time bug that blocks the admin amend/delete UX and needs main-agent investigation.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "InvoiceModal",
+        "issue": "Opening the modal (clicking an invoice card) throws a React render error caught by ErrorBoundary ('Something went wrong'). React stack trace points at InvoiceModal in Invoices.jsx. Likely culprits: (a) `locations` from useLocation2() may be undefined briefly causing `locations.map(...)` to crash inside the location <select>, (b) the helper components `Field` / `inputStyle` are declared as `const` arrow functions AFTER InvoiceModal in the file — they are technically resolved by render time but worth double-checking, (c) the controlled <input type='date'> may be receiving a non-empty/non-ISO value from the AI-failed draft and React 18 throws on invalid date. Re-run after guarding `(locations || []).map(...)` and defaulting `invoice.invoice_date` to '' if it is not YYYY-MM-DD shaped.",
+        "selector": "[data-testid='invoice-modal']",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "Routes.jsx",
+        "issue": "FIXED by testing agent: <Route path='invoices' element={<JKHiveInvoices />} /> was missing under the JKHiveLayout block — the import existed but no Route entry was added, so /jkhive/invoices rendered the 404 NotFound page. Patched by inserting the route directly after the documents route.",
+        "selector": "n/a",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      { "flow": "Invoice modal open", "issue": "Page becomes unusable after modal crash — staff cannot review or amend a freshly scanned invoice, admin cannot change location or delete. Verified by ErrorBoundary 'Something went wrong' fallback after clicking the card.", "affected_selectors": ["[data-testid='invoice-card-*']", "[data-testid='invoice-modal']", "[data-testid='invoice-delete']", "[data-testid='invoice-location-select']"] }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_invoices.py",
+    "/app/test_reports/pytest/pytest_invoices.xml"
+  ],
+  "action_items": [
+    "Investigate and fix the InvoiceModal render crash. Suggest: (1) default `locations = locations || []` before .map(), (2) sanitize `invoice.invoice_date` to '' if it's not an ISO YYYY-MM-DD (the AI-failed draft writes ''), (3) wrap the modal body in a try-friendly null-coalesce for `invoice.items`. The console error from React was suppressed by ErrorBoundary so the exact .message wasn't captured — add a console.error in ErrorBoundary or open DevTools to surface it during fix.",
+    "Verify the route registration the testing agent added in /app/frontend/src/Routes.jsx (Route path='invoices' line ~299) is the right place — it sits inside the <Route element={<JKHiveLayout/>}> block alongside documents/shifts.",
+    "Once the modal renders, re-run the frontend flow to confirm: admin sees enabled location dropdown + delete button, staff sees disabled dropdown + no delete button (uses test_admin_bi@jollys.com — but no STAFF-role account exists in /app/memory/test_credentials.md; create one if a real staff-vs-admin gate test is needed)."
+  ],
+  "critical_code_review_comments": [
+    "Invoices.jsx is 442 lines; reasonable but the InvoiceModal sub-component is ~200 lines on its own — consider splitting Field/inputStyle out into a small components file for readability.",
+    "Routes.jsx: importing a page and forgetting to register the Route is a recurring papercut — consider a lint rule or a routes-table pattern to surface this at build time.",
+    "routes/invoices.py — graceful AI fallback is clean and well-commented. Good defensive use of `extracted = {...}` defaults so the doc shape is stable even on AI failure. GridFS bucket name 'invoices_files' is consistent with the documents module pattern.",
+    "routes/invoices.py PATCH: uses get_admin_user (admin OR super_admin) — matches the spec. Edit audit fields (edited_by/edited_at) are set only when there is an update — good.",
+    "frontend api.invoiceScan() bypasses this.fetch() so multipart Content-Type is browser-set — correct, mirrors adminUploadMenuImage.",
+    "Invoices.jsx fileUrl uses ${REACT_APP_BACKEND_URL}/api/admin/invoices/{id}/file directly in <img src> — this works only when the endpoint allows unauthenticated GETs OR when cookies are forwarded. The backend route uses Depends(get_staff_or_above) which requires auth — on cross-origin deployments the <img> tag will NOT send the Authorization header, so the image will 401. Recommend the blob-url pattern used by documentsFileBlobUrl() for consistency."
+  ],
+  "updated_files": [
+    "/app/frontend/src/Routes.jsx (added <Route path='invoices' element={<JKHiveInvoices />} /> — testing-agent fix)",
+    "/app/backend/tests/test_invoices.py (new pytest module — 7 tests covering scan fallback, list, file stream, admin PATCH, unauth gates, admin DELETE+verify-404)"
+  ],
+  "success_rate": { "backend": "100% (7/7 pytest)", "frontend": "60% (page render, tile order, gradient btn, wide layout, scan→card all work; modal open + admin amend + delete UI BLOCKED by render crash)" },
+  "test_credentials": "Super admin: admin@jollys.com / Admin123! — used for all tests. No dedicated STAFF account in /app/memory/test_credentials.md; flagged.",
+  "seed_data_creation": "Each scan test creates 1 invoice doc (TEST_pytest note) and deletes it in TestInvoiceDelete; the frontend run created 1 doc that was NOT cleaned because the modal crashed before reaching the delete click — main agent may want to clear the invoices collection or it will appear as orphan TEST_ data on /jkhive/invoices for timperley-altrincham.",
+  "retest_needed": true,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Backend is solid — the test_invoices.py suite (7 tests) is your regression baseline. Focus next iteration on the InvoiceModal crash: open DevTools on a card-click and capture the actual JS error message. Once fixed, re-test: (a) admin (admin@jollys.com) sees enabled location <select> + delete button + ai-failed banner with the 'AI couldn't read this invoice' copy, (b) need to create a true STAFF role account to test the read-only location/no-delete and the edit-toggle data-testid='invoice-edit-toggle'. Backend route registration & wiring in server.py is confirmed. Routes.jsx now has the invoices route at line ~299.",
+  "rca of the issue": "Two issues found. (1) /jkhive/invoices 404: import added in Routes.jsx but Route JSX element never inserted — fixed in this iteration. (2) Modal crash: not reproducible to a single line without devtools, but the high-probability hypothesis is the location dropdown <select value={invoice.location_id || ''}> mapping over the locations array AND/OR the controlled <input type='date'> getting a non-empty non-ISO string. The InvoiceModal is rendered conditionally on `editing &&` and uses the freshly-scanned doc which has invoice_date='' (from the ai_status='failed' default branch in routes/invoices.py:268) — so type='date' should accept that. Most likely path is `locations` momentarily being undefined during the first paint after click."
+}
