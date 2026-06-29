@@ -106,10 +106,12 @@ const Invoices = () => {
         Snap a photo of supplier delivery invoices &amp; purchases. AI auto-extracts itemised products, prices, VAT and Total.
       </p>
 
-      {/* Tab switcher — Recent (mobile-friendly card grid) vs All (admin
-          table with date range + location filter + CSV export). */}
+      {/* Tab switcher — Recent (mobile-friendly card grid, for everyone)
+          vs All (admin-only table with date range + location filter + CSV
+          export). Staff never see the All tab as their job is to scan,
+          not reconcile accounts. */}
       <div data-testid="invoices-tabs" style={{ display: 'inline-flex', background: '#F5F5F7', borderRadius: 12, padding: 3, marginBottom: 12 }}>
-        {[{ k: 'recent', icon: LayoutGrid, label: 'Recent' }, { k: 'all', icon: TableIcon, label: 'All invoices' }].map(({ k, icon: Icon, label }) => (
+        {[{ k: 'recent', icon: LayoutGrid, label: 'Recent' }, isAdmin && { k: 'all', icon: TableIcon, label: 'All invoices' }].filter(Boolean).map(({ k, icon: Icon, label }) => (
           <button
             key={k}
             data-testid={`invoices-tab-${k}`}
@@ -139,7 +141,7 @@ const Invoices = () => {
         />
       )}
 
-      {tab === 'all' && (
+      {tab === 'all' && isAdmin && (
         <AllInvoicesView
           loading={allLoading}
           list={allList}
