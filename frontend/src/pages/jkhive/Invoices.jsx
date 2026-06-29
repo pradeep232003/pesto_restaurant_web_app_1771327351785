@@ -304,12 +304,15 @@ const InvoiceModal = ({ invoice: initial, isAdmin, locations, onClose, onSaved }
   const canEditAll = isAdmin || editingFields;
 
   return (
-    <div data-testid="invoice-modal" style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+    <div data-testid="invoice-modal" style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)' }} />
       <div style={{
         position: 'relative', background: '#FFFFFF', width: '100%', maxWidth: 720,
         borderRadius: '20px 20px 0 0', padding: '18px 18px 24px', maxHeight: '92vh',
         overflowY: 'auto', ...FONT,
+        // Reserve room under the action row so the persistent JKHive footer
+        // nav (fixed bottom, ~72px) cannot intercept clicks on Save/Delete.
+        paddingBottom: 'calc(24px + env(safe-area-inset-bottom) + 84px)',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
           <div style={{ flex: 1 }}>
