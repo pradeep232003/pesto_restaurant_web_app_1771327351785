@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Camera, X, Trash2, MapPin, Edit3, FileText, Loader2, AlertTriangle, Receipt, Plus, Search, Download, LayoutGrid, Table as TableIcon,
+  ArrowLeft, Camera, X, Trash2, MapPin, Edit3, FileText, Loader2, AlertTriangle, Receipt, Plus, Search, Download, LayoutGrid, Table as TableIcon, Layers, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -146,6 +146,7 @@ const Invoices = () => {
         </button>
         <div style={{ flex: 1 }} />
         <ScanButton onScanned={load} adminLocationId={adminLocationId} setBusy={setBusy} busy={busy} setError={setError} />
+        <MultiPageScanButton onScanned={load} adminLocationId={adminLocationId} setBusy={setBusy} busy={busy} setError={setError} />
       </div>
 
       <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1D1D1F', margin: '0 0 4px' }}>Invoices</h1>
@@ -270,6 +271,191 @@ const ScanButton = ({ adminLocationId, setBusy, busy, setError, onScanned }) => 
         {busy ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
         {busy ? 'Reading…' : 'Scan Invoice'}
       </button>
+    </>
+  );
+};
+
+/** Multi-page scan — pick or capture multiple files (photos or PDFs) all
+ *  belonging to the same invoice. We open a small queue dialog so the
+ *  staff member can confirm order / remove a misfire before sending to
+ *  the AI. The backend handles the merge into a single invoice doc.
+ */
+const MultiPageScanButton = ({ adminLocationId, setBusy, busy, setError, onScanned }) => {
+  const ref = useRef(null);
+  const [queue, setQueue] = useState([]); // [{file, previewUrl}]
+  const [submitting, setSubmitting] = useState(false);
+
+  const onPick = (e) => {
+    const picked = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!picked.length) return;
+    if (!adminLocationId) {
+      setError('Pick a location first');
+      return;
+    }
+    const additions = picked.slice(0, 20 - queue.length).map(f => ({
+      file: f,
+      previewUrl: f.type.startsWith('image/') ? URL.createObjectURL(f) : '',
+    }));
+    setQueue(prev => [...prev, ...additions].slice(0, 20));
+  };
+
+  const removeAt = (i) => setQueue(prev => {
+    const next = [...prev];
+    const [gone] = next.splice(i, 1);
+    if (gone?.previewUrl) URL.revokeObjectURL(gone.previewUrl);
+    return next;
+  });
+
+  const clearQueue = () => {
+    queue.forEach(q => q.previewUrl && URL.revokeObjectURL(q.previewUrl));
+    setQueue([]);
+  };
+
+  const submit = async () => {
+    if (!queue.length || !adminLocationId) return;
+    setSubmitting(true);
+    setBusy(true);
+    setError('');
+    try {
+      const fd = new FormData();
+      queue.forEach(q => fd.append('files', q.file, q.file.name || 'page'));
+      fd.append('location_id', adminLocationId);
+      await api.invoiceScanMulti(fd);
+      clearQueue();
+      await onScanned();
+    } catch (err) {
+      setError(err.message || 'Multi-page scan failed');
+    } finally {
+      setSubmitting(false);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <input ref={ref} data-testid="invoices-multi-file-input" type="file" accept="image/*,application/pdf" multiple hidden onChange={onPick} />
+      <button
+        data-testid="invoices-scan-multi-btn"
+        onClick={() => ref.current?.click()}
+        disabled={busy || !adminLocationId}
+        title="Scan multi-page invoice"
+        style={{
+          padding: '8px 14px', borderRadius: 999, border: 0,
+          background: '#FFFFFF',
+          color: '#1D1D1F', fontSize: 13, fontWeight: 700,
+          boxShadow: '0 0 0 1px rgba(0,0,0,0.08)',
+          cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1,
+          display: 'inline-flex', alignItems: 'center', gap: 6, ...FONT,
+        }}
+      >
+        <Layers size={14} />
+        Multi-page
+      </button>
+
+      {queue.length > 0 && (
+        <div data-testid="invoices-multi-queue" style={{ position: 'fixed', inset: 0, zIndex: 250, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={() => !submitting && clearQueue()} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)' }} />
+          <div style={{
+            position: 'relative', background: '#FFFFFF', width: '100%', maxWidth: 540,
+            borderRadius: '20px 20px 0 0', padding: '18px 18px 24px', maxHeight: '92vh',
+            overflowY: 'auto', ...FONT,
+            paddingBottom: 'calc(24px + env(safe-area-inset-bottom) + 84px)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>Multi-page invoice</p>
+                <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1D1D1F', margin: '2px 0 0' }}>
+                  {queue.length} page{queue.length === 1 ? '' : 's'} queued
+                </h2>
+              </div>
+              <button onClick={() => !submitting && clearQueue()} aria-label="Cancel"
+                style={{ width: 32, height: 32, borderRadius: 999, background: '#F5F5F7', border: 0, cursor: submitting ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <X size={15} color="#1D1D1F" />
+              </button>
+            </div>
+            <p style={{ fontSize: 12, color: '#86868B', margin: '0 0 12px' }}>
+              Add every page of the invoice. They&apos;ll be sent to the AI together so the line items are merged into a single record.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8, marginBottom: 14 }}>
+              {queue.map((q, i) => (
+                <div key={i} data-testid={`invoices-multi-page-${i}`} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', background: '#F5F5F7', aspectRatio: '3 / 4' }}>
+                  {q.previewUrl ? (
+                    <img src={q.previewUrl} alt={`Page ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#86868B', fontSize: 11, padding: 8, textAlign: 'center' }}>
+                      <FileText size={20} />
+                      <span style={{ marginTop: 4 }}>{q.file.name}</span>
+                    </div>
+                  )}
+                  <div style={{
+                    position: 'absolute', top: 6, left: 6, background: 'rgba(0,0,0,0.65)',
+                    color: '#FFF', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 999,
+                  }}>{i + 1}</div>
+                  {!submitting && (
+                    <button
+                      data-testid={`invoices-multi-remove-${i}`}
+                      onClick={() => removeAt(i)}
+                      aria-label="Remove page"
+                      style={{
+                        position: 'absolute', top: 6, right: 6, width: 24, height: 24, borderRadius: 999,
+                        background: 'rgba(0,0,0,0.6)', border: 0, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      <X size={12} color="#FFF" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {queue.length < 20 && !submitting && (
+                <button
+                  data-testid="invoices-multi-add-more"
+                  onClick={() => ref.current?.click()}
+                  style={{
+                    aspectRatio: '3 / 4', borderRadius: 12, border: '1.5px dashed #C7C7CC',
+                    background: 'transparent', color: '#86868B', cursor: 'pointer',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                    fontSize: 11, fontWeight: 600, ...FONT,
+                  }}
+                >
+                  <Plus size={18} />
+                  Add page
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                data-testid="invoices-multi-cancel"
+                onClick={clearQueue}
+                disabled={submitting}
+                style={{
+                  flex: 1, padding: '12px 14px', borderRadius: 12, border: 0,
+                  background: '#F5F5F7', color: '#1D1D1F', fontSize: 14, fontWeight: 700,
+                  cursor: submitting ? 'wait' : 'pointer', ...FONT,
+                }}
+              >Cancel</button>
+              <button
+                data-testid="invoices-multi-submit"
+                onClick={submit}
+                disabled={submitting || !queue.length}
+                style={{
+                  flex: 2, padding: '12px 14px', borderRadius: 12, border: 0,
+                  background: 'linear-gradient(135deg, #34C759 0%, #007AFF 100%)',
+                  color: '#FFFFFF', fontSize: 14, fontWeight: 700,
+                  cursor: submitting ? 'wait' : 'pointer', opacity: submitting ? 0.7 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...FONT,
+                }}
+              >
+                {submitting ? <Loader2 size={14} className="animate-spin" /> : <Layers size={14} />}
+                {submitting ? 'Reading pages…' : `Scan ${queue.length} page${queue.length === 1 ? '' : 's'}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
@@ -658,6 +844,14 @@ const InvoiceCard = ({ invoice, locations, onOpen }) => {
         <MapPin size={11} /> {loc?.name || invoice.location_id}
         <span>·</span>
         <span>{(invoice.items || []).length} items</span>
+        {(invoice.page_count || (invoice.pages || []).length) > 1 && (
+          <>
+            <span>·</span>
+            <span data-testid={`invoice-card-pages-${invoice.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: '#007AFF', fontWeight: 700 }}>
+              <Layers size={10} /> {invoice.page_count || invoice.pages.length} pages
+            </span>
+          </>
+        )}
         {invoice.vat > 0 && <><span>·</span><span>VAT {fmtMoney(invoice.vat)}</span></>}
         {failed && (
           <span style={{ marginLeft: 'auto', background: 'rgba(255,149,0,0.15)', color: '#A35E00', padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
@@ -687,20 +881,34 @@ const InvoiceModal = ({ invoice: initial, isAdmin, locations, onClose, onSaved }
   const [err, setErr] = useState('');
 
   // Fetch the image as a blob URL so the <img> tag carries the auth header
-  // (cross-origin <img src> does NOT send Bearer tokens).
-  const [fileUrl, setFileUrl] = useState('');
+  // (cross-origin <img src> does NOT send Bearer tokens). For multi-page
+  // invoices we lazy-fetch one page at a time and cache the blob URLs.
+  const pages = Array.isArray(invoice.pages) && invoice.pages.length > 0
+    ? invoice.pages
+    : [{ file_id: invoice.file_id, filename: invoice.filename, content_type: invoice.content_type }];
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageUrls, setPageUrls] = useState({}); // { [pageIndex]: blobUrl }
+  const fileUrl = pageUrls[pageIndex] || '';
+  const currentPage = pages[pageIndex] || pages[0];
+
   useEffect(() => {
+    if (pageUrls[pageIndex]) return; // already cached
     let revoke = '';
     let cancelled = false;
     (async () => {
       try {
-        const url = await api.invoiceFileBlobUrl(invoice.id);
+        const url = await api.invoiceFileBlobUrl(invoice.id, pageIndex);
         if (cancelled) URL.revokeObjectURL(url);
-        else { setFileUrl(url); revoke = url; }
+        else { setPageUrls(prev => ({ ...prev, [pageIndex]: url })); revoke = url; }
       } catch { /* leave fileUrl '' — preview just won't render */ }
     })();
-    return () => { cancelled = true; if (revoke) URL.revokeObjectURL(revoke); };
-  }, [invoice.id]);
+    return () => { cancelled = true; if (revoke && cancelled) URL.revokeObjectURL(revoke); };
+  }, [invoice.id, pageIndex]);
+
+  // Clean up all cached blob URLs when modal unmounts.
+  useEffect(() => () => {
+    Object.values(pageUrls).forEach(url => url && URL.revokeObjectURL(url));
+  }, []);
 
   const save = async () => {
     setBusy(true);
@@ -794,16 +1002,58 @@ const InvoiceModal = ({ invoice: initial, isAdmin, locations, onClose, onSaved }
           </div>
         )}
 
-        {/* Photo preview */}
-        <div style={{ marginBottom: 12, borderRadius: 12, overflow: 'hidden', background: '#F5F5F7' }}>
+        {/* Photo preview — supports multi-page invoices with prev/next nav. */}
+        <div style={{ marginBottom: 12, borderRadius: 12, overflow: 'hidden', background: '#F5F5F7', position: 'relative' }}>
           {!fileUrl ? (
             <div style={{ padding: 24, textAlign: 'center', color: '#86868B', fontSize: 12 }}>Loading image…</div>
-          ) : (invoice.content_type || '').startsWith('image/') ? (
-            <img data-testid="invoice-image" src={fileUrl} alt="Invoice" style={{ display: 'block', width: '100%', maxHeight: 360, objectFit: 'contain' }} />
+          ) : (currentPage.content_type || '').startsWith('image/') ? (
+            <img data-testid="invoice-image" src={fileUrl} alt={`Invoice page ${pageIndex + 1}`} style={{ display: 'block', width: '100%', maxHeight: 360, objectFit: 'contain' }} />
           ) : (
             <a href={fileUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 14, color: '#007AFF', fontSize: 13 }}>
-              <FileText size={16} /> Open original PDF
+              <FileText size={16} /> Open page {pageIndex + 1} (PDF)
             </a>
+          )}
+          {pages.length > 1 && (
+            <>
+              <button
+                data-testid="invoice-page-prev"
+                onClick={() => setPageIndex(i => Math.max(0, i - 1))}
+                disabled={pageIndex === 0}
+                aria-label="Previous page"
+                style={{
+                  position: 'absolute', top: '50%', left: 8, transform: 'translateY(-50%)',
+                  width: 32, height: 32, borderRadius: 999, border: 0,
+                  background: 'rgba(0,0,0,0.55)', cursor: pageIndex === 0 ? 'default' : 'pointer',
+                  opacity: pageIndex === 0 ? 0.4 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <ChevronLeft size={18} color="#FFF" />
+              </button>
+              <button
+                data-testid="invoice-page-next"
+                onClick={() => setPageIndex(i => Math.min(pages.length - 1, i + 1))}
+                disabled={pageIndex === pages.length - 1}
+                aria-label="Next page"
+                style={{
+                  position: 'absolute', top: '50%', right: 8, transform: 'translateY(-50%)',
+                  width: 32, height: 32, borderRadius: 999, border: 0,
+                  background: 'rgba(0,0,0,0.55)', cursor: pageIndex === pages.length - 1 ? 'default' : 'pointer',
+                  opacity: pageIndex === pages.length - 1 ? 0.4 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <ChevronRight size={18} color="#FFF" />
+              </button>
+              <div
+                data-testid="invoice-page-indicator"
+                style={{
+                  position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+                  background: 'rgba(0,0,0,0.65)', color: '#FFF', fontSize: 11, fontWeight: 700,
+                  padding: '3px 10px', borderRadius: 999, letterSpacing: '0.04em',
+                }}
+              >Page {pageIndex + 1} / {pages.length}</div>
+            </>
           )}
         </div>
 

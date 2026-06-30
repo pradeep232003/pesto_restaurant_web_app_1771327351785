@@ -870,15 +870,34 @@ class ApiService {
     }
     return response.json();
   }
+  async invoiceScanMulti(formData) {
+    const headers = {};
+    const storedToken = localStorage.getItem('access_token');
+    if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+    const response = await fetch(`${API_BASE_URL}/api/admin/invoices/scan-multi`, {
+      method: 'POST',
+      credentials: API_BASE_URL ? 'include' : 'same-origin',
+      headers,
+      body: formData,
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Multi-page scan failed: ${response.status}`);
+    }
+    return response.json();
+  }
   async invoiceUpdate(id, body) {
     return this.fetch(`/api/admin/invoices/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
   }
   async invoiceDelete(id) {
     return this.fetch(`/api/admin/invoices/${id}`, { method: 'DELETE' });
   }
-  async invoiceFileBlobUrl(id) {
+  async invoiceFileBlobUrl(id, pageIndex) {
     const tok = localStorage.getItem('access_token');
-    const res = await fetch(`${API_BASE_URL}/api/admin/invoices/${id}/file`, {
+    const path = (pageIndex == null || pageIndex === 0)
+      ? `/api/admin/invoices/${id}/file`
+      : `/api/admin/invoices/${id}/pages/${pageIndex}`;
+    const res = await fetch(`${API_BASE_URL}${path}`, {
       headers: tok ? { Authorization: `Bearer ${tok}` } : {},
     });
     if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);

@@ -51,6 +51,15 @@ def _strip(doc: dict) -> dict:
     out = {k: v for k, v in (doc or {}).items() if k != "_id"}
     if "file_id" in out and isinstance(out["file_id"], ObjectId):
         out["file_id"] = str(out["file_id"])
+    if isinstance(out.get("pages"), list):
+        clean_pages = []
+        for p in out["pages"]:
+            if isinstance(p, dict):
+                pc = dict(p)
+                if isinstance(pc.get("file_id"), ObjectId):
+                    pc["file_id"] = str(pc["file_id"])
+                clean_pages.append(pc)
+        out["pages"] = clean_pages
     return out
 
 
@@ -131,10 +140,10 @@ def _coerce_num(v: Any) -> float:
         return 0.0
 
 
-async def _extract_invoice(image_bytes: bytes, media_type: str) -> dict:
-    """Send the photo to Claude vision and return the parsed dict.
-    Bubbles up a friendly HTTPException on any failure path so the UI can
-    show the manager exactly what went wrong."""
+async def _extract_invoice(pages: list) -> dict:
+    """Send one or more invoice pages to Claude vision and return parsed dict.
+    Each page is a tuple (bytes, media_type). Multiple pages are sent in a
+    single Claude call so the model can merge line items across pages."""
     from routes.ai_settings import get_active_ai_key, get_active_ai_provider
     api_key = get_active_ai_key()
     if not api_key:
@@ -144,24 +153,39 @@ async def _extract_invoice(image_bytes: bytes, media_type: str) -> dict:
         )
     provider = get_active_ai_provider()
 
-    # Anthropic supports JPEG/PNG/WEBP/GIF for vision. PDFs need a different
-    # content block ("document") — fall back to text-only extraction on PDF.
-    is_pdf = media_type == "application/pdf"
-    if is_pdf:
-        content = [
-            {"type": "document", "source": {"type": "base64", "media_type": "application/pdf",
-                                              "data": base64.b64encode(image_bytes).decode("ascii")}},
-            {"type": "text", "text": "Extract the invoice fields per the system instructions."},
-        ]
-    else:
-        # Default to image/jpeg if a phone capture comes through with an
-        # odd content-type ("image/heic" etc). Claude will still try.
-        anth_media = media_type if media_type in ("image/jpeg", "image/png", "image/webp", "image/gif") else "image/jpeg"
-        content = [
-            {"type": "image", "source": {"type": "base64", "media_type": anth_media,
-                                          "data": base64.b64encode(image_bytes).decode("ascii")}},
-            {"type": "text", "text": "Extract the invoice fields per the system instructions."},
-        ]
+    if not pages:
+        raise HTTPException(400, "No pages supplied to AI extractor")
+
+    # Build a single Claude message with all pages. PDFs go as 'document'
+    # blocks, images as 'image' blocks. Anthropic supports up to 100 image
+    # blocks per request — well above any realistic invoice page count.
+    content = []
+    for idx, (blob, media_type) in enumerate(pages, start=1):
+        if media_type == "application/pdf":
+            content.append({
+                "type": "document",
+                "source": {"type": "base64", "media_type": "application/pdf",
+                           "data": base64.b64encode(blob).decode("ascii")},
+            })
+        else:
+            anth_media = media_type if media_type in ("image/jpeg", "image/png", "image/webp", "image/gif") else "image/jpeg"
+            content.append({
+                "type": "image",
+                "source": {"type": "base64", "media_type": anth_media,
+                           "data": base64.b64encode(blob).decode("ascii")},
+            })
+        # Page label so the model knows the order.
+        content.append({"type": "text", "text": f"--- Page {idx} of {len(pages)} ---"})
+
+    instruction = (
+        "Extract the invoice fields per the system instructions. "
+        + ("All pages above belong to the SAME invoice — merge every line item "
+           "into a single 'items' array, in printed order, and use totals from "
+           "the final page (or sum them if no grand total is visible). "
+           if len(pages) > 1 else "")
+        + "Return strict JSON only."
+    )
+    content.append({"type": "text", "text": instruction})
 
     req = {
         "model": "claude-sonnet-4-5-20250929",
@@ -175,7 +199,7 @@ async def _extract_invoice(image_bytes: bytes, media_type: str) -> dict:
         "content-type": "application/json",
     }
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=180.0) as client:
             resp = await client.post("https://api.anthropic.com/v1/messages", json=req, headers=headers)
     except Exception as e:  # noqa: BLE001
         snippet = (str(e) or e.__class__.__name__).splitlines()[0][:240]
@@ -318,7 +342,7 @@ async def scan_invoice(
     }
     ai_error = ""
     try:
-        extracted = await _extract_invoice(blob, content_type)
+        extracted = await _extract_invoice([(blob, content_type)])
     except HTTPException as e:
         ai_error = str(e.detail)
     except Exception as e:  # noqa: BLE001
@@ -345,6 +369,113 @@ async def scan_invoice(
         "filename": file.filename or "invoice",
         "content_type": content_type,
         "size": len(blob),
+        "pages": [{
+            "file_id": str(file_id),
+            "filename": file.filename or "invoice",
+            "content_type": content_type,
+            "size": len(blob),
+        }],
+        "page_count": 1,
+        "uploaded_at": now_iso,
+        "uploaded_by": user.get("email", ""),
+        "uploaded_by_name": user.get("name", ""),
+        "ai_status": "ok" if not ai_error else "failed",
+        "ai_error": ai_error,
+    }
+    invoices.insert_one(dict(doc))
+    return _strip(doc)
+
+
+@router.post("/scan-multi")
+async def scan_invoice_multi(
+    files: List[UploadFile] = File(...),
+    location_id: str = Form(...),
+    note: str = Form(""),
+    category: str = Form(""),
+    user: dict = Depends(get_staff_or_above),
+):
+    """Multi-page invoice scan. Accepts 1..N pages of the SAME invoice;
+    each page is persisted in GridFS individually so we can stream/display
+    them one-by-one, but the AI sees them as a single document and merges
+    line items into one extraction.
+    """
+    if not files:
+        raise HTTPException(400, "At least one file required")
+    if len(files) > 20:
+        raise HTTPException(413, "Maximum 20 pages per invoice")
+
+    # 1. Read + validate every page upfront. We persist the raw images
+    #    before calling the AI so evidence is never lost on a flaky run.
+    pages_data: list = []          # tuples (blob, content_type, filename)
+    total_size = 0
+    for f in files:
+        ct = (f.content_type or "image/jpeg").lower()
+        if ct not in ALLOWED_CT:
+            if not ct.startswith("image/"):
+                raise HTTPException(415, f"Unsupported file type: {ct}")
+            ct = "image/jpeg"
+        blob = await f.read()
+        if not blob:
+            raise HTTPException(400, f"Empty file: {f.filename or 'page'}")
+        if len(blob) > MAX_BYTES:
+            raise HTTPException(413, f"Page {f.filename or ''} exceeds {MAX_BYTES // (1024 * 1024)} MB limit")
+        total_size += len(blob)
+        pages_data.append((blob, ct, f.filename or "invoice"))
+
+    # 2. Store every page in GridFS.
+    page_entries = []
+    for idx, (blob, ct, fname) in enumerate(pages_data):
+        gid = _fs.put(
+            blob,
+            filename=fname,
+            content_type=ct,
+            metadata={"location_id": location_id, "page_index": idx},
+        )
+        page_entries.append({
+            "file_id": str(gid),
+            "filename": fname,
+            "content_type": ct,
+            "size": len(blob),
+        })
+
+    # 3. Single AI call with all pages merged.
+    extracted = {
+        "supplier": "", "invoice_number": "", "invoice_date": "",
+        "category": "other",
+        "subtotal": 0.0, "vat": 0.0, "total": 0.0, "items": [],
+    }
+    ai_error = ""
+    try:
+        extracted = await _extract_invoice([(b, ct) for (b, ct, _) in pages_data])
+    except HTTPException as e:
+        ai_error = str(e.detail)
+    except Exception as e:  # noqa: BLE001
+        ai_error = f"AI extraction failed: {e}"
+
+    final_category = _norm_category(category) if category else extracted["category"]
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    first = page_entries[0]
+    doc = {
+        "id": str(uuid.uuid4())[:12],
+        "location_id": location_id,
+        "supplier": extracted["supplier"],
+        "invoice_number": extracted["invoice_number"],
+        "invoice_date": extracted["invoice_date"],
+        "category": final_category,
+        "subtotal": extracted["subtotal"],
+        "vat": extracted["vat"],
+        "total": extracted["total"],
+        "items": extracted["items"],
+        "note": (note or "").strip(),
+        # Back-compat: top-level file_id stays as the first page so the
+        # existing /file endpoint and legacy clients keep working.
+        "file_id": first["file_id"],
+        "filename": first["filename"],
+        "content_type": first["content_type"],
+        "size": first["size"],
+        "pages": page_entries,
+        "page_count": len(page_entries),
         "uploaded_at": now_iso,
         "uploaded_by": user.get("email", ""),
         "uploaded_by_name": user.get("name", ""),
@@ -380,6 +511,37 @@ async def download_invoice(invoice_id: str, user: dict = Depends(get_staff_or_ab
         media_type=rec.get("content_type", "application/octet-stream"),
         headers={
             "Content-Disposition": f'inline; filename="{rec.get("filename", "invoice")}"',
+            "Cache-Control": "private, max-age=300",
+        },
+    )
+
+
+@router.get("/{invoice_id}/pages/{page_index}")
+async def download_invoice_page(invoice_id: str, page_index: int, user: dict = Depends(get_staff_or_above)):
+    """Stream a specific page of a multi-page invoice."""
+    rec = invoices.find_one({"id": invoice_id})
+    if not rec:
+        raise HTTPException(404, "Not found")
+    pages = rec.get("pages") or [{
+        "file_id": rec.get("file_id"),
+        "filename": rec.get("filename", "invoice"),
+        "content_type": rec.get("content_type", "application/octet-stream"),
+    }]
+    if page_index < 0 or page_index >= len(pages):
+        raise HTTPException(404, "Page not found")
+    p = pages[page_index]
+    try:
+        gid = p["file_id"]
+        if not isinstance(gid, ObjectId):
+            gid = ObjectId(gid)
+        gridout = _fs.get(gid)
+    except Exception:
+        raise HTTPException(404, "File missing in GridFS")
+    return StreamingResponse(
+        gridout,
+        media_type=p.get("content_type", "application/octet-stream"),
+        headers={
+            "Content-Disposition": f'inline; filename="{p.get("filename", "invoice")}"',
             "Cache-Control": "private, max-age=300",
         },
     )
@@ -444,12 +606,18 @@ async def delete_invoice(invoice_id: str, user: dict = Depends(get_admin_user)):
     rec = invoices.find_one({"id": invoice_id})
     if not rec:
         raise HTTPException(404, "Not found")
-    try:
-        gridfs_id = rec["file_id"]
-        if not isinstance(gridfs_id, ObjectId):
-            gridfs_id = ObjectId(gridfs_id)
-        _fs.delete(gridfs_id)
-    except Exception:
-        pass  # tolerate orphan GridFS — metadata removal is the priority
+    # Collect all page file_ids (multi-page) plus legacy single file_id.
+    file_ids = []
+    for p in (rec.get("pages") or []):
+        if p.get("file_id"):
+            file_ids.append(p["file_id"])
+    if rec.get("file_id") and rec["file_id"] not in file_ids:
+        file_ids.append(rec["file_id"])
+    for fid in file_ids:
+        try:
+            gid = fid if isinstance(fid, ObjectId) else ObjectId(fid)
+            _fs.delete(gid)
+        except Exception:
+            pass  # tolerate orphan GridFS — metadata removal is the priority
     invoices.delete_one({"id": invoice_id})
     return {"deleted": True}
