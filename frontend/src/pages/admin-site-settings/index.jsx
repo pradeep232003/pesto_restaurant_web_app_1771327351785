@@ -408,6 +408,78 @@ const AdminSiteSettings = () => {
                           </div>
                         </div>
 
+                        {/* Geofence — Clock In/Out boundary */}
+                        <div className="border-t border-border pt-4 mb-4">
+                          <p className="text-sm font-body font-semibold text-foreground mb-1">Geofence (Clock In/Out)</p>
+                          <p className="text-[11px] text-muted-foreground font-body mb-3">
+                            Lat/Lng centre + radius staff must be inside to clock in. Leave blank to disable the fence (entries will be flagged "unverified").
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1 font-body">Latitude</label>
+                              <input
+                                data-testid={`geofence-latitude-${setting.location_id}`}
+                                type="number"
+                                step="0.000001"
+                                defaultValue={loc?.latitude ?? ''}
+                                placeholder="51.507351"
+                                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm font-body"
+                                onBlur={(e) => {
+                                  const raw = e.target.value.trim();
+                                  const val = raw === '' ? null : Number(raw);
+                                  if (val !== (loc?.latitude ?? null)) {
+                                    api.adminUpdateLocation(setting.location_id, { latitude: val })
+                                      .then(() => { showSuccess('Latitude updated'); refreshLocations(); })
+                                      .catch(err => setError(err.message));
+                                  }
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1 font-body">Longitude</label>
+                              <input
+                                data-testid={`geofence-longitude-${setting.location_id}`}
+                                type="number"
+                                step="0.000001"
+                                defaultValue={loc?.longitude ?? ''}
+                                placeholder="-0.127758"
+                                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm font-body"
+                                onBlur={(e) => {
+                                  const raw = e.target.value.trim();
+                                  const val = raw === '' ? null : Number(raw);
+                                  if (val !== (loc?.longitude ?? null)) {
+                                    api.adminUpdateLocation(setting.location_id, { longitude: val })
+                                      .then(() => { showSuccess('Longitude updated'); refreshLocations(); })
+                                      .catch(err => setError(err.message));
+                                  }
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1 font-body">Radius (m)</label>
+                              <input
+                                data-testid={`geofence-radius-${setting.location_id}`}
+                                type="number"
+                                min="20"
+                                max="5000"
+                                step="10"
+                                defaultValue={loc?.geofence_radius_m ?? 200}
+                                placeholder="200"
+                                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm font-body"
+                                onBlur={(e) => {
+                                  const raw = e.target.value.trim();
+                                  const val = raw === '' ? 200 : Math.max(20, Math.min(5000, parseInt(raw, 10) || 200));
+                                  if (val !== (loc?.geofence_radius_m ?? 200)) {
+                                    api.adminUpdateLocation(setting.location_id, { geofence_radius_m: val })
+                                      .then(() => { showSuccess('Radius updated'); refreshLocations(); })
+                                      .catch(err => setError(err.message));
+                                  }
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
                         {/* Daily Check routines applicable at this site */}
                         <div className="border-t border-border pt-4 mb-4">
                           <div className="flex items-center justify-between mb-2">

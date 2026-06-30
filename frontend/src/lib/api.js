@@ -1200,6 +1200,25 @@ class ApiService {
     if (locationId) qs.push(`location_id=${encodeURIComponent(locationId)}`);
     return this.fetch(`/api/admin/friday-orders${qs.length ? '?' + qs.join('&') : ''}`);
   }
+
+  // ============== CLOCK IN / OUT ==============
+  async getClockStatus() {
+    return this.fetch('/api/clock/status');
+  }
+  async clockIn(payload) {
+    return this.fetch('/api/clock/in', { method: 'POST', body: JSON.stringify(payload) });
+  }
+  async clockOut(payload) {
+    return this.fetch('/api/clock/out', { method: 'POST', body: JSON.stringify(payload) });
+  }
+  async getMyClockHistory(limit = 50) {
+    return this.fetch(`/api/clock/history?limit=${limit}`);
+  }
+  async adminGetClockEvents({ locationId, days = 7 } = {}) {
+    const qs = [`days=${days}`];
+    if (locationId) qs.push(`location_id=${encodeURIComponent(locationId)}`);
+    return this.fetch(`/api/clock/admin/events?${qs.join('&')}`);
+  }
 }
 
 export const api = new ApiService();

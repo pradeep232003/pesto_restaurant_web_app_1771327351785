@@ -132,6 +132,9 @@ async def admin_create_location(data: LocationCreate, user: dict = Depends(get_a
         "google_place_id": data.google_place_id or "",
         "google_api_key": data.google_api_key or "",
         "applicable_routines": data.applicable_routines or [],
+        "latitude": data.latitude,
+        "longitude": data.longitude,
+        "geofence_radius_m": data.geofence_radius_m or 200,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     locations_collection.insert_one(location_doc)
@@ -186,6 +189,12 @@ async def admin_update_location(location_id: str, data: LocationUpdate, user: di
         update_fields["google_api_key"] = data.google_api_key
     if data.applicable_routines is not None:
         update_fields["applicable_routines"] = data.applicable_routines
+    if data.latitude is not None:
+        update_fields["latitude"] = data.latitude
+    if data.longitude is not None:
+        update_fields["longitude"] = data.longitude
+    if data.geofence_radius_m is not None:
+        update_fields["geofence_radius_m"] = data.geofence_radius_m
 
     if not update_fields:
         raise HTTPException(status_code=400, detail="No fields to update")

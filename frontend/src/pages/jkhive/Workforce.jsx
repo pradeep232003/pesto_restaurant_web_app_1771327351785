@@ -12,20 +12,24 @@ const Workforce = () => {
         People, sales and customer engagement at a glance.
       </p>
 
+      <SectionLabel>Operate</SectionLabel>
+      <div className="grid grid-cols-2 gap-3">
+        <Tile testId="tile-clock-in-out" to="/jkhive/clock"        icon={Clock}    color="#34C759" title="Clock In / Out"  subtitle="Geo-verified time track" />
+        <Tile testId="tile-shift-mgmt"   to="/jkhive/shifts"       icon={Calendar} color="#AF52DE" title="Shift Management" subtitle="Rotas & swaps" />
+      </div>
+
       <SectionLabel>Learn</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
-        <Tile testId="tile-learning"     comingSoon icon={Sparkles}  color="#FFCC00" title="Learning"  subtitle="Staff training & courses" />
-        <Tile testId="tile-certificates" comingSoon icon={Award}     color="#AF52DE" title="Certificates" subtitle="Level 2/3 hygiene certs" />
-        <Tile testId="tile-onboarding"   comingSoon icon={ClipboardCheck} color="#30B0C7" title="Onboarding" subtitle="New starter packs" />
+        <Tile testId="tile-learning"     comingSoon icon={Sparkles}        color="#FFCC00" title="Learning"      subtitle="Staff training & courses" />
+        <Tile testId="tile-certificates" comingSoon icon={Award}           color="#AF52DE" title="Certificates"  subtitle="Level 2/3 hygiene certs" />
+        <Tile testId="tile-onboarding"   comingSoon icon={ClipboardCheck}  color="#30B0C7" title="Onboarding"    subtitle="New starter packs" />
       </div>
 
       <SectionLabel>Coming soon</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
-        <Tile testId="tile-shift-mgmt"   to="/jkhive/shifts" icon={Calendar}            color="#AF52DE" title="Shift Management" subtitle="Rotas & swaps" />
-        <Tile testId="tile-clock-in-out" comingSoon icon={Clock}               color="#34C759" title="Clock In / Out"   subtitle="Time-track & alerts" />
-        <Tile testId="tile-payroll"      comingSoon icon={Wallet}              color="#007AFF" title="Payroll"          subtitle="Hours → pay reports" />
+        <Tile testId="tile-payroll"      comingSoon icon={Wallet}               color="#007AFF" title="Payroll"          subtitle="Hours → pay reports" />
         <Tile testId="tile-complaints"   comingSoon icon={MessageSquareWarning} color="#FF3B30" title="Complaints"       subtitle="Customer feedback log" />
-        <Tile testId="tile-hotline"      comingSoon icon={Headphones}          color="#30B0C7" title="Safety Hotline"   subtitle="24/7 expert advice" />
+        <Tile testId="tile-hotline"      comingSoon icon={Headphones}           color="#30B0C7" title="Safety Hotline"   subtitle="24/7 expert advice" />
       </div>
     </div>
   );

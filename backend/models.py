@@ -26,6 +26,9 @@ class LocationCreate(BaseModel):
     google_place_id: Optional[str] = ""
     google_api_key: Optional[str] = ""
     applicable_routines: Optional[List[str]] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    geofence_radius_m: Optional[int] = 200
 
 class LocationUpdate(BaseModel):
     name: Optional[str] = None
@@ -38,6 +41,9 @@ class LocationUpdate(BaseModel):
     google_place_id: Optional[str] = None
     google_api_key: Optional[str] = None
     applicable_routines: Optional[List[str]] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    geofence_radius_m: Optional[int] = None
 
 
 # ============== MENU MODELS ==============
