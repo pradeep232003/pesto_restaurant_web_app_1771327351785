@@ -23,6 +23,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from db import db, daily_sales_collection, menu_items_collection, locations_collection
 from auth import get_admin_user
 
+invoices_collection = db["invoices"]
+
 router = APIRouter(prefix="/api/admin/bi", tags=["bi"])
 
 staff_collection = db["staff_members"]
@@ -100,6 +102,29 @@ def _avg_recipe_cost_by_location() -> dict:
     return out
 
 
+def _stock_spend_by_location(start_date: str, end_date: str, location_id: Optional[str]) -> dict:
+    """Sum invoice totals for category=='stock' in the given date range,
+    grouped by location_id. Matches either the printed invoice_date OR
+    the uploaded_at (so scans without a parsed date still attribute to
+    the upload window, mirroring the /invoices list filter behaviour)."""
+    end_upload = end_date + "T23:59:59.999Z"
+    q: dict = {
+        "category": "stock",
+        "$or": [
+            {"invoice_date": {"$gte": start_date, "$lte": end_date}},
+            {"uploaded_at": {"$gte": start_date, "$lte": end_upload}},
+        ],
+    }
+    if location_id:
+        q["location_id"] = location_id
+    out: dict = {}
+    for r in invoices_collection.find(q, {"_id": 0, "location_id": 1, "total": 1}):
+        loc = r.get("location_id") or "unknown"
+        out[loc] = out.get(loc, 0.0) + float(r.get("total") or 0.0)
+    return out
+
+
+
 @router.get("")
 async def bi_overview(
     start_date: Optional[str] = Query(None, description="YYYY-MM-DD inclusive"),
@@ -133,6 +158,10 @@ def _compute_overview(start_date: Optional[str], end_date: Optional[str], locati
     entries = list(daily_sales_collection.find(sales_query, {"_id": 0}))
     rates = _build_rate_lookup()
     menu_rollup = _avg_recipe_cost_by_location()
+    # Per-location stock spend from invoices in the same window — the true
+    # food cost ground truth (anything tagged "stock"). Falls back to the
+    # recipe-based estimate per-location if a site has no scans yet.
+    stock_spend_by_loc = _stock_spend_by_location(start_date, end_date, location_id)
 
     # Per-location accumulators
     per_loc: dict = {}
@@ -179,7 +208,19 @@ def _compute_overview(start_date: Optional[str], end_date: Optional[str], locati
         lab = b["labour"]
         labour_pct = round((lab / rev) * 100, 1) if rev > 0 else 0.0
         menu = menu_rollup.get(loc, {"avg_food_cost_pct": 0.0, "items_with_recipe": 0, "total_items": 0})
-        est_food_cost = round((rev * menu["avg_food_cost_pct"] / 100), 2) if menu["avg_food_cost_pct"] > 0 else 0.0
+        # Prefer real invoice spend; fall back to recipe estimate when no
+        # invoices have been scanned for this site in the window. This
+        # makes "Food %" reflect what the manager actually spent, not a
+        # theoretical menu ratio.
+        invoice_food_cost = round(stock_spend_by_loc.get(loc, 0.0), 2)
+        if invoice_food_cost > 0:
+            est_food_cost = invoice_food_cost
+            food_cost_pct = round((est_food_cost / rev) * 100, 1) if rev > 0 else 0.0
+            food_cost_source = "invoices"
+        else:
+            est_food_cost = round((rev * menu["avg_food_cost_pct"] / 100), 2) if menu["avg_food_cost_pct"] > 0 else 0.0
+            food_cost_pct = menu["avg_food_cost_pct"]
+            food_cost_source = "recipes"
         gross_margin = round(rev - lab - est_food_cost, 2)
         by_location.append({
             "location_id": loc,
@@ -189,8 +230,10 @@ def _compute_overview(start_date: Optional[str], end_date: Optional[str], locati
             "labour_pct": labour_pct,
             "hours": round(b["hours"], 2),
             "days": b["days"],
-            "food_cost_pct": menu["avg_food_cost_pct"],
+            "food_cost_pct": food_cost_pct,
             "est_food_cost": est_food_cost,
+            "food_cost_source": food_cost_source,
+            "invoice_stock_spend": invoice_food_cost,
             "gross_margin": gross_margin,
             "gross_margin_pct": round((gross_margin / rev) * 100, 1) if rev > 0 else 0.0,
             "menu_coverage": {
@@ -204,11 +247,24 @@ def _compute_overview(start_date: Optional[str], end_date: Optional[str], locati
         })
     by_location.sort(key=lambda x: x["revenue"], reverse=True)
 
-    # Overall food cost % = weighted average across locations
+    # Overall food cost % — sum of per-location est_food_cost / total_revenue.
+    # The per-location est_food_cost already prefers invoice spend where
+    # available; the overall source label is "invoices" iff every location
+    # used invoices (mixed → "mixed").
     total_food_cost = sum(loc["est_food_cost"] for loc in by_location)
     overall_food_cost_pct = round((total_food_cost / total_revenue) * 100, 1) if total_revenue > 0 else 0.0
     overall_labour_pct = round((total_labour / total_revenue) * 100, 1) if total_revenue > 0 else 0.0
     overall_gross = round(total_revenue - total_labour - total_food_cost, 2)
+    sources = {loc["food_cost_source"] for loc in by_location if loc["est_food_cost"] > 0}
+    if sources == {"invoices"}:
+        overall_food_source = "invoices"
+    elif sources == {"recipes"}:
+        overall_food_source = "recipes"
+    elif sources:
+        overall_food_source = "mixed"
+    else:
+        overall_food_source = "none"
+    total_invoice_stock_spend = sum(loc.get("invoice_stock_spend", 0.0) for loc in by_location)
 
     # Period length in days
     try:
@@ -227,6 +283,8 @@ def _compute_overview(start_date: Optional[str], end_date: Optional[str], locati
             "labour_pct": overall_labour_pct,
             "est_food_cost": round(total_food_cost, 2),
             "food_cost_pct": overall_food_cost_pct,
+            "food_cost_source": overall_food_source,
+            "invoice_stock_spend": round(total_invoice_stock_spend, 2),
             "gross_margin": overall_gross,
             "gross_margin_pct": round((overall_gross / total_revenue) * 100, 1) if total_revenue > 0 else 0.0,
             "entries": len(entries),

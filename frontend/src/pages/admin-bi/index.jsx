@@ -717,9 +717,14 @@ const AdminBI = () => {
         <KpiCard
           testid="kpi-food-cost"
           icon={ChefHat}
-          label="Est. Food Cost"
+          label={kpi.food_cost_source === 'invoices' ? 'Food Cost (Stock invoices)' : 'Est. Food Cost'}
           value={fmtGBP(kpi.est_food_cost)}
-          sub={`Based on linked recipes`}
+          sub={
+            kpi.food_cost_source === 'invoices' ? 'From scanned invoices · category Stock'
+            : kpi.food_cost_source === 'mixed' ? 'Invoices where available, recipes elsewhere'
+            : kpi.food_cost_source === 'recipes' ? 'Estimate from menu recipes'
+            : 'No data yet'
+          }
           color="#FF9500"
           accent={{ ...fband, label: `${kpi.food_cost_pct || 0}% · ${fband.label}` }}
         />
@@ -902,7 +907,7 @@ const AdminBI = () => {
       <div className="mt-5 p-4 rounded-2xl flex items-start gap-2" style={{ background: 'rgba(0,122,255,0.06)' }}>
         <Activity size={14} color="#007AFF" className="mt-0.5" />
         <div className="text-[11px]" style={{ color: '#1D1D1F', ...font }}>
-          <strong>How this is calculated</strong> · Revenue from Daily Sales totals · Labour from staff hours × per-staff hourly rate (set in <Link to="/admin/staff" className="underline" style={{ color: '#007AFF' }}>Staff Table</Link>) · Food Cost from recipe ingredients on each menu item (set in <Link to="/admin-menu" className="underline" style={{ color: '#007AFF' }}>Menu Management</Link>). Items without a recipe contribute £0 to estimated food cost.
+          <strong>How this is calculated</strong> · Revenue from Daily Sales totals · Labour from staff hours × per-staff hourly rate (set in <Link to="/admin/staff" className="underline" style={{ color: '#007AFF' }}>Staff Table</Link>) · <strong>Food Cost from <Link to="/jkhive/invoices" className="underline" style={{ color: '#007AFF' }}>scanned invoices</Link> where the category is &quot;Stock &amp; Supplies&quot;</strong>. If a site has no stock invoices in the date range yet, Food Cost falls back to a recipe-based estimate from <Link to="/admin-menu" className="underline" style={{ color: '#007AFF' }}>Menu Management</Link>.
         </div>
       </div>
     </div>
