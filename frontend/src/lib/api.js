@@ -886,6 +886,22 @@ class ApiService {
     }
     return response.json();
   }
+  async invoiceAppendPages(id, formData) {
+    const headers = {};
+    const storedToken = localStorage.getItem('access_token');
+    if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+    const response = await fetch(`${API_BASE_URL}/api/admin/invoices/${id}/append-pages`, {
+      method: 'POST',
+      credentials: API_BASE_URL ? 'include' : 'same-origin',
+      headers,
+      body: formData,
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Append pages failed: ${response.status}`);
+    }
+    return response.json();
+  }
   async invoiceUpdate(id, body) {
     return this.fetch(`/api/admin/invoices/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
   }

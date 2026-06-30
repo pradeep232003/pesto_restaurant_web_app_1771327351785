@@ -486,6 +486,121 @@ async def scan_invoice_multi(
     return _strip(doc)
 
 
+@router.post("/{invoice_id}/append-pages")
+async def append_invoice_pages(
+    invoice_id: str,
+    files: List[UploadFile] = File(...),
+    reextract: bool = Form(True),
+    user: dict = Depends(get_staff_or_above),
+):
+    """Attach additional pages to an existing invoice.
+
+    Useful when a supplier emails the second sheet after the first was
+    already scanned, or when staff snap an extra page out of order. We
+    persist every new page to GridFS, append to `pages[]`, bump
+    `page_count`, and (by default) re-run the AI across ALL pages so the
+    line items and totals stay consistent.
+    """
+    rec = invoices.find_one({"id": invoice_id})
+    if not rec:
+        raise HTTPException(404, "Not found")
+
+    if not files:
+        raise HTTPException(400, "At least one page required")
+
+    existing_pages = rec.get("pages") or [{
+        "file_id": rec.get("file_id"),
+        "filename": rec.get("filename", "invoice"),
+        "content_type": rec.get("content_type", "image/jpeg"),
+        "size": rec.get("size", 0),
+    }]
+    if len(existing_pages) + len(files) > 20:
+        raise HTTPException(413, "Maximum 20 pages per invoice")
+
+    # Read + validate every new page, store in GridFS.
+    new_entries = []
+    new_blobs = []  # (blob, content_type) for AI re-extraction
+    for f in files:
+        ct = (f.content_type or "image/jpeg").lower()
+        if ct not in ALLOWED_CT:
+            if not ct.startswith("image/"):
+                raise HTTPException(415, f"Unsupported file type: {ct}")
+            ct = "image/jpeg"
+        blob = await f.read()
+        if not blob:
+            raise HTTPException(400, f"Empty file: {f.filename or 'page'}")
+        if len(blob) > MAX_BYTES:
+            raise HTTPException(413, f"Page {f.filename or ''} exceeds {MAX_BYTES // (1024 * 1024)} MB limit")
+        gid = _fs.put(
+            blob,
+            filename=f.filename or "invoice",
+            content_type=ct,
+            metadata={"location_id": rec.get("location_id"), "page_index": len(existing_pages) + len(new_entries)},
+        )
+        new_entries.append({
+            "file_id": str(gid),
+            "filename": f.filename or "invoice",
+            "content_type": ct,
+            "size": len(blob),
+        })
+        new_blobs.append((blob, ct))
+
+    all_pages = list(existing_pages) + new_entries
+
+    update: dict = {
+        "pages": all_pages,
+        "page_count": len(all_pages),
+        "edited_at": datetime.now(timezone.utc).isoformat(),
+        "edited_by": user.get("email", ""),
+        "edited_by_name": user.get("name", ""),
+    }
+
+    # Optional re-extraction across ALL pages (existing + new). On any
+    # failure we still keep the appended pages — the manager can re-run
+    # by hand from the modal.
+    if reextract:
+        # Pull existing page bytes back from GridFS.
+        all_blobs: list = []
+        try:
+            for p in existing_pages:
+                fid = p.get("file_id")
+                if not fid:
+                    continue
+                oid = fid if isinstance(fid, ObjectId) else ObjectId(fid)
+                blob = _fs.get(oid).read()
+                all_blobs.append((blob, p.get("content_type", "image/jpeg")))
+        except Exception as e:  # noqa: BLE001
+            update["ai_error"] = f"Could not re-read existing pages: {e}"
+            all_blobs = []
+
+        all_blobs.extend(new_blobs)
+
+        if all_blobs:
+            try:
+                extracted = await _extract_invoice(all_blobs)
+                update.update({
+                    "supplier": extracted["supplier"] or rec.get("supplier", ""),
+                    "invoice_number": extracted["invoice_number"] or rec.get("invoice_number", ""),
+                    "invoice_date": extracted["invoice_date"] or rec.get("invoice_date", ""),
+                    "category": extracted["category"] if extracted["category"] != "other" else rec.get("category", "other"),
+                    "subtotal": extracted["subtotal"] or rec.get("subtotal", 0.0),
+                    "vat": extracted["vat"] or rec.get("vat", 0.0),
+                    "total": extracted["total"] or rec.get("total", 0.0),
+                    "items": extracted["items"],
+                    "ai_status": "ok",
+                    "ai_error": "",
+                })
+            except HTTPException as e:
+                update["ai_status"] = "failed"
+                update["ai_error"] = str(e.detail)
+            except Exception as e:  # noqa: BLE001
+                update["ai_status"] = "failed"
+                update["ai_error"] = f"AI re-extraction failed: {e}"
+
+    invoices.update_one({"id": invoice_id}, {"$set": update})
+    return _strip(invoices.find_one({"id": invoice_id}))
+
+
 @router.get("/{invoice_id}")
 async def get_invoice(invoice_id: str, user: dict = Depends(get_staff_or_above)):
     rec = invoices.find_one({"id": invoice_id})

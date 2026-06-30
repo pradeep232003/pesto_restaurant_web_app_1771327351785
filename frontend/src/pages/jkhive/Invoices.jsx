@@ -186,6 +186,7 @@ const Invoices = () => {
           isAdmin={isAdmin}
           locations={locations}
           onOpen={setEditing}
+          onMerged={load}
         />
       )}
 
@@ -462,7 +463,7 @@ const MultiPageScanButton = ({ adminLocationId, setBusy, busy, setError, onScann
 
 /** Recent view — card grid scoped to the current JKHive location. Same
  *  search filter as before so staff can still skim a supplier name. */
-const RecentView = ({ loading, list, search, setSearch, isAdmin, locations, onOpen }) => {
+const RecentView = ({ loading, list, search, setSearch, isAdmin, locations, onOpen, onMerged }) => {
   const filtered = list.filter(r =>
     !search ? true
       : (r.supplier || '').toLowerCase().includes(search.toLowerCase())
@@ -499,6 +500,7 @@ const RecentView = ({ loading, list, search, setSearch, isAdmin, locations, onOp
               isAdmin={isAdmin}
               locations={locations}
               onOpen={() => onOpen(r)}
+              onMerged={onMerged}
             />
           ))}
         </div>
@@ -811,17 +813,51 @@ const Widget = ({ testId, label, value, accent, sub }) => (
 );
 
 
-const InvoiceCard = ({ invoice, locations, onOpen }) => {
+const InvoiceCard = ({ invoice, locations, onOpen, onMerged }) => {
   const loc = locations.find(l => l.id === invoice.location_id);
   const failed = invoice.ai_status === 'failed';
   const cat = invoice.category || 'other';
+  const pageCount = invoice.page_count || (invoice.pages || []).length || 1;
+  const mergeRef = useRef(null);
+  const [merging, setMerging] = useState(false);
+  const [mergeErr, setMergeErr] = useState('');
+
+  const handleMergePick = async (e) => {
+    e.stopPropagation();
+    const picked = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!picked.length) return;
+    if (pageCount + picked.length > 20) {
+      setMergeErr('Maximum 20 pages per invoice');
+      setTimeout(() => setMergeErr(''), 3000);
+      return;
+    }
+    setMerging(true);
+    setMergeErr('');
+    try {
+      const fd = new FormData();
+      picked.forEach(f => fd.append('files', f, f.name || 'page'));
+      fd.append('reextract', 'true');
+      await api.invoiceAppendPages(invoice.id, fd);
+      if (onMerged) await onMerged();
+    } catch (err) {
+      setMergeErr(err.message || 'Merge failed');
+      setTimeout(() => setMergeErr(''), 4000);
+    } finally {
+      setMerging(false);
+    }
+  };
+
   return (
-    <button
+    <div
       data-testid={`invoice-card-${invoice.id}`}
       onClick={onOpen}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
       style={{
         textAlign: 'left', background: '#FFFFFF', borderRadius: 14, padding: 14,
-        boxShadow: '0 1px 2px rgba(0,0,0,0.04)', border: 0, cursor: 'pointer', ...FONT,
+        boxShadow: '0 1px 2px rgba(0,0,0,0.04)', cursor: 'pointer', ...FONT,
         display: 'flex', flexDirection: 'column', gap: 6,
         borderLeft: `3px solid ${catColor(cat)}`,
       }}
@@ -835,7 +871,37 @@ const InvoiceCard = ({ invoice, locations, onOpen }) => {
             {invoice.invoice_number ? `#${invoice.invoice_number} · ` : ''}{fmtDate(invoice.invoice_date || invoice.uploaded_at)}
           </p>
         </div>
-        <span style={{ fontSize: 15, fontWeight: 700, color: '#1D1D1F' }}>{fmtMoney(invoice.total)}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#1D1D1F' }}>{fmtMoney(invoice.total)}</span>
+          {/* Tiny "Add page" merge button — stops propagation so it
+              doesn't open the detail modal. */}
+          <input
+            ref={mergeRef}
+            data-testid={`invoice-card-merge-input-${invoice.id}`}
+            type="file"
+            accept="image/*,application/pdf"
+            multiple
+            hidden
+            onChange={handleMergePick}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            data-testid={`invoice-card-merge-${invoice.id}`}
+            onClick={(e) => { e.stopPropagation(); mergeRef.current?.click(); }}
+            disabled={merging}
+            aria-label="Merge another page into this invoice"
+            title={merging ? 'Reading new page…' : 'Add another page (merge)'}
+            style={{
+              width: 26, height: 26, borderRadius: 999, border: 0,
+              background: merging ? 'rgba(0,122,255,0.18)' : 'rgba(0,0,0,0.04)',
+              cursor: merging ? 'wait' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background 0.15s ease',
+            }}
+          >
+            {merging ? <Loader2 size={12} className="animate-spin" color="#007AFF" /> : <Plus size={13} color="#3A3A3C" />}
+          </button>
+        </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#86868B', flexWrap: 'wrap' }}>
         <span data-testid={`invoice-card-category-${invoice.id}`} style={{ padding: '2px 7px', borderRadius: 4, background: catColor(cat) + '22', color: catColor(cat), fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -844,11 +910,11 @@ const InvoiceCard = ({ invoice, locations, onOpen }) => {
         <MapPin size={11} /> {loc?.name || invoice.location_id}
         <span>·</span>
         <span>{(invoice.items || []).length} items</span>
-        {(invoice.page_count || (invoice.pages || []).length) > 1 && (
+        {pageCount > 1 && (
           <>
             <span>·</span>
             <span data-testid={`invoice-card-pages-${invoice.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: '#007AFF', fontWeight: 700 }}>
-              <Layers size={10} /> {invoice.page_count || invoice.pages.length} pages
+              <Layers size={10} /> {pageCount} pages
             </span>
           </>
         )}
@@ -859,7 +925,16 @@ const InvoiceCard = ({ invoice, locations, onOpen }) => {
           </span>
         )}
       </div>
-    </button>
+
+      {/* Tiny "Add page" merge button (moved into the header row to avoid
+          overlapping the total price). */}
+      {mergeErr && (
+        <div data-testid={`invoice-card-merge-err-${invoice.id}`} style={{
+          marginTop: 2, fontSize: 11, color: '#C0392B',
+          background: 'rgba(255,59,48,0.08)', padding: '4px 8px', borderRadius: 6,
+        }}>{mergeErr}</div>
+      )}
+    </div>
   );
 };
 
