@@ -9,11 +9,56 @@ import { useLocation2 } from '../../contexts/LocationContext';
 
 const FONT = { fontFamily: 'Outfit, sans-serif' };
 
+// Fixed category list — slug used in DB, label shown in UI, accent colour
+// for chips/widgets. Keep in sync with backend ALLOWED_CATEGORIES.
+const CATEGORIES = [
+  { key: 'stock',      label: 'Stock & Supplies',         color: '#34C759' },
+  { key: 'rent',       label: 'Rent',                     color: '#FF9500' },
+  { key: 'utilities',  label: 'Utilities',                color: '#FF3B30' },
+  { key: 'software',   label: 'Software & Subscriptions', color: '#5856D6' },
+  { key: 'repairs',    label: 'Repairs & Maintenance',    color: '#AF52DE' },
+  { key: 'marketing',  label: 'Marketing & Advertising',  color: '#FF2D55' },
+  { key: 'equipment',  label: 'Equipment & Furniture',    color: '#007AFF' },
+  { key: 'cleaning',   label: 'Cleaning & Hygiene',       color: '#5AC8FA' },
+  { key: 'insurance',  label: 'Insurance & Professional', color: '#A2845E' },
+  { key: 'other',      label: 'Other',                    color: '#8E8E93' },
+];
+const CATEGORY_BY_KEY = Object.fromEntries(CATEGORIES.map(c => [c.key, c]));
+const catLabel = (k) => CATEGORY_BY_KEY[k]?.label || 'Other';
+const catColor = (k) => CATEGORY_BY_KEY[k]?.color || '#8E8E93';
+
 const fmtMoney = (v) => `£${(Number(v) || 0).toFixed(2)}`;
 const fmtDate = (iso) => {
   if (!iso) return '';
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+// IndexedDB helpers — mirror of /share-sw.js so the SPA can read what the
+// service worker stashed during a Share-Target POST.
+const IDB_NAME = 'jk-share';
+const IDB_STORE = 'inbox';
+const openShareDb = () => new Promise((resolve, reject) => {
+  const req = indexedDB.open(IDB_NAME, 1);
+  req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+  req.onsuccess = () => resolve(req.result);
+  req.onerror = () => reject(req.error);
+});
+const popSharedBlob = async () => {
+  try {
+    const db = await openShareDb();
+    return await new Promise((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      const store = tx.objectStore(IDB_STORE);
+      const getReq = store.get('pending');
+      getReq.onsuccess = () => {
+        const value = getReq.result;
+        store.delete('pending'); // one-shot — consume on read
+        resolve(value || null);
+      };
+      getReq.onerror = () => resolve(null);
+    });
+  } catch { return null; }
 };
 
 /**
@@ -49,6 +94,7 @@ const Invoices = () => {
   const [allStart, setAllStart] = useState(monthAgo);
   const [allEnd, setAllEnd] = useState(today);
   const [allLocation, setAllLocation] = useState(''); // '' = all locations
+  const [allCategory, setAllCategory] = useState(''); // '' = all categories
   const [allList, setAllList] = useState([]);
   const [allLoading, setAllLoading] = useState(false);
 
@@ -77,6 +123,7 @@ const Invoices = () => {
     try {
       const rows = await api.invoicesList({
         location_id: allLocation || undefined,
+        category: allCategory || undefined,
         start_date: allStart || undefined,
         end_date: allEnd || undefined,
       });
@@ -89,7 +136,7 @@ const Invoices = () => {
   };
   useEffect(() => {
     if (tab === 'all') loadAll();
-  }, [tab, allStart, allEnd, allLocation]);
+  }, [tab, allStart, allEnd, allLocation, allCategory]);
 
   return (
     <div data-testid="invoices-page" style={{ ...FONT }}>
@@ -148,10 +195,12 @@ const Invoices = () => {
           start={allStart}
           end={allEnd}
           location={allLocation}
+          category={allCategory}
           locations={locations}
           setStart={setAllStart}
           setEnd={setAllEnd}
           setLocation={setAllLocation}
+          setCategory={setAllCategory}
           isAdmin={isAdmin}
           onOpen={setEditing}
         />
@@ -274,7 +323,7 @@ const RecentView = ({ loading, list, search, setSearch, isAdmin, locations, onOp
 
 /** All Invoices view — table + filters + widgets + CSV download. Primarily
  *  for admins to share monthly spend with their accountant. */
-const AllInvoicesView = ({ loading, list, start, end, location, locations, setStart, setEnd, setLocation, isAdmin, onOpen }) => {
+const AllInvoicesView = ({ loading, list, start, end, location, category, locations, setStart, setEnd, setLocation, setCategory, isAdmin, onOpen }) => {
   const stats = useMemo(() => {
     const count = list.length;
     const totalSpend = list.reduce((a, r) => a + (Number(r.total) || 0), 0);
@@ -287,7 +336,17 @@ const AllInvoicesView = ({ loading, list, start, end, location, locations, setSt
       return acc;
     }, {});
     const topSupplier = Object.entries(bySupplier).sort((a, b) => b[1] - a[1])[0];
-    return { count, totalSpend, totalVat, totalSubtotal, avg, topSupplier };
+    // Spend by category — ordered to match the fixed CATEGORIES list.
+    const byCategoryMap = list.reduce((acc, r) => {
+      const k = r.category || 'other';
+      acc[k] = (acc[k] || 0) + (Number(r.total) || 0);
+      return acc;
+    }, {});
+    const byCategory = CATEGORIES
+      .map(c => ({ ...c, spend: byCategoryMap[c.key] || 0 }))
+      .filter(c => c.spend > 0)
+      .sort((a, b) => b.spend - a.spend);
+    return { count, totalSpend, totalVat, totalSubtotal, avg, topSupplier, byCategory };
   }, [list]);
 
   const locName = (id) => locations.find(l => l.id === id)?.name || id;
@@ -310,12 +369,13 @@ const AllInvoicesView = ({ loading, list, start, end, location, locations, setSt
   const handleExport = () => {
     // Summary CSV — one row per invoice. For the accountant.
     const rows = [
-      ['Date', 'Uploaded', 'Supplier', 'Invoice #', 'Location', 'Subtotal £', 'VAT £', 'Total £', 'Items', 'AI status', 'Note'],
+      ['Date', 'Uploaded', 'Supplier', 'Invoice #', 'Category', 'Location', 'Subtotal £', 'VAT £', 'Total £', 'Items', 'AI status', 'Note'],
       ...list.map(r => [
         r.invoice_date || '',
         (r.uploaded_at || '').slice(0, 10),
         r.supplier || '',
         r.invoice_number || '',
+        catLabel(r.category || 'other'),
         locName(r.location_id),
         ((Number(r.total) || 0) - (Number(r.vat) || 0)).toFixed(2),
         (Number(r.vat) || 0).toFixed(2),
@@ -333,7 +393,7 @@ const AllInvoicesView = ({ loading, list, start, end, location, locations, setSt
   // analysis (qty × unit price × supplier × location pivots).
   const handleExportDetailed = () => {
     const rows = [[
-      'Date', 'Supplier', 'Invoice #', 'Location',
+      'Date', 'Supplier', 'Invoice #', 'Category', 'Location',
       'Item #', 'Description', 'Qty', 'Unit £', 'Line Total £',
       'Invoice Subtotal £', 'Invoice VAT £', 'Invoice Total £',
       'AI status', 'Uploaded by', 'Uploaded at',
@@ -344,6 +404,7 @@ const AllInvoicesView = ({ loading, list, start, end, location, locations, setSt
         r.invoice_date || '',
         r.supplier || '',
         r.invoice_number || '',
+        catLabel(r.category || 'other'),
         locName(r.location_id),
       ];
       const sharedFoot = [
@@ -388,6 +449,12 @@ const AllInvoicesView = ({ loading, list, start, end, location, locations, setSt
           <select data-testid="invoices-all-location" value={location} onChange={e => setLocation(e.target.value)} style={{ ...dateInput, minWidth: 160 }}>
             <option value="">All locations</option>
             {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </FilterField>
+        <FilterField label="Category">
+          <select data-testid="invoices-all-category" value={category} onChange={e => setCategory(e.target.value)} style={{ ...dateInput, minWidth: 160 }}>
+            <option value="">All categories</option>
+            {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
           </select>
         </FilterField>
         <div style={{ flex: 1 }} />
@@ -439,6 +506,30 @@ const AllInvoicesView = ({ loading, list, start, end, location, locations, setSt
         )}
       </div>
 
+      {/* Spend by Category breakdown — visually-weighted bar so the
+          manager can see at a glance which categories dominate the spend. */}
+      {stats.byCategory.length > 0 && (
+        <div data-testid="invoices-by-category" style={{ background: '#FFFFFF', borderRadius: 14, padding: '14px 16px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)', marginBottom: 14, ...FONT }}>
+          <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Spend by Category</p>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {stats.byCategory.map(c => {
+              const pct = stats.totalSpend > 0 ? (c.spend / stats.totalSpend) * 100 : 0;
+              return (
+                <div key={c.key} data-testid={`widget-cat-${c.key}`} style={{ display: 'grid', gridTemplateColumns: '160px 1fr 90px', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 12, color: '#1D1D1F', fontWeight: 600 }}>{c.label}</span>
+                  <div style={{ height: 10, borderRadius: 999, background: '#F5F5F7', overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', background: c.color, borderRadius: 999 }} />
+                  </div>
+                  <span style={{ fontSize: 12, color: '#1D1D1F', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
+                    {fmtMoney(c.spend)} <span style={{ color: '#86868B', fontWeight: 500, fontSize: 11 }}>· {pct.toFixed(0)}%</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div data-testid="invoices-all-table-wrap" style={{ background: '#FFFFFF', borderRadius: 14, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
         {loading ? (
           <div className="flex items-center justify-center h-32"><Loader2 className="animate-spin" size={20} color="#86868B" /></div>
@@ -451,7 +542,7 @@ const AllInvoicesView = ({ loading, list, start, end, location, locations, setSt
             <table data-testid="invoices-all-table" style={{ width: '100%', borderCollapse: 'collapse', ...FONT }}>
               <thead style={{ background: '#FAFAFC' }}>
                 <tr>
-                  {['Date', 'Supplier', 'Invoice #', 'Location', 'Items', 'Net £', 'VAT £', 'Total £', ''].map(h => (
+                  {['Date', 'Supplier', 'Invoice #', 'Category', 'Location', 'Items', 'Net £', 'VAT £', 'Total £', ''].map(h => (
                     <th key={h} style={{ textAlign: h.endsWith('£') || h === 'Items' ? 'right' : 'left', padding: '10px 12px', fontSize: 10, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid #ECECEF', whiteSpace: 'nowrap' }}>
                       {h}
                     </th>
@@ -461,11 +552,17 @@ const AllInvoicesView = ({ loading, list, start, end, location, locations, setSt
               <tbody>
                 {list.map(r => {
                   const net = (Number(r.total) || 0) - (Number(r.vat) || 0);
+                  const cat = r.category || 'other';
                   return (
                     <tr key={r.id} data-testid={`invoices-all-row-${r.id}`} style={{ borderBottom: '1px solid #F2F2F4' }}>
                       <td style={td}>{r.invoice_date || (r.uploaded_at || '').slice(0, 10)}</td>
                       <td style={{ ...td, fontWeight: 600, color: '#1D1D1F' }}>{r.supplier || '—'}</td>
                       <td style={td}>{r.invoice_number || '—'}</td>
+                      <td style={td}>
+                        <span data-testid={`invoices-all-cat-${r.id}`} style={{ padding: '2px 7px', borderRadius: 4, background: catColor(cat) + '22', color: catColor(cat), fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          {catLabel(cat)}
+                        </span>
+                      </td>
                       <td style={td}>{locName(r.location_id)}</td>
                       <td style={{ ...td, textAlign: 'right' }}>{(r.items || []).length}</td>
                       <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(net)}</td>
@@ -486,7 +583,7 @@ const AllInvoicesView = ({ loading, list, start, end, location, locations, setSt
               </tbody>
               <tfoot>
                 <tr style={{ background: '#FAFAFC' }}>
-                  <td style={{ ...td, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', fontSize: 10 }} colSpan={5}>Totals</td>
+                  <td style={{ ...td, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', fontSize: 10 }} colSpan={6}>Totals</td>
                   <td style={{ ...td, textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(stats.totalSubtotal)}</td>
                   <td style={{ ...td, textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: '#FF9500' }}>{fmtMoney(stats.totalVat)}</td>
                   <td style={{ ...td, textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: '#1D1D1F' }}>{fmtMoney(stats.totalSpend)}</td>
@@ -531,6 +628,7 @@ const Widget = ({ testId, label, value, accent, sub }) => (
 const InvoiceCard = ({ invoice, locations, onOpen }) => {
   const loc = locations.find(l => l.id === invoice.location_id);
   const failed = invoice.ai_status === 'failed';
+  const cat = invoice.category || 'other';
   return (
     <button
       data-testid={`invoice-card-${invoice.id}`}
@@ -539,6 +637,7 @@ const InvoiceCard = ({ invoice, locations, onOpen }) => {
         textAlign: 'left', background: '#FFFFFF', borderRadius: 14, padding: 14,
         boxShadow: '0 1px 2px rgba(0,0,0,0.04)', border: 0, cursor: 'pointer', ...FONT,
         display: 'flex', flexDirection: 'column', gap: 6,
+        borderLeft: `3px solid ${catColor(cat)}`,
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
@@ -552,7 +651,10 @@ const InvoiceCard = ({ invoice, locations, onOpen }) => {
         </div>
         <span style={{ fontSize: 15, fontWeight: 700, color: '#1D1D1F' }}>{fmtMoney(invoice.total)}</span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#86868B' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#86868B', flexWrap: 'wrap' }}>
+        <span data-testid={`invoice-card-category-${invoice.id}`} style={{ padding: '2px 7px', borderRadius: 4, background: catColor(cat) + '22', color: catColor(cat), fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          {catLabel(cat)}
+        </span>
         <MapPin size={11} /> {loc?.name || invoice.location_id}
         <span>·</span>
         <span>{(invoice.items || []).length} items</span>
@@ -609,6 +711,7 @@ const InvoiceModal = ({ invoice: initial, isAdmin, locations, onClose, onSaved }
         supplier: invoice.supplier,
         invoice_number: invoice.invoice_number,
         invoice_date: invoice.invoice_date,
+        category: invoice.category || 'other',
         subtotal: Number(invoice.subtotal) || 0,
         vat: Number(invoice.vat) || 0,
         total: Number(invoice.total) || 0,
@@ -723,6 +826,21 @@ const InvoiceModal = ({ invoice: initial, isAdmin, locations, onClose, onSaved }
                 fontSize: 13, ...FONT, cursor: isAdmin ? 'pointer' : 'not-allowed',
               }}>
               {safeLocations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 10, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Category</label>
+            <select
+              data-testid="invoice-category-select"
+              value={invoice.category || 'other'}
+              onChange={(e) => setField('category', e.target.value)}
+              disabled={!canEditAll}
+              style={{
+                marginTop: 2, width: '100%', padding: '8px 10px', borderRadius: 10, border: 0,
+                background: canEditAll ? '#FFFFFF' : '#F5F5F7', boxShadow: '0 0 0 1px rgba(0,0,0,0.06)',
+                fontSize: 13, ...FONT, cursor: canEditAll ? 'pointer' : 'not-allowed',
+              }}>
+              {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
             </select>
           </div>
         </div>

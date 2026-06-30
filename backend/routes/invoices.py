@@ -70,12 +70,24 @@ _AI_SYSTEM = (
     "otherwise leave vat: 0.\n"
     "5. If a field is not readable, return an empty string '' (or 0 for numbers) — never null.\n"
     "6. Currency is GBP for Jolly's. Strip £/$ from the numbers.\n"
-    "7. Line items: capture EVERY printed product line. Skip subtotals / VAT / totals.\n\n"
+    "7. Line items: capture EVERY printed product line. Skip subtotals / VAT / totals.\n"
+    "8. Best-guess the spend CATEGORY from this fixed list — return the slug exactly:\n"
+    "   - stock       (food, drink, coffee beans, packaging)\n"
+    "   - rent        (lease, rent invoices)\n"
+    "   - utilities   (electricity, gas, water, broadband, phone)\n"
+    "   - software    (EPOS, ordering, subscriptions, SaaS)\n"
+    "   - repairs     (repairs, maintenance, plumbing, electrician)\n"
+    "   - marketing   (ads, social, print, branding)\n"
+    "   - equipment   (machines, furniture, fittings)\n"
+    "   - cleaning    (cleaning supplies, pest control, hygiene)\n"
+    "   - insurance   (insurance, accountancy, legal, prof. fees)\n"
+    "   - other       (when uncertain)\n\n"
     "RESPONSE SHAPE:\n"
     "{\n"
     "  \"supplier\": \"Bidfood\",\n"
     "  \"invoice_number\": \"INV-12345\",\n"
     "  \"invoice_date\": \"YYYY-MM-DD or '' if unknown\",\n"
+    "  \"category\": \"stock\",\n"
     "  \"subtotal\": 142.30,\n"
     "  \"vat\": 28.46,\n"
     "  \"total\": 170.76,\n"
@@ -84,6 +96,13 @@ _AI_SYSTEM = (
     "  ]\n"
     "}"
 )
+
+# Allowed category slugs — mirror the frontend list. Any other value sent
+# by the LLM or user is coerced to "other".
+ALLOWED_CATEGORIES = {
+    "stock", "rent", "utilities", "software", "repairs",
+    "marketing", "equipment", "cleaning", "insurance", "other",
+}
 
 
 def _scrub_json(text: str) -> str:
@@ -201,11 +220,20 @@ async def _extract_invoice(image_bytes: bytes, media_type: str) -> dict:
         "supplier": (parsed.get("supplier") or "").strip(),
         "invoice_number": (parsed.get("invoice_number") or "").strip(),
         "invoice_date": (parsed.get("invoice_date") or "").strip(),
+        "category": _norm_category(parsed.get("category")),
         "subtotal": _coerce_num(parsed.get("subtotal")),
         "vat": _coerce_num(parsed.get("vat")),
         "total": _coerce_num(parsed.get("total")),
         "items": items,
     }
+
+
+def _norm_category(v: Any) -> str:
+    """Coerce any string into our fixed list. Unknown / empty → 'other'."""
+    if not v:
+        return "other"
+    s = str(v).strip().lower()
+    return s if s in ALLOWED_CATEGORIES else "other"
 
 
 # ---------------------------------------------------------------------------
@@ -216,19 +244,22 @@ async def _extract_invoice(image_bytes: bytes, media_type: str) -> dict:
 async def list_invoices(
     location_id: Optional[str] = Query(None),
     supplier: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
     start_date: Optional[str] = Query(None, description="YYYY-MM-DD — match invoice_date OR uploaded_at"),
     end_date: Optional[str] = Query(None),
     user: dict = Depends(get_staff_or_above),
 ):
-    """Newest invoices first. Filters: location, supplier substring, and an
+    """Newest invoices first. Filters: location, supplier substring, an
     inclusive date range (matches either the printed invoice_date or the
     uploaded_at timestamp so scans without a parsed invoice_date still
-    appear in their upload window)."""
+    appear in their upload window), and category."""
     q: dict = {}
     if location_id:
         q["location_id"] = location_id
     if supplier:
         q["supplier"] = {"$regex": re.escape(supplier), "$options": "i"}
+    if category:
+        q["category"] = category
     if start_date or end_date:
         # Cover both fields with one $or — date range matches either.
         s = start_date or "0000-01-01"
@@ -247,6 +278,7 @@ async def scan_invoice(
     file: UploadFile = File(...),
     location_id: str = Form(...),
     note: str = Form(""),
+    category: str = Form(""),
     user: dict = Depends(get_staff_or_above),
 ):
     """Upload an invoice photo, run AI extraction, persist a draft record.
@@ -278,6 +310,7 @@ async def scan_invoice(
     #    draft record so the manager can fill it in by hand.
     extracted = {
         "supplier": "", "invoice_number": "", "invoice_date": "",
+        "category": "other",
         "subtotal": 0.0, "vat": 0.0, "total": 0.0, "items": [],
     }
     ai_error = ""
@@ -288,6 +321,10 @@ async def scan_invoice(
     except Exception as e:  # noqa: BLE001
         ai_error = f"AI extraction failed: {e}"
 
+    # If the manager (or share-target) pre-tagged a category, honour it
+    # over the AI guess.
+    final_category = _norm_category(category) if category else extracted["category"]
+
     now_iso = datetime.now(timezone.utc).isoformat()
     doc = {
         "id": str(uuid.uuid4())[:12],
@@ -295,6 +332,7 @@ async def scan_invoice(
         "supplier": extracted["supplier"],
         "invoice_number": extracted["invoice_number"],
         "invoice_date": extracted["invoice_date"],
+        "category": final_category,
         "subtotal": extracted["subtotal"],
         "vat": extracted["vat"],
         "total": extracted["total"],
@@ -356,6 +394,7 @@ class InvoicePatch(BaseModel):
     supplier: Optional[str] = None
     invoice_number: Optional[str] = None
     invoice_date: Optional[str] = None
+    category: Optional[str] = None
     subtotal: Optional[float] = None
     vat: Optional[float] = None
     total: Optional[float] = None
@@ -373,6 +412,8 @@ async def update_invoice(invoice_id: str, body: InvoicePatch, user: dict = Depen
         v = getattr(body, field)
         if v is not None:
             update[field] = (v or "").strip()
+    if body.category is not None:
+        update["category"] = _norm_category(body.category)
     for field in ("subtotal", "vat", "total"):
         v = getattr(body, field)
         if v is not None:

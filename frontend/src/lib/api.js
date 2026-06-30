@@ -843,10 +843,11 @@ class ApiService {
   }
 
   // Invoices — supplier delivery invoices scanned by staff.
-  async invoicesList({ location_id, supplier, start_date, end_date } = {}) {
+  async invoicesList({ location_id, supplier, category, start_date, end_date } = {}) {
     const qs = new URLSearchParams();
     if (location_id) qs.set('location_id', location_id);
     if (supplier) qs.set('supplier', supplier);
+    if (category) qs.set('category', category);
     if (start_date) qs.set('start_date', start_date);
     if (end_date) qs.set('end_date', end_date);
     return this.fetch(`/api/admin/invoices${qs.toString() ? `?${qs.toString()}` : ''}`);
