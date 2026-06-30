@@ -841,6 +841,13 @@ class ApiService {
   async shiftBulkCreate(body) {
     return this.fetch('/api/admin/shifts/bulk-create', { method: 'POST', body: JSON.stringify(body) });
   }
+  async shiftWeekBudgetGet({ location_id, week_start }) {
+    const qs = new URLSearchParams({ location_id, week_start }).toString();
+    return this.fetch(`/api/admin/shifts/week-budget?${qs}`);
+  }
+  async shiftWeekBudgetPut(body) {
+    return this.fetch('/api/admin/shifts/week-budget', { method: 'PUT', body: JSON.stringify(body) });
+  }
 
   // Invoices — supplier delivery invoices scanned by staff.
   async invoicesList({ location_id, supplier, category, start_date, end_date } = {}) {

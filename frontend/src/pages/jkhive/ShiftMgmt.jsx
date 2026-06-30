@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Plus, ChevronLeft, ChevronRight, X, Trash2, Users, Clock, Copy, Send, FileEdit, Sparkles,
+  ArrowLeft, Plus, ChevronLeft, ChevronRight, X, Trash2, Users, Clock, Copy, Send, FileEdit, Sparkles, TrendingUp, Wallet, Edit3, Check, RotateCcw,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -30,6 +30,250 @@ const addDays = (d, n) => {
 const fmtDayLabel = (d) => `${DAY_NAMES[(d.getDay() + 6) % 7]} ${d.getDate()} ${d.toLocaleDateString('en-GB', { month: 'short' })}`;
 
 const fmtRange = (from, to) => `${from.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} – ${to.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}`;
+
+const fmtGbp = (v) => `£${(Number(v) || 0).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+const fmtGbpD = (v) => `£${(Number(v) || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** Wage Budget header — only rendered for admin/super_admin.
+ *
+ *  3 tiles: Last week's revenue (read-only), Next-week forecast (admin
+ *  can override with a pencil + reset), and Wage allocation (30% by
+ *  default) with a live progress bar that ticks DOWN as the manager
+ *  fills the rota. `weekCost` is recomputed in the parent on every shift
+ *  edit so the "remaining" figure stays in sync without any extra fetch.
+ */
+const BudgetBar = ({ locationId, weekStart, weekCost }) => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const [editingForecast, setEditingForecast] = useState(false);
+  const [forecastDraft, setForecastDraft] = useState('');
+  const [editingTarget, setEditingTarget] = useState(false);
+  const [targetDraft, setTargetDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!locationId || !weekStart) return;
+    setLoading(true);
+    setErr('');
+    try {
+      const res = await api.shiftWeekBudgetGet({ location_id: locationId, week_start: weekStart });
+      setData(res);
+    } catch (e) {
+      setErr(e.message || 'Failed to load budget');
+    } finally {
+      setLoading(false);
+    }
+  }, [locationId, weekStart]);
+  useEffect(() => { load(); }, [load]);
+
+  const saveForecast = async (overrideOrNull) => {
+    setSaving(true);
+    setErr('');
+    try {
+      const res = await api.shiftWeekBudgetPut({
+        location_id: locationId,
+        week_start: weekStart,
+        forecast_override: overrideOrNull,
+      });
+      setData(res);
+      setEditingForecast(false);
+    } catch (e) {
+      setErr(e.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveTarget = async (pct) => {
+    setSaving(true);
+    setErr('');
+    try {
+      const res = await api.shiftWeekBudgetPut({
+        location_id: locationId,
+        week_start: weekStart,
+        target_pct: pct,
+      });
+      setData(res);
+      setEditingTarget(false);
+    } catch (e) {
+      setErr(e.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading && !data) {
+    return (
+      <div data-testid="shifts-budget-bar-loading" style={{
+        background: '#FFFFFF', borderRadius: 14, padding: 14, marginBottom: 10,
+        boxShadow: '0 1px 2px rgba(0,0,0,0.04)', color: '#86868B', fontSize: 12, ...FONT,
+      }}>Loading wage budget…</div>
+    );
+  }
+  if (!data) return null;
+
+  const budget = Number(data.wage_budget) || 0;
+  const used = Number(weekCost) || 0;
+  const remaining = budget - used;
+  const usedPct = budget > 0 ? Math.min(999, (used / budget) * 100) : 0;
+  // Colour bands: <80% green, 80-100% amber, >100% red.
+  const accent = usedPct > 100 ? '#FF3B30' : usedPct >= 80 ? '#FF9500' : '#34C759';
+
+  return (
+    <div data-testid="shifts-budget-bar" style={{
+      background: '#FFFFFF', borderRadius: 14, padding: 14, marginBottom: 10,
+      boxShadow: '0 1px 2px rgba(0,0,0,0.04)', ...FONT,
+    }}>
+      <div style={{
+        display: 'grid', gap: 12,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+      }}>
+        {/* Last week revenue */}
+        <div data-testid="budget-tile-last-week">
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <TrendingUp size={10} /> Last week revenue
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#1D1D1F', marginTop: 2, letterSpacing: '-0.02em' }}>
+            {fmtGbp(data.last_week_revenue)}
+          </div>
+          <div style={{ fontSize: 10, color: '#86868B', marginTop: 2 }}>
+            {data.last_week_start?.slice(5)} – {data.last_week_end?.slice(5)}
+          </div>
+        </div>
+
+        {/* Forecast — editable */}
+        <div data-testid="budget-tile-forecast">
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 4 }}>
+            Next-week forecast
+            {data.forecast_overridden && (
+              <span style={{ background: 'rgba(0,122,255,0.12)', color: '#007AFF', padding: '1px 5px', borderRadius: 4, fontSize: 9 }}>
+                MANUAL
+              </span>
+            )}
+          </div>
+          {editingForecast ? (
+            <div style={{ display: 'flex', gap: 4, marginTop: 4, alignItems: 'center' }}>
+              <span style={{ color: '#86868B', fontSize: 16 }}>£</span>
+              <input
+                data-testid="budget-forecast-input"
+                type="number"
+                inputMode="decimal"
+                autoFocus
+                value={forecastDraft}
+                onChange={(e) => setForecastDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') saveForecast(Number(forecastDraft) || 0); if (e.key === 'Escape') setEditingForecast(false); }}
+                style={{ flex: 1, minWidth: 60, padding: '4px 6px', border: '1px solid #007AFF', borderRadius: 6, fontSize: 16, fontWeight: 700, ...FONT }}
+              />
+              <button data-testid="budget-forecast-save" onClick={() => saveForecast(Number(forecastDraft) || 0)} disabled={saving}
+                style={{ width: 22, height: 22, borderRadius: 999, background: '#34C759', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Check size={12} color="#FFF" />
+              </button>
+              <button onClick={() => setEditingForecast(false)} disabled={saving}
+                style={{ width: 22, height: 22, borderRadius: 999, background: '#F5F5F7', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <X size={12} color="#1D1D1F" />
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
+              <span style={{ fontSize: 20, fontWeight: 800, color: '#1D1D1F', letterSpacing: '-0.02em' }}>
+                {fmtGbp(data.forecast)}
+              </span>
+              <button
+                data-testid="budget-forecast-edit"
+                onClick={() => { setForecastDraft(String(Math.round(Number(data.forecast) || 0))); setEditingForecast(true); }}
+                aria-label="Override forecast"
+                style={{ background: 'transparent', border: 0, padding: 2, cursor: 'pointer', color: '#007AFF' }}
+              >
+                <Edit3 size={12} />
+              </button>
+              {data.forecast_overridden && (
+                <button
+                  data-testid="budget-forecast-reset"
+                  onClick={() => saveForecast(null)}
+                  aria-label="Reset to last week"
+                  title="Reset to last week's revenue"
+                  style={{ background: 'transparent', border: 0, padding: 2, cursor: 'pointer', color: '#86868B' }}
+                >
+                  <RotateCcw size={11} />
+                </button>
+              )}
+            </div>
+          )}
+          <div style={{ fontSize: 10, color: '#86868B', marginTop: 2 }}>
+            {data.forecast_overridden ? 'Manager override' : 'Default = last week'}
+          </div>
+        </div>
+
+        {/* Wage allocation — live progress */}
+        <div data-testid="budget-tile-wages" style={{ gridColumn: 'span 1', minWidth: 0 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Wallet size={10} />
+            <span>Wage allocation</span>
+            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 2 }}>
+              {editingTarget ? (
+                <>
+                  <input
+                    data-testid="budget-target-input"
+                    type="number"
+                    min="0"
+                    max="100"
+                    autoFocus
+                    value={targetDraft}
+                    onChange={(e) => setTargetDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') saveTarget(Number(targetDraft) || 0); if (e.key === 'Escape') setEditingTarget(false); }}
+                    style={{ width: 40, padding: '2px 4px', border: '1px solid #007AFF', borderRadius: 4, fontSize: 11, ...FONT }}
+                  />
+                  <span>%</span>
+                  <button onClick={() => saveTarget(Number(targetDraft) || 0)} disabled={saving}
+                    style={{ width: 18, height: 18, borderRadius: 999, background: '#34C759', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Check size={10} color="#FFF" />
+                  </button>
+                </>
+              ) : (
+                <button
+                  data-testid="budget-target-edit"
+                  onClick={() => { setTargetDraft(String(Math.round(Number(data.target_pct) || 30))); setEditingTarget(true); }}
+                  style={{ background: 'transparent', border: 0, padding: '0 2px', cursor: 'pointer', color: '#007AFF', fontSize: 10, fontWeight: 700 }}
+                  title="Change target %"
+                >
+                  {Math.round(data.target_pct || 30)}%
+                </button>
+              )}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 2, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 20, fontWeight: 800, color: accent, letterSpacing: '-0.02em' }}>
+              {fmtGbpD(remaining)}
+            </span>
+            <span style={{ fontSize: 11, color: '#86868B' }}>left of {fmtGbp(budget)}</span>
+          </div>
+          <div style={{ marginTop: 6, height: 6, borderRadius: 999, background: '#F0F0F2', overflow: 'hidden', position: 'relative' }}>
+            <div
+              data-testid="budget-progress-fill"
+              style={{
+                position: 'absolute', inset: 0, width: `${Math.min(100, usedPct)}%`,
+                background: accent, borderRadius: 999, transition: 'width 0.3s ease',
+              }}
+            />
+          </div>
+          <div style={{ fontSize: 10, color: '#86868B', marginTop: 4 }}>
+            Used <span style={{ color: '#1D1D1F', fontWeight: 700 }}>{fmtGbpD(used)}</span>
+            {' · '}
+            <span style={{ color: accent, fontWeight: 700 }}>{usedPct.toFixed(0)}%</span>
+            {usedPct > 100 && <span style={{ color: '#FF3B30', fontWeight: 700 }}> · over budget</span>}
+          </div>
+        </div>
+      </div>
+
+      {err && (
+        <div data-testid="budget-error" style={{ marginTop: 8, fontSize: 11, color: '#C0392B' }}>
+          {err}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const ShiftMgmt = () => {
   const navigate = useNavigate();
@@ -256,6 +500,17 @@ const ShiftMgmt = () => {
         </h1>
         <p className="text-[13px] mt-1" style={{ color: '#86868B' }}>{locName}</p>
       </div>
+
+      {/* Wage Budget bar — admin only. Shows last-week revenue, next-week
+          forecast (override-able) and the 30% wage allocation, then ticks
+          DOWN live as shifts × hourly_rate fill the week. */}
+      {isAdmin && (
+        <BudgetBar
+          locationId={adminLocationId}
+          weekStart={toIso(weekStart)}
+          weekCost={weekCost}
+        />
+      )}
 
       {/* Admin tools row — per-staff filter + Copy-last-week + Publish.
           Hidden for regular staff so their view stays focused on their own shifts. */}

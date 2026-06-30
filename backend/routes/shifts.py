@@ -25,6 +25,11 @@ shifts_collection = db["shifts"]
 staff_collection = db["staff_members"]
 daily_sales_collection = db["daily_sales"]
 site_settings_collection = db["site_settings"]
+shift_budgets_collection = db["shift_budgets"]
+
+
+# Default wage-to-revenue target. Keep in sync with the frontend label.
+DEFAULT_WAGE_TARGET_PCT = 30.0
 
 
 def _hours_between(start: str, end: str) -> float:
@@ -689,3 +694,110 @@ async def bulk_create(body: BulkCreateBody, user: dict = Depends(get_admin_user)
     if docs:
         shifts_collection.insert_many([dict(d) for d in docs])
     return {"created": len(inserted), "skipped": skipped, "shifts": inserted}
+
+
+# ---------------------------------------------------------------------------
+# Wage Budget — labour cost optimisation widget on /jkhive/shifts.
+#
+# Workflow:
+#   1. Look up last week's revenue from `daily_sales` for the location.
+#   2. Forecast = manager override (if set) OR last_week_revenue.
+#   3. Wage budget = forecast * target_pct (default 30%).
+#   4. wage_used is computed client-side from the visible shifts so it
+#      ticks down live as the rota fills in.
+# ---------------------------------------------------------------------------
+
+def _iso_minus(d_iso: str, days: int) -> str:
+    """Return YYYY-MM-DD shifted by `days` (positive or negative)."""
+    d = datetime.strptime(d_iso, "%Y-%m-%d").date()
+    return (d + _td(days=days)).isoformat()
+
+
+def _sum_revenue(location_id: str, start_iso: str, end_iso: str) -> float:
+    """Sum daily_sales.sales for one location inside [start, end] inclusive."""
+    rows = daily_sales_collection.find(
+        {"location_id": location_id, "date": {"$gte": start_iso, "$lte": end_iso}},
+        {"_id": 0, "sales": 1},
+    )
+    return round(sum(float(r.get("sales") or 0) for r in rows), 2)
+
+
+class WageBudgetPut(BaseModel):
+    location_id: str
+    week_start: str  # YYYY-MM-DD (Monday)
+    forecast_override: Optional[float] = None  # null clears the override
+    target_pct: Optional[float] = None
+
+
+@router.get("/week-budget")
+async def get_week_budget(
+    location_id: str = Query(...),
+    week_start: str = Query(..., description="YYYY-MM-DD Monday"),
+    user: dict = Depends(get_admin_user),
+):
+    """Wage budget snapshot for one site & week.
+
+    `wage_used` is intentionally NOT computed here — the frontend already
+    knows the visible shifts × hourly_rate breakdown and ticks the figure
+    down in real time as the manager edits the grid. Returning a stale
+    server value would just confuse things.
+    """
+    week_end = _iso_minus(week_start, 6)
+    last_week_start = _iso_minus(week_start, -7)
+    last_week_end = _iso_minus(week_start, -1)
+
+    last_week_revenue = _sum_revenue(location_id, last_week_start, last_week_end)
+
+    saved = shift_budgets_collection.find_one(
+        {"location_id": location_id, "week_start": week_start}, {"_id": 0},
+    ) or {}
+    forecast_override = saved.get("forecast_override")
+    target_pct = float(saved.get("target_pct") or DEFAULT_WAGE_TARGET_PCT)
+    forecast = float(forecast_override) if forecast_override is not None else last_week_revenue
+    wage_budget = round(forecast * target_pct / 100.0, 2)
+
+    return {
+        "location_id": location_id,
+        "week_start": week_start,
+        "week_end": week_end,
+        "last_week_start": last_week_start,
+        "last_week_end": last_week_end,
+        "last_week_revenue": last_week_revenue,
+        "forecast": round(forecast, 2),
+        "forecast_overridden": forecast_override is not None,
+        "target_pct": target_pct,
+        "wage_budget": wage_budget,
+    }
+
+
+@router.put("/week-budget")
+async def put_week_budget(body: WageBudgetPut, user: dict = Depends(get_admin_user)):
+    """Set/clear the forecast override and target % for a (site, week).
+    Passing `forecast_override: null` clears the override so the widget
+    falls back to last week's revenue."""
+    update = {
+        "location_id": body.location_id,
+        "week_start": body.week_start,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_by": user.get("email", ""),
+        "updated_by_name": user.get("name", ""),
+    }
+    if body.forecast_override is not None:
+        update["forecast_override"] = round(float(body.forecast_override), 2)
+    else:
+        # Explicit None on the wire clears the override.
+        update["forecast_override"] = None
+    if body.target_pct is not None:
+        pct = float(body.target_pct)
+        if pct < 0 or pct > 100:
+            raise HTTPException(400, "target_pct must be between 0 and 100")
+        update["target_pct"] = round(pct, 2)
+
+    shift_budgets_collection.update_one(
+        {"location_id": body.location_id, "week_start": body.week_start},
+        {"$set": update},
+        upsert=True,
+    )
+    return await get_week_budget(
+        location_id=body.location_id, week_start=body.week_start, user=user,
+    )
