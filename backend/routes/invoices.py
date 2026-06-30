@@ -261,13 +261,16 @@ async def list_invoices(
     if category:
         q["category"] = category
     if start_date or end_date:
-        # Cover both fields with one $or — date range matches either.
+        # Prefer the printed invoice_date when present so a March invoice
+        # scanned in June stays in the March report. Only fall back to
+        # uploaded_at for scans whose invoice_date is missing/blank.
         s = start_date or "0000-01-01"
         e = end_date or "9999-12-31"
-        e_upload = e + "T23:59:59.999Z"  # inclusive end-of-day for uploaded_at
+        e_upload = e + "T23:59:59.999Z"
+        missing_inv_date = {"$or": [{"invoice_date": ""}, {"invoice_date": {"$exists": False}}, {"invoice_date": None}]}
         q["$or"] = [
             {"invoice_date": {"$gte": s, "$lte": e}},
-            {"uploaded_at": {"$gte": s, "$lte": e_upload}},
+            {"$and": [missing_inv_date, {"uploaded_at": {"$gte": s, "$lte": e_upload}}]},
         ]
     rows = list(invoices.find(q).sort("uploaded_at", -1).limit(2000))
     return [_strip(r) for r in rows]

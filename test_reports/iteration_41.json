@@ -1,0 +1,32 @@
+{
+  "summary": "Verified the BI Food % date-filter bugfix end-to-end. Seeded 4 invoices on Timperley (March-dated/June-uploaded, blank-date/June-uploaded, June-dated/July-uploaded, null-date/June-uploaded) and confirmed both routes.bi._stock_spend_by_location and GET /api/admin/invoices honour invoice_date when present and only fall back to uploaded_at when invoice_date is missing/blank/null. All 6 new tests pass and all 7 regression tests in test_invoices.py still pass. Seed docs cleaned up.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_invoice_date_filter.py",
+    "/app/test_reports/pytest/pytest_invoice_date_filter.xml",
+    "/app/test_reports/pytest/pytest_invoices_iter41.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/bi.py and routes/invoices.py now have duplicated date-filter logic (the $or with missing_inv_date fallback). Consider extracting into a shared helper (e.g. invoice_date_window_query(start, end)) to keep the two endpoints from drifting again.",
+    "_stock_spend_by_location builds end_upload = end_date + 'T23:59:59.999Z' but uploaded_at is stored as ISO with offset (e.g. 2026-06-10T12:00:00+00:00 from datetime.now(timezone.utc).isoformat()). String-range works in tests because both formats sort lexicographically, but this is fragile if uploaded_at is ever stored as a real BSON Date. Worth a note/refactor."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_invoice_date_filter.py (new)"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "n/a (skipped per request)"},
+  "test_credentials": "Used admin@jollys.com / Admin123! from /app/memory/test_credentials.md",
+  "seed_data_creation": "Inserted 4 TEST_DATEBUG_* invoice docs on timperley-altrincham (category=stock) for the test module, removed in module-scoped fixture teardown. Verified 0 TEST_DATEBUG_ docs remain after the run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_invoice_date_filter.py is now the regression suite for the invoice-date-window bug. It both calls the BI helper directly and hits the public /api/admin/invoices endpoint. If touching that filter again, run: pytest /app/backend/tests/test_invoice_date_filter.py /app/backend/tests/test_invoices.py -v.",
+  "rca of the issue": "Original query was {'$or': [{invoice_date in window}, {uploaded_at in window}]} — so a March-dated invoice scanned in June matched the second clause and leaked into the June Food %. Fix wraps the uploaded_at clause in an $and with a missing/blank/null check on invoice_date, so uploaded_at is only consulted when invoice_date can't be trusted. Verified: June filter excludes March-dated/June-uploaded invoice (A); March filter includes it; blank-date and null-date invoices uploaded in June still appear under June; June-dated invoice uploaded in July still appears in June; July filter excludes all four seeds."
+}

@@ -104,15 +104,20 @@ def _avg_recipe_cost_by_location() -> dict:
 
 def _stock_spend_by_location(start_date: str, end_date: str, location_id: Optional[str]) -> dict:
     """Sum invoice totals for category=='stock' in the given date range,
-    grouped by location_id. Matches either the printed invoice_date OR
-    the uploaded_at (so scans without a parsed date still attribute to
-    the upload window, mirroring the /invoices list filter behaviour)."""
+    grouped by location_id.
+
+    Date-matching rule (matters when an invoice from March is scanned in
+    June): prefer the printed invoice_date when present; only fall back
+    to uploaded_at for scans that have NO printed invoice_date. This
+    keeps backdated scans out of unrelated reporting periods."""
     end_upload = end_date + "T23:59:59.999Z"
+    in_window = {"$gte": start_date, "$lte": end_date}
+    missing_inv_date = {"$or": [{"invoice_date": ""}, {"invoice_date": {"$exists": False}}, {"invoice_date": None}]}
     q: dict = {
         "category": "stock",
         "$or": [
-            {"invoice_date": {"$gte": start_date, "$lte": end_date}},
-            {"uploaded_at": {"$gte": start_date, "$lte": end_upload}},
+            {"invoice_date": in_window},
+            {"$and": [missing_inv_date, {"uploaded_at": {"$gte": start_date, "$lte": end_upload}}]},
         ],
     }
     if location_id:
