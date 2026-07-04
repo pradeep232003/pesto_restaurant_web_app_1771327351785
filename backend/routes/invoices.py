@@ -303,24 +303,37 @@ def _norm_iso_date(v: Any) -> str:
 
     We already ask the AI for ISO, but Claude occasionally mirrors the
     printed format (e.g. `03/07/2026`, `3/7/26`, `July 3, 2026`) — those
-    non-ISO strings then break every date-range query downstream. Fixing
-    them at write time is way cheaper than dealing with the fallout on
-    read. Returns '' when we can't confidently parse."""
+    non-ISO strings then break every date-range query downstream. It also
+    occasionally emits a 2-digit year zero-padded to look ISO
+    (`0026-07-03`), which passes the shape check but sorts before any
+    real year. Fixing all this at write time is way cheaper than dealing
+    with the fallout on read. Returns '' when we can't confidently parse."""
     if v is None:
         return ""
     s = str(v).strip()
     if not s:
         return ""
-    # Already ISO.
-    if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
-        return s
+    # ISO shape — but sanity-check the year. If < 100 treat as 20xx/19xx,
+    # if > 2999 give up (Claude sometimes hallucinates absurd values).
+    m_iso = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", s)
+    if m_iso:
+        y, mo, d = map(int, m_iso.groups())
+        if 1000 <= y <= 2999 and 1 <= mo <= 12 and 1 <= d <= 31:
+            return s  # normal case — already correct
+        if y < 100:
+            # e.g. "0026-07-03" — 2-digit year zero-padded. Same rule
+            # as UK dates: 00-49 → 2000s, 50-99 → 1900s.
+            y = 2000 + y if y < 50 else 1900 + y
+            try:
+                return datetime(y, mo, d).strftime("%Y-%m-%d")
+            except (ValueError, TypeError):
+                return ""
+        return ""  # anything else with an odd ISO year is unrecoverable
     # dd/mm/yyyy or dd/mm/yy — UK order (Jolly's is UK-based).
     m = re.match(r"^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})$", s)
     if m:
         d, mo, y = m.groups()
         yi = int(y)
-        # 2-digit years: 00-49 → 2000s, 50-99 → 1900s (invoices are recent
-        # so this default is safe; tweak only if a real edge case appears).
         if yi < 100:
             yi = 2000 + yi if yi < 50 else 1900 + yi
         try:
@@ -1191,40 +1204,57 @@ async def update_invoice(invoice_id: str, body: InvoicePatch, user: dict = Depen
 
 @router.post("/admin/normalise-dates")
 async def normalise_invoice_dates(user: dict = Depends(get_admin_user)):
-    """One-shot migration: coerce every non-ISO `invoice_date` in the
-    collection into YYYY-MM-DD via `_norm_iso_date`. Safe to run multiple
-    times — already-ISO records are left untouched. Fixes historical data
-    that landed with `03/07/2026` / `3 July 2026` style dates and was
-    consequently invisible to the All-view date filter."""
+    """One-shot migration: coerce every `invoice_date` through
+    `_norm_iso_date`. Also catches "already ISO but wrong year" cases
+    (e.g. `0026-07-03` → `2026-07-03`) which slipped past the previous
+    version of this migration. Safe to run multiple times — records
+    that are already correct + within a sane range are untouched.
+
+    Response includes a `years_after` histogram so the admin can spot
+    remaining anomalies without opening the DB."""
     updated = 0
-    skipped = 0
+    unchanged = 0
     unfixable: list = []
     cursor = invoices.find(
-        {"invoice_date": {"$exists": True, "$nin": ["", None]}},
-        {"_id": 0, "id": 1, "invoice_date": 1, "supplier": 1, "invoice_number": 1},
+        {},
+        {"_id": 0, "id": 1, "invoice_date": 1, "supplier": 1,
+         "invoice_number": 1, "uploaded_at": 1},
     )
     for rec in cursor:
         current = rec.get("invoice_date") or ""
-        if re.match(r"^\d{4}-\d{2}-\d{2}$", current):
-            skipped += 1
-            continue
-        iso = _norm_iso_date(current)
-        if iso:
-            invoices.update_one({"id": rec["id"]}, {"$set": {"invoice_date": iso}})
+        normalised = _norm_iso_date(current)
+        if normalised and normalised != current:
+            invoices.update_one({"id": rec["id"]}, {"$set": {"invoice_date": normalised}})
             updated += 1
+        elif normalised:
+            unchanged += 1
         else:
-            unfixable.append({
-                "id": rec["id"],
-                "supplier": rec.get("supplier", ""),
-                "invoice_number": rec.get("invoice_number", ""),
-                "raw_date": current,
-            })
+            # Non-empty but unparseable — track so accountant can hand-fix.
+            if current:
+                unfixable.append({
+                    "id": rec["id"],
+                    "supplier": rec.get("supplier", ""),
+                    "invoice_number": rec.get("invoice_number", ""),
+                    "raw_date": current,
+                })
+            else:
+                unchanged += 1
+
+    # Year distribution AFTER the migration — quick diagnostic for the
+    # admin ("did I really have five invoices dated 2027?").
+    years_after: dict = {}
+    for rec in invoices.find({}, {"_id": 0, "invoice_date": 1}):
+        d = rec.get("invoice_date") or ""
+        key = d[:4] if re.match(r"^\d{4}-\d{2}-\d{2}$", d) else "(blank)"
+        years_after[key] = years_after.get(key, 0) + 1
+
     return {
-        "scanned": updated + skipped + len(unfixable),
+        "scanned": updated + unchanged + len(unfixable),
         "updated": updated,
-        "already_iso": skipped,
-        "unfixable": unfixable[:50],   # cap payload — accountant can edit these by hand
+        "unchanged": unchanged,
+        "unfixable": unfixable[:50],
         "unfixable_count": len(unfixable),
+        "years_after": dict(sorted(years_after.items())),
     }
 
 

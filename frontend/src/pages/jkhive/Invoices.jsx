@@ -596,10 +596,19 @@ const NormaliseDatesButton = () => {
           position: 'fixed', bottom: 96, left: '50%', transform: 'translateX(-50%)',
           background: '#1D1D1F', color: '#FFFFFF', padding: '10px 16px', borderRadius: 12,
           boxShadow: '0 10px 30px rgba(0,0,0,0.25)', zIndex: 300,
-          fontSize: 12, ...FONT, maxWidth: '92vw',
+          fontSize: 12, ...FONT, maxWidth: '92vw', lineHeight: 1.5,
         }}>
-          Fixed <strong>{result.updated}</strong> · already ISO {result.already_iso} · unfixable {result.unfixable_count || 0}
-          {result.unfixable_count > 0 && ' — edit those by hand'}
+          <div>
+            Fixed <strong>{result.updated}</strong> ·
+            unchanged {result.unchanged ?? result.already_iso ?? 0} ·
+            unfixable {result.unfixable_count || 0}
+            {result.unfixable_count > 0 && ' — edit those by hand'}
+          </div>
+          {result.years_after && (
+            <div style={{ marginTop: 6, fontSize: 11, opacity: 0.85 }}>
+              Years: {Object.entries(result.years_after).map(([y, n]) => `${y}:${n}`).join(' · ')}
+            </div>
+          )}
         </div>
       )}
       {err && (
