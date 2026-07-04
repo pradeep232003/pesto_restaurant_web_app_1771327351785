@@ -561,8 +561,8 @@ const NormaliseDatesButton = () => {
     try {
       const res = await api.invoiceNormaliseDates();
       setResult(res);
-      // Auto-hide toast after 8s so it doesn't linger.
-      setTimeout(() => setResult(null), 8000);
+      // Auto-hide toast after 20s (long enough to read a list of fixes).
+      setTimeout(() => setResult(null), 20000);
     } catch (e) {
       setErr(e.message || 'Migration failed');
       setTimeout(() => setErr(''), 6000);
@@ -601,12 +601,24 @@ const NormaliseDatesButton = () => {
           <div>
             Fixed <strong>{result.updated}</strong> ·
             unchanged {result.unchanged ?? result.already_iso ?? 0} ·
-            unfixable {result.unfixable_count || 0}
-            {result.unfixable_count > 0 && ' — edit those by hand'}
+            {result.cleared_count > 0 && (
+              <> cleared <strong style={{ color: '#FF9500' }}>{result.cleared_count}</strong> hallucinated ·</>
+            )}
+            {' '}unfixable {result.unfixable_count || 0}
           </div>
           {result.years_after && (
             <div style={{ marginTop: 6, fontSize: 11, opacity: 0.85 }}>
               Years: {Object.entries(result.years_after).map(([y, n]) => `${y}:${n}`).join(' · ')}
+            </div>
+          )}
+          {result.cleared_hallucinations && result.cleared_hallucinations.length > 0 && (
+            <div style={{ marginTop: 8, fontSize: 11, opacity: 0.85, borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: 6 }}>
+              <div style={{ marginBottom: 4, opacity: 0.7 }}>Cleared bad dates — please edit these by hand:</div>
+              {result.cleared_hallucinations.map((h, i) => (
+                <div key={i}>
+                  · {h.supplier || '—'} #{h.invoice_number || '—'} (was &quot;{h.raw_date}&quot;)
+                </div>
+              ))}
             </div>
           )}
         </div>

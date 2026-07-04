@@ -1205,15 +1205,18 @@ async def update_invoice(invoice_id: str, body: InvoicePatch, user: dict = Depen
 @router.post("/admin/normalise-dates")
 async def normalise_invoice_dates(user: dict = Depends(get_admin_user)):
     """One-shot migration: coerce every `invoice_date` through
-    `_norm_iso_date`. Also catches "already ISO but wrong year" cases
-    (e.g. `0026-07-03` → `2026-07-03`) which slipped past the previous
-    version of this migration. Safe to run multiple times — records
-    that are already correct + within a sane range are untouched.
+    `_norm_iso_date`. Also detects out-of-range years (AI hallucinations
+    like `2028-07-03` or `2036-11-01`) and clears them, preserving the
+    original guess in `invoice_date_raw` so the admin can review + edit.
+    Cleared records fall back to `uploaded_at` for date-range queries,
+    so they stop being invisible. Safe to run multiple times."""
+    today_year = datetime.now(timezone.utc).year
+    MAX_SANE_YEAR = today_year + 1     # allow next-year invoices (rare but real)
+    MIN_SANE_YEAR = 2000
 
-    Response includes a `years_after` histogram so the admin can spot
-    remaining anomalies without opening the DB."""
     updated = 0
     unchanged = 0
+    cleared_hallucinations: list = []
     unfixable: list = []
     cursor = invoices.find(
         {},
@@ -1223,25 +1226,43 @@ async def normalise_invoice_dates(user: dict = Depends(get_admin_user)):
     for rec in cursor:
         current = rec.get("invoice_date") or ""
         normalised = _norm_iso_date(current)
+
+        # Sanity check the parsed year against uploaded_at (or today).
+        suspect_year = None
+        if normalised and re.match(r"^\d{4}-\d{2}-\d{2}$", normalised):
+            y = int(normalised[:4])
+            if y < MIN_SANE_YEAR or y > MAX_SANE_YEAR:
+                suspect_year = y
+
+        if suspect_year is not None:
+            # Hallucinated year — clear the ISO date, preserve raw for review.
+            invoices.update_one(
+                {"id": rec["id"]},
+                {"$set": {"invoice_date": "", "invoice_date_raw": current}},
+            )
+            cleared_hallucinations.append({
+                "id": rec["id"],
+                "supplier": rec.get("supplier", ""),
+                "invoice_number": rec.get("invoice_number", ""),
+                "raw_date": current,
+                "suspect_year": suspect_year,
+            })
+            continue
+
         if normalised and normalised != current:
             invoices.update_one({"id": rec["id"]}, {"$set": {"invoice_date": normalised}})
             updated += 1
-        elif normalised:
+        elif normalised or not current:
             unchanged += 1
         else:
-            # Non-empty but unparseable — track so accountant can hand-fix.
-            if current:
-                unfixable.append({
-                    "id": rec["id"],
-                    "supplier": rec.get("supplier", ""),
-                    "invoice_number": rec.get("invoice_number", ""),
-                    "raw_date": current,
-                })
-            else:
-                unchanged += 1
+            unfixable.append({
+                "id": rec["id"],
+                "supplier": rec.get("supplier", ""),
+                "invoice_number": rec.get("invoice_number", ""),
+                "raw_date": current,
+            })
 
-    # Year distribution AFTER the migration — quick diagnostic for the
-    # admin ("did I really have five invoices dated 2027?").
+    # Year distribution AFTER the migration.
     years_after: dict = {}
     for rec in invoices.find({}, {"_id": 0, "invoice_date": 1}):
         d = rec.get("invoice_date") or ""
@@ -1249,9 +1270,11 @@ async def normalise_invoice_dates(user: dict = Depends(get_admin_user)):
         years_after[key] = years_after.get(key, 0) + 1
 
     return {
-        "scanned": updated + unchanged + len(unfixable),
+        "scanned": updated + unchanged + len(unfixable) + len(cleared_hallucinations),
         "updated": updated,
         "unchanged": unchanged,
+        "cleared_hallucinations": cleared_hallucinations[:50],
+        "cleared_count": len(cleared_hallucinations),
         "unfixable": unfixable[:50],
         "unfixable_count": len(unfixable),
         "years_after": dict(sorted(years_after.items())),
