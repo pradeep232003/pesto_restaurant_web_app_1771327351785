@@ -943,6 +943,12 @@ class ApiService {
     // Bearer token in the header — see MenuEngineering.jsx for the impl.
     return `${API_BASE_URL}/api/admin/bi/menu-engineering/template`;
   }
+  async salesTrainingGet(locationId) {
+    return this.fetch(`/api/sales-training?location_id=${encodeURIComponent(locationId)}`);
+  }
+  async salesTrainingRefresh(locationId) {
+    return this.fetch(`/api/sales-training/refresh?location_id=${encodeURIComponent(locationId)}`, { method: 'POST' });
+  }
   async invoiceAppendPages(id, formData) {
     const headers = {};
     const storedToken = localStorage.getItem('access_token');

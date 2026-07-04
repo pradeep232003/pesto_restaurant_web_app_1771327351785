@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Clock, Wallet, MessageSquareWarning, Headphones, Sparkles, Award, ClipboardCheck } from 'lucide-react';
+import { Calendar, Clock, Wallet, MessageSquareWarning, Headphones, Sparkles, Award, ClipboardCheck, ArrowUpRight } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 
 const Workforce = () => {
@@ -20,6 +20,7 @@ const Workforce = () => {
 
       <SectionLabel>Learn</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
+        <Tile testId="tile-sales-training" to="/jkhive/sales-training" icon={ArrowUpRight} color="#34C759" title="Sales Scripts" subtitle="Up-sell & cross-sell" />
         <Tile testId="tile-learning"     comingSoon icon={Sparkles}        color="#FFCC00" title="Learning"      subtitle="Staff training & courses" />
         <Tile testId="tile-certificates" comingSoon icon={Award}           color="#AF52DE" title="Certificates"  subtitle="Level 2/3 hygiene certs" />
         <Tile testId="tile-onboarding"   comingSoon icon={ClipboardCheck}  color="#30B0C7" title="Onboarding"    subtitle="New starter packs" />

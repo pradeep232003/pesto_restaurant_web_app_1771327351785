@@ -53,6 +53,7 @@ import JKHiveShiftMgmt from './pages/jkhive/ShiftMgmt';
 import JKHiveInvoices from './pages/jkhive/Invoices';
 import JKHiveClockInOut from './pages/jkhive/ClockInOut';
 import JKHiveMenuEngineering from './pages/jkhive/MenuEngineering';
+import JKHiveSalesTraining from './pages/jkhive/SalesTraining';
 import JKHiveDailySales from './pages/jkhive-daily-sales';
 import JKHiveSalesSummary from './pages/jkhive-sales-summary';
 import JKHiveIncome from './pages/jkhive-income';
@@ -302,6 +303,7 @@ const AppRouter = () => {
         <Route path="shifts" element={<JKHiveShiftMgmt />} />
         <Route path="clock" element={<JKHiveClockInOut />} />
         <Route path="menu-engineering" element={<AdminOnly><JKHiveMenuEngineering /></AdminOnly>} />
+        <Route path="sales-training" element={<JKHiveSalesTraining />} />
         <Route path="bi" element={<AdminOnly><AdminBI /></AdminOnly>} />
         <Route path="menu" element={<JKHiveMenu />} />
         <Route path="daily-checks" element={<JKHiveDailyChecks />} />
