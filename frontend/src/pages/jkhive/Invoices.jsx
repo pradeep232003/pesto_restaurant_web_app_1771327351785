@@ -89,10 +89,12 @@ const Invoices = () => {
   // with from/to + location filter + CSV export + spend widgets.
   const [tab, setTab] = useState('recent');
 
-  // All-view filter state. Default end_date = today; start_date = last 30d.
+  // All-view filter state. Default end_date = today; start_date = last 90d
+  // (wide enough to catch supplier-dated invoices scanned a few weeks after
+  // the fact — narrower defaults hid legitimate records from admins).
   const today = new Date().toISOString().slice(0, 10);
-  const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  const [allStart, setAllStart] = useState(monthAgo);
+  const quarterAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  const [allStart, setAllStart] = useState(quarterAgo);
   const [allEnd, setAllEnd] = useState(today);
   const [allLocation, setAllLocation] = useState(''); // '' = all locations
   const [allCategory, setAllCategory] = useState(''); // '' = all categories
@@ -586,7 +588,20 @@ const RecentView = ({ loading, list, search, setSearch, isAdmin, locations, onOp
 
 /** All Invoices view — table + filters + widgets + CSV download. Primarily
  *  for admins to share monthly spend with their accountant. */
-const AllInvoicesView = ({ loading, list, start, end, location, category, locations, setStart, setEnd, setLocation, setCategory, isAdmin, onOpen }) => {
+const AllInvoicesView = ({ loading, list: rawList, start, end, location, category, locations, setStart, setEnd, setLocation, setCategory, isAdmin, onOpen }) => {
+  const [q, setQ] = useState('');
+  // Client-side text filter — matches supplier OR invoice_number so admins
+  // can jump straight to a known invoice # (e.g. "0000390323") without
+  // fiddling with the date range. Everything downstream (stats/CSV) uses
+  // the FILTERED list so exports match what's on screen.
+  const list = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return rawList;
+    return rawList.filter(r =>
+      (r.supplier || '').toLowerCase().includes(s) ||
+      (r.invoice_number || '').toLowerCase().includes(s)
+    );
+  }, [rawList, q]);
   const stats = useMemo(() => {
     const count = list.length;
     const totalSpend = list.reduce((a, r) => a + (Number(r.total) || 0), 0);
@@ -708,6 +723,43 @@ const AllInvoicesView = ({ loading, list, start, end, location, category, locati
         <FilterField label="To">
           <input data-testid="invoices-all-to" type="date" value={end} onChange={e => setEnd(e.target.value)} style={dateInput} />
         </FilterField>
+        <FilterField label="Quick">
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button
+              data-testid="invoices-all-quick-30d"
+              onClick={() => {
+                const today = new Date().toISOString().slice(0, 10);
+                const ago = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+                setStart(ago); setEnd(today);
+              }}
+              style={quickBtn}
+            >30d</button>
+            <button
+              data-testid="invoices-all-quick-90d"
+              onClick={() => {
+                const today = new Date().toISOString().slice(0, 10);
+                const ago = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+                setStart(ago); setEnd(today);
+              }}
+              style={quickBtn}
+            >90d</button>
+            <button
+              data-testid="invoices-all-quick-1y"
+              onClick={() => {
+                const today = new Date().toISOString().slice(0, 10);
+                const ago = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+                setStart(ago); setEnd(today);
+              }}
+              style={quickBtn}
+            >1y</button>
+            <button
+              data-testid="invoices-all-quick-all"
+              onClick={() => { setStart(''); setEnd(''); }}
+              style={{ ...quickBtn, background: '#1D1D1F', color: '#FFFFFF', borderColor: '#1D1D1F' }}
+              title="Show every invoice, regardless of date"
+            >All time</button>
+          </div>
+        </FilterField>
         <FilterField label="Location">
           <select data-testid="invoices-all-location" value={location} onChange={e => setLocation(e.target.value)} style={{ ...dateInput, minWidth: 160 }}>
             <option value="">All locations</option>
@@ -719,6 +771,16 @@ const AllInvoicesView = ({ loading, list, start, end, location, category, locati
             <option value="">All categories</option>
             {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
           </select>
+        </FilterField>
+        <FilterField label="Search">
+          <input
+            data-testid="invoices-all-search"
+            type="search"
+            placeholder="Supplier or invoice #"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            style={{ ...dateInput, minWidth: 180 }}
+          />
         </FilterField>
         <div style={{ flex: 1 }} />
         <button
@@ -870,6 +932,11 @@ const td = { padding: '10px 12px', fontSize: 12, color: '#3A3A3C', whiteSpace: '
 const dateInput = {
   padding: '7px 10px', borderRadius: 10, border: 0, background: '#FFFFFF',
   boxShadow: '0 0 0 1px rgba(0,0,0,0.06)', fontSize: 12, fontFamily: 'Outfit, sans-serif',
+};
+
+const quickBtn = {
+  padding: '7px 10px', borderRadius: 10, border: '1px solid #E5E5EA', background: '#FFFFFF',
+  fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
 };
 
 const FilterField = ({ label, children }) => (
