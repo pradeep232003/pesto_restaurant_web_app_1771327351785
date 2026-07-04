@@ -24,7 +24,7 @@
       "build",
       "serve"
     ],
-    "warning": "\ud83d\udea8 CRITICAL: DO NOT REMOVE OR MODIFY ABOVE DEPENDENCIES - Required for app functionality"
+    "warning": "🚨 CRITICAL: DO NOT REMOVE OR MODIFY ABOVE DEPENDENCIES - Required for app functionality"
   },
   "dependencies": {
     "@capacitor/android": "7",
@@ -44,7 +44,6 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@react-oauth/google": "^0.13.4",
     "@reduxjs/toolkit": "^2.6.1",
-    "@supabase/supabase-js": "^2.87.1",
     "@tailwindcss/forms": "^0.5.7",
     "@testing-library/jest-dom": "^5.15.1",
     "@testing-library/react": "^11.2.7",

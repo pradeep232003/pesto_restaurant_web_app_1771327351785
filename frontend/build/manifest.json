@@ -1,0 +1,40 @@
+{
+  "short_name": "Jolly's Kafe",
+  "name": "Jolly's Kafe",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#1D1D1F",
+  "background_color": "#FBFBFD",
+  "developer": {
+    "name": "JPTECK LTD"
+  },
+  "share_target": {
+    "action": "/jkhive/invoices/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "file",
+          "accept": ["image/*", "application/pdf", ".pdf", ".png", ".jpg", ".jpeg", ".webp", ".heic"]
+        }
+      ]
+    }
+  }
+}
