@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Camera, X, Trash2, MapPin, Edit3, FileText, Loader2, AlertTriangle, Receipt, Plus, Search, Download, LayoutGrid, Table as TableIcon, Layers, ChevronLeft, ChevronRight,
+  ArrowLeft, ArrowUp, Camera, X, Trash2, MapPin, Edit3, FileText, Loader2, AlertTriangle, Receipt, Plus, Search, Download, LayoutGrid, Table as TableIcon, Layers, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -146,6 +146,7 @@ const Invoices = () => {
         </button>
         <div style={{ flex: 1 }} />
         <ScanButton onScanned={load} adminLocationId={adminLocationId} setBusy={setBusy} busy={busy} setError={setError} />
+        <UploadReviewButton onReview={setEditing} adminLocationId={adminLocationId} setBusy={setBusy} busy={busy} setError={setError} />
         <MultiPageScanButton onScanned={load} adminLocationId={adminLocationId} setBusy={setBusy} busy={busy} setError={setError} />
       </div>
 
@@ -271,6 +272,60 @@ const ScanButton = ({ adminLocationId, setBusy, busy, setError, onScanned }) => 
       >
         {busy ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
         {busy ? 'Reading…' : 'Scan Invoice'}
+      </button>
+    </>
+  );
+};
+
+/** Upload + review — pick a single invoice file (no camera capture),
+ *  run AI extraction, then IMMEDIATELY open the detail modal so the
+ *  manager can adjust anything the AI got wrong before it lands in the
+ *  list. Sits alongside `ScanButton` (camera) and `MultiPageScanButton`.
+ */
+const UploadReviewButton = ({ adminLocationId, setBusy, busy, setError, onReview }) => {
+  const ref = useRef(null);
+  const onPick = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!adminLocationId) {
+      setError('Pick a location first');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('location_id', adminLocationId);
+      const scanned = await api.invoiceScan(fd);
+      // Hand the returned doc straight to the parent's `setEditing` so
+      // the InvoiceModal opens with the AI's best guess pre-filled and
+      // the manager can verify before walking away.
+      if (scanned && scanned.id) onReview(scanned);
+    } catch (err) {
+      setError(err.message || 'Upload failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <input ref={ref} data-testid="invoices-upload-file-input" type="file" accept="image/*,application/pdf" hidden onChange={onPick} />
+      <button
+        data-testid="invoices-upload-btn"
+        onClick={() => ref.current?.click()}
+        disabled={busy || !adminLocationId}
+        title="Upload invoice file — AI extracts, then you review"
+        aria-label="Upload invoice"
+        style={{
+          width: 36, height: 36, borderRadius: 999, border: 0,
+          background: '#FFFFFF', boxShadow: '0 0 0 1px rgba(0,0,0,0.08)',
+          cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', ...FONT,
+        }}
+      >
+        {busy ? <Loader2 size={14} className="animate-spin" color="#1D1D1F" /> : <ArrowUp size={16} color="#1D1D1F" />}
       </button>
     </>
   );
