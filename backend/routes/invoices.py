@@ -298,6 +298,42 @@ def _norm_category(v: Any) -> str:
     return s if s in ALLOWED_CATEGORIES else "other"
 
 
+def _find_duplicate(location_id: str, supplier: str, invoice_number: str,
+                    exclude_id: Optional[str] = None) -> Optional[dict]:
+    """Return an existing invoice for the same (site, supplier, invoice #)
+    or None. Case-insensitive on both supplier + invoice_number, blank
+    values are ignored (nothing to dedupe against). Excluding the current
+    record's id keeps PATCH idempotent."""
+    supp = (supplier or "").strip()
+    num = (invoice_number or "").strip()
+    if not supp or not num:
+        return None
+    query = {
+        "location_id": location_id,
+        "supplier": {"$regex": f"^{re.escape(supp)}$", "$options": "i"},
+        "invoice_number": {"$regex": f"^{re.escape(num)}$", "$options": "i"},
+    }
+    if exclude_id:
+        query["id"] = {"$ne": exclude_id}
+    return invoices.find_one(query, {"_id": 0, "id": 1, "supplier": 1, "invoice_number": 1, "uploaded_at": 1, "uploaded_by_name": 1})
+
+
+def _raise_if_duplicate(location_id: str, supplier: str, invoice_number: str,
+                        exclude_id: Optional[str] = None) -> None:
+    """Reject a save when a duplicate already exists. Include the offending
+    record in the response so the UI can offer a "view existing" jump."""
+    dup = _find_duplicate(location_id, supplier, invoice_number, exclude_id)
+    if dup:
+        who = dup.get("uploaded_by_name") or "someone"
+        when = (dup.get("uploaded_at") or "")[:10]
+        raise HTTPException(
+            409,
+            f"Duplicate invoice: {dup.get('supplier')} #{dup.get('invoice_number')} "
+            f"was already saved by {who}{(' on ' + when) if when else ''}. "
+            f"(id={dup.get('id')})",
+        )
+
+
 def _normalise_draft(raw: dict) -> dict:
     """Coerce one AI-detected invoice into our internal shape (items + ints)."""
     items_raw = raw.get("items") or []
@@ -446,7 +482,10 @@ async def list_invoices(
             {"invoice_date": {"$gte": s, "$lte": e}},
             {"$and": [missing_inv_date, {"uploaded_at": {"$gte": s, "$lte": e_upload}}]},
         ]
-    rows = list(invoices.find(q).sort("uploaded_at", -1).limit(2000))
+    # Sort by printed invoice_date (desc) then uploaded_at (desc) so the
+    # accountant sees the newest supplier date at the top; scans without
+    # a parsed invoice_date fall in wherever their upload timestamp lands.
+    rows = list(invoices.find(q).sort([("invoice_date", -1), ("uploaded_at", -1)]).limit(2000))
     return [_strip(r) for r in rows]
 
 
@@ -532,6 +571,11 @@ async def scan_invoice(
         "ai_status": "ok" if not ai_error else "failed",
         "ai_error": ai_error,
     }
+    # Reject before insert if a same-site same-supplier same-invoice#
+    # already exists. Skipped when supplier or invoice_number is blank
+    # (AI failed to parse) so the manager can still land the record and
+    # fill it in by hand.
+    _raise_if_duplicate(location_id, doc["supplier"], doc["invoice_number"])
     invoices.insert_one(dict(doc))
     return _strip(doc)
 
@@ -632,6 +676,7 @@ async def scan_invoice_multi(
         "ai_status": "ok" if not ai_error else "failed",
         "ai_error": ai_error,
     }
+    _raise_if_duplicate(location_id, doc["supplier"], doc["invoice_number"])
     invoices.insert_one(dict(doc))
     return _strip(doc)
 
@@ -752,6 +797,7 @@ async def scan_invoice_auto(
             "ai_status": "ok" if not ai_error else "failed",
             "ai_error": ai_error,
         }
+        _raise_if_duplicate(location_id, doc["supplier"], doc["invoice_number"])
         invoices.insert_one(dict(doc))
         return {"mode": "single", "invoice": _strip(doc)}
 
@@ -778,6 +824,24 @@ async def scan_batch_commit(body: BatchCommit, user: dict = Depends(get_staff_or
     """
     if not body.drafts:
         raise HTTPException(400, "No drafts to commit")
+
+    # Pre-flight — reject the whole batch if any draft would create a
+    # duplicate, AND catch drafts that duplicate each other in the same
+    # payload. This keeps commit atomic (no partial inserts).
+    seen_pairs = set()
+    for d in body.drafts:
+        supp = (d.supplier or "").strip()
+        num = (d.invoice_number or "").strip()
+        if supp and num:
+            key = (supp.lower(), num.lower())
+            if key in seen_pairs:
+                raise HTTPException(
+                    409,
+                    f"Batch contains a duplicate: {supp} #{num} appears twice. "
+                    "Skip one of the rows and try again.",
+                )
+            seen_pairs.add(key)
+            _raise_if_duplicate(body.location_id, supp, num)
 
     source_ref = {
         "file_id": body.source_file_id,
@@ -1055,6 +1119,14 @@ async def update_invoice(invoice_id: str, body: InvoicePatch, user: dict = Depen
             for it in body.items if (it.description or "").strip()
         ]
     if update:
+        # If the edit touches location / supplier / invoice_number, check
+        # nothing on that new (site, supplier, #) triplet already exists.
+        # Excludes the current record so a no-op save doesn't fight itself.
+        loc_after = update.get("location_id", rec.get("location_id", ""))
+        supp_after = update.get("supplier", rec.get("supplier", ""))
+        num_after = update.get("invoice_number", rec.get("invoice_number", ""))
+        _raise_if_duplicate(loc_after, supp_after, num_after, exclude_id=invoice_id)
+
         update["edited_at"] = datetime.now(timezone.utc).isoformat()
         update["edited_by"] = user.get("email", "")
         update["edited_by_name"] = user.get("name", "")
