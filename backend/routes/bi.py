@@ -12,13 +12,16 @@ LLM credits on every page refresh.
 Designed to be pure read-only — no mutations.
 """
 import hashlib
+import io
 import json
 import os
 import re
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
 
 from db import db, daily_sales_collection, menu_items_collection, locations_collection
 from auth import get_admin_user
@@ -573,6 +576,7 @@ async def bi_ai_insights(
 # ---------------------------------------------------------------------------
 
 orders_collection = db["orders"]
+menu_sales_collection = db["menu_sales"]
 
 # Any order that reached the "money in the till" stage counts as a real
 # sale. Cancelled/refunded ones are ignored so they don't skew popularity.
@@ -658,6 +662,29 @@ async def menu_engineering(
             record["units"] += qty
             record["revenue"] += qty * price
 
+    # 2b. Layer in uploaded sales data (XLSX imports). Managers whose POS
+    # isn't integrated can push a spreadsheet — those rows show up here
+    # alongside any native orders.
+    sales_query: dict = {"date": {"$gte": start[:10], "$lte": end[:10]}}
+    if location_id:
+        sales_query["location_id"] = location_id
+    for row in menu_sales_collection.find(sales_query, {"_id": 0, "item_name": 1, "item_id": 1, "units": 1, "unit_price": 1}):
+        qty = float(row.get("units") or 0)
+        price = float(row.get("unit_price") or 0)
+        record = None
+        rid = row.get("item_id")
+        if rid:
+            record = menu_by_id.get(rid)
+        if record is None:
+            nm = (row.get("item_name") or "").strip().lower()
+            record = menu_by_name.get(nm)
+        if record is None:
+            continue
+        record["units"] += qty
+        # If the upload didn't include a price, fall back to menu list price
+        # so revenue still totals sensibly (unit_price will then be 0).
+        record["revenue"] += qty * (price if price > 0 else record["price"])
+
     # 3. Compute site means over items that are actually eligible (sold AND
     # priced with a recipe). Two separate means so a dish with no recipe
     # doesn't drag the profitability mean toward zero.
@@ -712,3 +739,191 @@ async def menu_engineering(
         "counts": counts,
         "items": items_out,
     }
+
+
+# ---------------------------------------------------------------------------
+# XLSX sales import — for managers whose POS isn't integrated.
+# ---------------------------------------------------------------------------
+
+_TEMPLATE_HEADERS = ["item_name", "units_sold", "unit_price", "date"]
+
+@router.get("/menu-engineering/template")
+async def menu_engineering_template(user: dict = Depends(get_admin_user)):
+    """Download a blank XLSX with the exact columns we expect, plus two
+    example rows so the manager knows the shape. `item_name` matches
+    against the menu; `date` is optional (defaults to today when blank)."""
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Sales"
+    ws.append(_TEMPLATE_HEADERS)
+    # Two example rows — use realistic names to hint at case-insensitive match.
+    ws.append(["Chicken Katsu Curry", 12, 12.50, datetime.now(timezone.utc).strftime("%Y-%m-%d")])
+    ws.append(["Vegan Buddha Bowl", 5, 11.00, datetime.now(timezone.utc).strftime("%Y-%m-%d")])
+    # Widen columns a touch for readability.
+    for col_letter, width in [("A", 32), ("B", 12), ("C", 12), ("D", 14)]:
+        ws.column_dimensions[col_letter].width = width
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="menu-engineering-sales-template.xlsx"'},
+    )
+
+
+@router.post("/menu-engineering/upload")
+async def menu_engineering_upload(
+    file: UploadFile = File(...),
+    location_id: str = Form(...),
+    user: dict = Depends(get_admin_user),
+):
+    """Parse the uploaded XLSX and store one `menu_sales` row per line.
+
+    Rows are grouped under a fresh `upload_id` so the admin can undo the
+    entire import in one click later. Matching is by `item_name`
+    (case-insensitive) against the site's menu — unmatched rows are
+    returned in `unmatched` so the manager can fix the source spreadsheet.
+    """
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(415, "Please upload an XLSX file")
+    blob = await file.read()
+    if not blob:
+        raise HTTPException(400, "Empty file")
+    if len(blob) > 10 * 1024 * 1024:
+        raise HTTPException(413, "File exceeds 10 MB limit")
+
+    import openpyxl
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(blob), data_only=True)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, f"Could not read XLSX: {e}")
+    ws = wb.active
+    if ws is None:
+        raise HTTPException(400, "Workbook has no active sheet")
+
+    # First row is expected to be headers; be forgiving with header order.
+    rows = list(ws.iter_rows(values_only=True))
+    if len(rows) < 2:
+        raise HTTPException(400, "File contains no data rows")
+    headers = [str(c or "").strip().lower().replace(" ", "_") for c in rows[0]]
+    try:
+        idx_name = headers.index("item_name")
+        idx_units = headers.index("units_sold")
+    except ValueError:
+        raise HTTPException(400, "Missing required columns: 'item_name' and 'units_sold'")
+    idx_price = headers.index("unit_price") if "unit_price" in headers else -1
+    idx_date = headers.index("date") if "date" in headers else -1
+
+    # Load menu items so we can attempt an id match up front.
+    menu_by_name: dict = {}
+    for m in menu_items_collection.find(
+        {"location_id": location_id},
+        {"_id": 0, "id": 1, "name": 1},
+    ):
+        nm = (m.get("name") or "").strip().lower()
+        if nm:
+            menu_by_name[nm] = m.get("id")
+
+    upload_id = str(uuid.uuid4())[:12]
+    today_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    now = datetime.now(timezone.utc).isoformat()
+    to_insert: list = []
+    unmatched: list = []
+    matched = 0
+
+    for r in rows[1:]:
+        raw_name = (r[idx_name] if idx_name < len(r) else "") or ""
+        item_name = str(raw_name).strip()
+        if not item_name:
+            continue
+        raw_units = r[idx_units] if idx_units < len(r) else None
+        try:
+            units = float(raw_units or 0)
+        except (TypeError, ValueError):
+            units = 0.0
+        if units <= 0:
+            continue
+        price = 0.0
+        if idx_price >= 0 and idx_price < len(r):
+            try:
+                price = float(r[idx_price] or 0)
+            except (TypeError, ValueError):
+                price = 0.0
+        date_iso = today_iso
+        if idx_date >= 0 and idx_date < len(r):
+            raw_date = r[idx_date]
+            if isinstance(raw_date, datetime):
+                date_iso = raw_date.strftime("%Y-%m-%d")
+            elif raw_date:
+                # Try a few common string formats.
+                for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y"):
+                    try:
+                        date_iso = datetime.strptime(str(raw_date).strip(), fmt).strftime("%Y-%m-%d")
+                        break
+                    except ValueError:
+                        continue
+
+        item_id = menu_by_name.get(item_name.lower())
+        if item_id:
+            matched += 1
+        else:
+            unmatched.append(item_name)
+
+        to_insert.append({
+            "id": str(uuid.uuid4())[:12],
+            "upload_id": upload_id,
+            "location_id": location_id,
+            "item_name": item_name,
+            "item_id": item_id,
+            "units": units,
+            "unit_price": price,
+            "date": date_iso,
+            "uploaded_at": now,
+            "uploaded_by": user.get("email", ""),
+        })
+
+    if not to_insert:
+        raise HTTPException(400, "No valid data rows found (need item_name + units_sold > 0)")
+
+    menu_sales_collection.insert_many(to_insert)
+    # Dedupe the unmatched list for the caller.
+    unmatched_unique = sorted(set(unmatched), key=str.lower)
+
+    return {
+        "upload_id": upload_id,
+        "rows_saved": len(to_insert),
+        "matched": matched,
+        "unmatched_count": len(unmatched_unique),
+        "unmatched": unmatched_unique[:50],
+    }
+
+
+@router.get("/menu-engineering/uploads")
+async def list_menu_engineering_uploads(
+    location_id: str = Query(...),
+    user: dict = Depends(get_admin_user),
+):
+    """List recent XLSX imports for this site so the admin can undo them."""
+    pipeline = [
+        {"$match": {"location_id": location_id}},
+        {"$group": {
+            "_id": "$upload_id",
+            "rows": {"$sum": 1},
+            "units": {"$sum": "$units"},
+            "uploaded_at": {"$max": "$uploaded_at"},
+            "uploaded_by": {"$last": "$uploaded_by"},
+        }},
+        {"$sort": {"uploaded_at": -1}},
+        {"$limit": 30},
+    ]
+    docs = list(menu_sales_collection.aggregate(pipeline))
+    return [{"upload_id": d["_id"], "rows": d["rows"], "units": d["units"],
+             "uploaded_at": d["uploaded_at"], "uploaded_by": d["uploaded_by"]} for d in docs]
+
+
+@router.delete("/menu-engineering/uploads/{upload_id}")
+async def delete_menu_engineering_upload(upload_id: str, user: dict = Depends(get_admin_user)):
+    r = menu_sales_collection.delete_many({"upload_id": upload_id})
+    return {"deleted": r.deleted_count}

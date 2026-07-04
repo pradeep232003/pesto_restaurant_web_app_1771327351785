@@ -922,6 +922,27 @@ class ApiService {
     if (location_id) qs.push(`location_id=${encodeURIComponent(location_id)}`);
     return this.fetch(`/api/admin/bi/menu-engineering?${qs.join('&')}`);
   }
+  async biMenuEngineeringUpload(formData) {
+    const headers = {};
+    const storedToken = localStorage.getItem('access_token');
+    if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+    const response = await fetch(`${API_BASE_URL}/api/admin/bi/menu-engineering/upload`, {
+      method: 'POST',
+      credentials: API_BASE_URL ? 'include' : 'same-origin',
+      headers,
+      body: formData,
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Upload failed: ${response.status}`);
+    }
+    return response.json();
+  }
+  biMenuEngineeringTemplateUrl() {
+    // Client asks the browser to hit this via a temporary anchor with a
+    // Bearer token in the header — see MenuEngineering.jsx for the impl.
+    return `${API_BASE_URL}/api/admin/bi/menu-engineering/template`;
+  }
   async invoiceAppendPages(id, formData) {
     const headers = {};
     const storedToken = localStorage.getItem('access_token');
