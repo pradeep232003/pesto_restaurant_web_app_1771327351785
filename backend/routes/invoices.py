@@ -281,7 +281,7 @@ async def _extract_invoice(pages: list) -> dict:
     return {
         "supplier": (parsed.get("supplier") or "").strip(),
         "invoice_number": (parsed.get("invoice_number") or "").strip(),
-        "invoice_date": (parsed.get("invoice_date") or "").strip(),
+        "invoice_date": _norm_iso_date(parsed.get("invoice_date")),
         "category": _norm_category(parsed.get("category")),
         "subtotal": _coerce_num(parsed.get("subtotal")),
         "vat": _coerce_num(parsed.get("vat")),
@@ -296,6 +296,45 @@ def _norm_category(v: Any) -> str:
         return "other"
     s = str(v).strip().lower()
     return s if s in ALLOWED_CATEGORIES else "other"
+
+
+def _norm_iso_date(v: Any) -> str:
+    """Best-effort coercion of any date-ish string into YYYY-MM-DD.
+
+    We already ask the AI for ISO, but Claude occasionally mirrors the
+    printed format (e.g. `03/07/2026`, `3/7/26`, `July 3, 2026`) — those
+    non-ISO strings then break every date-range query downstream. Fixing
+    them at write time is way cheaper than dealing with the fallout on
+    read. Returns '' when we can't confidently parse."""
+    if v is None:
+        return ""
+    s = str(v).strip()
+    if not s:
+        return ""
+    # Already ISO.
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
+        return s
+    # dd/mm/yyyy or dd/mm/yy — UK order (Jolly's is UK-based).
+    m = re.match(r"^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})$", s)
+    if m:
+        d, mo, y = m.groups()
+        yi = int(y)
+        # 2-digit years: 00-49 → 2000s, 50-99 → 1900s (invoices are recent
+        # so this default is safe; tweak only if a real edge case appears).
+        if yi < 100:
+            yi = 2000 + yi if yi < 50 else 1900 + yi
+        try:
+            dt = datetime(yi, int(mo), int(d))
+            return dt.strftime("%Y-%m-%d")
+        except (ValueError, TypeError):
+            pass
+    # Textual month e.g. "3 July 2026", "July 3, 2026".
+    for fmt in ("%d %B %Y", "%d %b %Y", "%B %d, %Y", "%b %d, %Y", "%B %d %Y", "%b %d %Y"):
+        try:
+            return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
+        except (ValueError, TypeError):
+            continue
+    return ""
 
 
 def _find_duplicate(location_id: str, supplier: str, invoice_number: str,
@@ -359,7 +398,7 @@ def _normalise_draft(raw: dict) -> dict:
     return {
         "supplier": (raw.get("supplier") or "").strip(),
         "invoice_number": (raw.get("invoice_number") or "").strip(),
-        "invoice_date": (raw.get("invoice_date") or "").strip(),
+        "invoice_date": _norm_iso_date(raw.get("invoice_date")),
         "category": _norm_category(raw.get("category")),
         "subtotal": _coerce_num(raw.get("subtotal")),
         "vat": _coerce_num(raw.get("vat")),
@@ -471,16 +510,28 @@ async def list_invoices(
     if category:
         q["category"] = category
     if start_date or end_date:
-        # Prefer the printed invoice_date when present so a March invoice
-        # scanned in June stays in the March report. Only fall back to
-        # uploaded_at for scans whose invoice_date is missing/blank.
+        # Prefer the printed invoice_date when it's an ISO YYYY-MM-DD (so a
+        # March invoice scanned in June stays in the March report). For
+        # everything else — blank, missing, or a free-form/misparsed date
+        # like "03/07/2026" or "July 3 2026" — fall back to uploaded_at so
+        # the record still lands in its upload window instead of vanishing.
         s = start_date or "0000-01-01"
         e = end_date or "9999-12-31"
         e_upload = e + "T23:59:59.999Z"
-        missing_inv_date = {"$or": [{"invoice_date": ""}, {"invoice_date": {"$exists": False}}, {"invoice_date": None}]}
+        iso_regex = {"$regex": r"^\d{4}-\d{2}-\d{2}$"}
         q["$or"] = [
-            {"invoice_date": {"$gte": s, "$lte": e}},
-            {"$and": [missing_inv_date, {"uploaded_at": {"$gte": s, "$lte": e_upload}}]},
+            {"$and": [
+                {"invoice_date": iso_regex},
+                {"invoice_date": {"$gte": s, "$lte": e}},
+            ]},
+            {"$and": [
+                {"$or": [
+                    {"invoice_date": {"$exists": False}},
+                    {"invoice_date": None},
+                    {"invoice_date": {"$not": {"$regex": r"^\d{4}-\d{2}-\d{2}$"}}},
+                ]},
+                {"uploaded_at": {"$gte": s, "$lte": e_upload}},
+            ]},
         ]
     # Sort by printed invoice_date (desc) then uploaded_at (desc) so the
     # accountant sees the newest supplier date at the top; scans without
@@ -869,7 +920,7 @@ async def scan_batch_commit(body: BatchCommit, user: dict = Depends(get_staff_or
             "location_id": body.location_id,
             "supplier": (d.supplier or "").strip(),
             "invoice_number": (d.invoice_number or "").strip(),
-            "invoice_date": (d.invoice_date or "").strip(),
+            "invoice_date": _norm_iso_date(d.invoice_date),
             "category": _norm_category(d.category),
             "subtotal": _coerce_num(d.subtotal),
             "vat": _coerce_num(d.vat),
@@ -1098,10 +1149,14 @@ async def update_invoice(invoice_id: str, body: InvoicePatch, user: dict = Depen
     if not rec:
         raise HTTPException(404, "Not found")
     update: dict = {}
-    for field in ("location_id", "supplier", "invoice_number", "invoice_date", "note"):
+    for field in ("location_id", "supplier", "invoice_number", "note"):
         v = getattr(body, field)
         if v is not None:
             update[field] = (v or "").strip()
+    # invoice_date gets special handling — normalise to ISO YYYY-MM-DD so
+    # date-range queries keep working even if the manager types a UK date.
+    if body.invoice_date is not None:
+        update["invoice_date"] = _norm_iso_date(body.invoice_date)
     if body.category is not None:
         update["category"] = _norm_category(body.category)
     for field in ("subtotal", "vat", "total"):
@@ -1132,6 +1187,45 @@ async def update_invoice(invoice_id: str, body: InvoicePatch, user: dict = Depen
         update["edited_by_name"] = user.get("name", "")
         invoices.update_one({"id": invoice_id}, {"$set": update})
     return _strip(invoices.find_one({"id": invoice_id}))
+
+
+@router.post("/admin/normalise-dates")
+async def normalise_invoice_dates(user: dict = Depends(get_admin_user)):
+    """One-shot migration: coerce every non-ISO `invoice_date` in the
+    collection into YYYY-MM-DD via `_norm_iso_date`. Safe to run multiple
+    times — already-ISO records are left untouched. Fixes historical data
+    that landed with `03/07/2026` / `3 July 2026` style dates and was
+    consequently invisible to the All-view date filter."""
+    updated = 0
+    skipped = 0
+    unfixable: list = []
+    cursor = invoices.find(
+        {"invoice_date": {"$exists": True, "$nin": ["", None]}},
+        {"_id": 0, "id": 1, "invoice_date": 1, "supplier": 1, "invoice_number": 1},
+    )
+    for rec in cursor:
+        current = rec.get("invoice_date") or ""
+        if re.match(r"^\d{4}-\d{2}-\d{2}$", current):
+            skipped += 1
+            continue
+        iso = _norm_iso_date(current)
+        if iso:
+            invoices.update_one({"id": rec["id"]}, {"$set": {"invoice_date": iso}})
+            updated += 1
+        else:
+            unfixable.append({
+                "id": rec["id"],
+                "supplier": rec.get("supplier", ""),
+                "invoice_number": rec.get("invoice_number", ""),
+                "raw_date": current,
+            })
+    return {
+        "scanned": updated + skipped + len(unfixable),
+        "updated": updated,
+        "already_iso": skipped,
+        "unfixable": unfixable[:50],   # cap payload — accountant can edit these by hand
+        "unfixable_count": len(unfixable),
+    }
 
 
 @router.delete("/{invoice_id}")
