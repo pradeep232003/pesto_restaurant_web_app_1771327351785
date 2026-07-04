@@ -413,13 +413,13 @@ const iconBtn = {
 };
 
 const HelpModal = ({ onClose, onDownloadTemplate }) => (
-  <div data-testid="me-help-modal" style={{ position: 'fixed', inset: 0, zIndex: 250, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', ...FONT }}>
+  <div data-testid="me-help-modal" style={{ position: 'fixed', inset: 0, zIndex: 250, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, ...FONT }}>
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)' }} />
     <div style={{
       position: 'relative', background: '#FFFFFF', width: '100%', maxWidth: 620,
-      borderRadius: '20px 20px 0 0', padding: '22px 22px 28px',
-      maxHeight: '92vh', overflowY: 'auto',
-      paddingBottom: 'calc(28px + env(safe-area-inset-bottom) + 84px)',
+      borderRadius: 20, padding: '22px 22px 24px',
+      maxHeight: 'calc(100vh - 32px)', overflowY: 'auto',
+      boxShadow: '0 24px 48px rgba(0,0,0,0.25)',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
         <div>
