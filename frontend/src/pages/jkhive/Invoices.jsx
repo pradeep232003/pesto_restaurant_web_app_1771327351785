@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, ArrowUp, Camera, X, Trash2, MapPin, Edit3, FileText, Loader2, AlertTriangle, Receipt, Plus, Search, Download, LayoutGrid, Table as TableIcon, Layers, ChevronLeft, ChevronRight,
+  ArrowLeft, ArrowUp, Camera, X, Trash2, MapPin, Edit3, FileText, Loader2, AlertTriangle, Receipt, Plus, Search, Download, LayoutGrid, Table as TableIcon, Layers, ChevronLeft, ChevronRight, Wrench,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -538,6 +538,82 @@ const MultiPageScanButton = ({ adminLocationId, setBusy, busy, setError, onScann
   );
 };
 
+/** One-shot "Normalise dates" migration button — admin-only. Coerces
+ *  every non-ISO `invoice_date` in the collection to YYYY-MM-DD via the
+ *  backend endpoint, so legacy records that landed with UK-formatted
+ *  dates (e.g. `03/07/2026`) become visible in the All-view date filter.
+ *  Idempotent — safe to click multiple times. Shows a compact result
+ *  toast so the accountant sees exactly what changed. */
+const NormaliseDatesButton = () => {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [err, setErr] = useState('');
+
+  const run = async () => {
+    if (busy) return;
+    if (!window.confirm(
+      'Normalise every invoice date in the database to YYYY-MM-DD? ' +
+      'Records already in ISO format are skipped. Safe to run more than once.'
+    )) return;
+    setBusy(true);
+    setErr('');
+    setResult(null);
+    try {
+      const res = await api.invoiceNormaliseDates();
+      setResult(res);
+      // Auto-hide toast after 8s so it doesn't linger.
+      setTimeout(() => setResult(null), 8000);
+    } catch (e) {
+      setErr(e.message || 'Migration failed');
+      setTimeout(() => setErr(''), 6000);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        data-testid="invoices-normalise-dates"
+        onClick={run}
+        disabled={busy}
+        title="Fix legacy non-ISO invoice_date values (e.g. 03/07/2026 → 2026-07-03)"
+        style={{
+          padding: '8px 14px', borderRadius: 999, border: 0,
+          background: busy ? '#E5E5EA' : '#FFFFFF',
+          color: '#1D1D1F', fontSize: 12, fontWeight: 700,
+          boxShadow: '0 0 0 1px rgba(0,0,0,0.08)',
+          cursor: busy ? 'wait' : 'pointer',
+          display: 'inline-flex', alignItems: 'center', gap: 6, ...FONT,
+        }}
+      >
+        {busy ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
+        {busy ? 'Fixing…' : 'Normalise dates'}
+      </button>
+
+      {result && (
+        <div data-testid="normalise-toast" style={{
+          position: 'fixed', bottom: 96, left: '50%', transform: 'translateX(-50%)',
+          background: '#1D1D1F', color: '#FFFFFF', padding: '10px 16px', borderRadius: 12,
+          boxShadow: '0 10px 30px rgba(0,0,0,0.25)', zIndex: 300,
+          fontSize: 12, ...FONT, maxWidth: '92vw',
+        }}>
+          Fixed <strong>{result.updated}</strong> · already ISO {result.already_iso} · unfixable {result.unfixable_count || 0}
+          {result.unfixable_count > 0 && ' — edit those by hand'}
+        </div>
+      )}
+      {err && (
+        <div data-testid="normalise-error" style={{
+          position: 'fixed', bottom: 96, left: '50%', transform: 'translateX(-50%)',
+          background: '#FF3B30', color: '#FFFFFF', padding: '10px 16px', borderRadius: 12,
+          boxShadow: '0 10px 30px rgba(0,0,0,0.25)', zIndex: 300,
+          fontSize: 12, ...FONT, maxWidth: '92vw',
+        }}>{err}</div>
+      )}
+    </>
+  );
+};
+
 /** Recent view — card grid scoped to the current JKHive location. Same
  *  search filter as before so staff can still skim a supplier name. */
 const RecentView = ({ loading, list, search, setSearch, isAdmin, locations, onOpen, onMerged }) => {
@@ -798,6 +874,9 @@ const AllInvoicesView = ({ loading, list: rawList, start, end, location, categor
           />
         </FilterField>
         <div style={{ flex: 1 }} />
+        {isAdmin && (
+          <NormaliseDatesButton />
+        )}
         <button
           data-testid="invoices-export-csv"
           onClick={handleExport}

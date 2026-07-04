@@ -914,6 +914,9 @@ class ApiService {
       method: 'POST', body: JSON.stringify(body),
     });
   }
+  async invoiceNormaliseDates() {
+    return this.fetch('/api/admin/invoices/admin/normalise-dates', { method: 'POST' });
+  }
   async invoiceAppendPages(id, formData) {
     const headers = {};
     const storedToken = localStorage.getItem('access_token');
