@@ -593,14 +593,29 @@ const AllInvoicesView = ({ loading, list: rawList, start, end, location, categor
   // Client-side text filter — matches supplier OR invoice_number so admins
   // can jump straight to a known invoice # (e.g. "0000390323") without
   // fiddling with the date range. Everything downstream (stats/CSV) uses
-  // the FILTERED list so exports match what's on screen.
+  // the FILTERED list so exports match what's on screen. We also explicitly
+  // re-sort by invoice_date DESC so the order is guaranteed even if a
+  // fresh save arrives out-of-order in the incoming list.
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return rawList;
-    return rawList.filter(r =>
-      (r.supplier || '').toLowerCase().includes(s) ||
-      (r.invoice_number || '').toLowerCase().includes(s)
-    );
+    const filtered = s
+      ? rawList.filter(r =>
+          (r.supplier || '').toLowerCase().includes(s) ||
+          (r.invoice_number || '').toLowerCase().includes(s))
+      : rawList;
+    // Sort by invoice_date DESC, fall back to uploaded_at DESC when a
+    // record has no printed date. `.slice()` first so we don't mutate the
+    // prop — this list is memo'd for CSV export too.
+    return filtered.slice().sort((a, b) => {
+      const da = a.invoice_date || '';
+      const db = b.invoice_date || '';
+      if (da && db && da !== db) return db.localeCompare(da);
+      if (da && !db) return -1;   // dated invoice sorts above blank
+      if (!da && db) return 1;
+      const ua = a.uploaded_at || '';
+      const ub = b.uploaded_at || '';
+      return ub.localeCompare(ua);
+    });
   }, [rawList, q]);
   const stats = useMemo(() => {
     const count = list.length;
