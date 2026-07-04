@@ -893,6 +893,27 @@ class ApiService {
     }
     return response.json();
   }
+  async invoiceScanAuto(formData) {
+    const headers = {};
+    const storedToken = localStorage.getItem('access_token');
+    if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
+    const response = await fetch(`${API_BASE_URL}/api/admin/invoices/scan-auto`, {
+      method: 'POST',
+      credentials: API_BASE_URL ? 'include' : 'same-origin',
+      headers,
+      body: formData,
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Scan failed: ${response.status}`);
+    }
+    return response.json();
+  }
+  async invoiceScanBatchCommit(body) {
+    return this.fetch('/api/admin/invoices/scan-batch-commit', {
+      method: 'POST', body: JSON.stringify(body),
+    });
+  }
   async invoiceAppendPages(id, formData) {
     const headers = {};
     const storedToken = localStorage.getItem('access_token');

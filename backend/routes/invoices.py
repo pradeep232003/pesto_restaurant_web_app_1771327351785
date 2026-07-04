@@ -106,6 +106,44 @@ _AI_SYSTEM = (
     "}"
 )
 
+_AI_SYSTEM_MULTI = (
+    "You are an invoice parser for Jolly's Kafe. The file you receive may "
+    "contain ONE invoice or MANY invoices (e.g. a supplier statement bundle "
+    "of reprinted invoices). Detect each distinct invoice and return them as "
+    "an ARRAY.\n\n"
+    "DETECT ONE-VS-MANY by looking for repeated 'Invoice #' / 'Cash Invoice' "
+    "headers with different numbers or different Tax Point / Invoice dates. "
+    "If the same supplier repeats on separate pages with different invoice "
+    "numbers, they are SEPARATE invoices — do NOT merge them.\n\n"
+    "RULES:\n"
+    "1. Output STRICT JSON, no markdown, no commentary.\n"
+    "2. Root is {\"invoices\": [ ... ]} — always an array, length >= 1.\n"
+    "3. For each invoice: same fields as the single-invoice extractor, plus\n"
+    "   page_start and page_end (1-indexed page numbers within the file).\n"
+    "   If the file is a single image, use page_start=1, page_end=1.\n"
+    "4. Numbers are floats with 2dp; blank strings for unknown text; 0 for unknown numbers.\n"
+    "5. Currency GBP; strip £/$.\n"
+    "6. Category slug from: stock, rent, utilities, software, repairs, marketing, equipment, cleaning, insurance, other.\n\n"
+    "RESPONSE SHAPE:\n"
+    "{\n"
+    "  \"invoices\": [\n"
+    "    {\n"
+    "      \"supplier\": \"FCN Frozen Foods Ltd\",\n"
+    "      \"invoice_number\": \"265735\",\n"
+    "      \"invoice_date\": \"2026-05-01\",\n"
+    "      \"category\": \"stock\",\n"
+    "      \"subtotal\": 230.58,\n"
+    "      \"vat\": 46.11,\n"
+    "      \"total\": 276.69,\n"
+    "      \"items\": [ {\"description\": \"...\", \"qty\": 2.0, \"unit_price\": 4.50, \"line_total\": 9.00} ],\n"
+    "      \"page_start\": 1,\n"
+    "      \"page_end\": 1\n"
+    "    }\n"
+    "  ]\n"
+    "}"
+)
+
+
 # Allowed category slugs — mirror the frontend list. Any other value sent
 # by the LLM or user is coerced to "other".
 ALLOWED_CATEGORIES = {
@@ -258,6 +296,118 @@ def _norm_category(v: Any) -> str:
         return "other"
     s = str(v).strip().lower()
     return s if s in ALLOWED_CATEGORIES else "other"
+
+
+def _normalise_draft(raw: dict) -> dict:
+    """Coerce one AI-detected invoice into our internal shape (items + ints)."""
+    items_raw = raw.get("items") or []
+    items = []
+    for it in items_raw:
+        desc = (it.get("description") or "").strip()
+        if not desc:
+            continue
+        items.append({
+            "description": desc,
+            "qty": _coerce_num(it.get("qty") or 1),
+            "unit_price": _coerce_num(it.get("unit_price")),
+            "line_total": _coerce_num(it.get("line_total")),
+        })
+    try:
+        ps = int(raw.get("page_start") or 1)
+    except (TypeError, ValueError):
+        ps = 1
+    try:
+        pe = int(raw.get("page_end") or ps)
+    except (TypeError, ValueError):
+        pe = ps
+    return {
+        "supplier": (raw.get("supplier") or "").strip(),
+        "invoice_number": (raw.get("invoice_number") or "").strip(),
+        "invoice_date": (raw.get("invoice_date") or "").strip(),
+        "category": _norm_category(raw.get("category")),
+        "subtotal": _coerce_num(raw.get("subtotal")),
+        "vat": _coerce_num(raw.get("vat")),
+        "total": _coerce_num(raw.get("total")),
+        "items": items,
+        "page_start": ps,
+        "page_end": pe,
+    }
+
+
+async def _detect_invoices(blob: bytes, media_type: str) -> list:
+    """Send ONE file (PDF or image) to Claude and get back an ARRAY of
+    detected invoices. Each element already normalised via `_normalise_draft`.
+    Bubbles up HTTPException on failure paths so the UI can show a clean
+    error message."""
+    from routes.ai_settings import get_active_ai_key, get_active_ai_provider
+    api_key = get_active_ai_key()
+    if not api_key:
+        raise HTTPException(
+            500,
+            "AI invoice scan unavailable: no API key configured. Open Admin → AI Settings to add one.",
+        )
+    provider = get_active_ai_provider()
+
+    if media_type == "application/pdf":
+        content_block = {
+            "type": "document",
+            "source": {"type": "base64", "media_type": "application/pdf",
+                       "data": base64.b64encode(blob).decode("ascii")},
+        }
+    else:
+        anth_media = media_type if media_type in ("image/jpeg", "image/png", "image/webp", "image/gif") else "image/jpeg"
+        content_block = {
+            "type": "image",
+            "source": {"type": "base64", "media_type": anth_media,
+                       "data": base64.b64encode(blob).decode("ascii")},
+        }
+
+    req = {
+        "model": "claude-sonnet-4-5-20250929",
+        "max_tokens": 8000,
+        "system": _AI_SYSTEM_MULTI,
+        "messages": [{"role": "user", "content": [
+            content_block,
+            {"type": "text", "text": "Detect every distinct invoice in the file and return the JSON array as specified."},
+        ]}],
+    }
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            resp = await client.post("https://api.anthropic.com/v1/messages", json=req, headers=headers)
+    except Exception as e:  # noqa: BLE001
+        snippet = (str(e) or e.__class__.__name__).splitlines()[0][:240]
+        raise HTTPException(500, f"AI provider error ({provider}): {snippet}")
+
+    if resp.status_code >= 400:
+        try:
+            err = resp.json().get("error", {}).get("message", resp.text)
+        except Exception:
+            err = resp.text
+        raise HTTPException(500, f"AI provider error ({provider}, {resp.status_code}): {err[:240]}")
+
+    data = resp.json()
+    text = "".join(
+        block.get("text", "") for block in (data.get("content") or [])
+        if block.get("type") == "text"
+    ).strip()
+    if not text:
+        raise HTTPException(500, "AI returned an empty response")
+
+    try:
+        parsed = json.loads(_scrub_json(text))
+    except json.JSONDecodeError as e:
+        raise HTTPException(500, f"AI returned non-JSON: {e}")
+
+    invoices_raw = parsed.get("invoices")
+    if not isinstance(invoices_raw, list) or not invoices_raw:
+        raise HTTPException(500, "AI response missing 'invoices' array")
+
+    return [_normalise_draft(r) for r in invoices_raw]
 
 
 # ---------------------------------------------------------------------------
@@ -484,6 +634,202 @@ async def scan_invoice_multi(
     }
     invoices.insert_one(dict(doc))
     return _strip(doc)
+
+
+# ---------------------------------------------------------------------------
+# Auto / Batch scan — detect 1..N invoices in a single file (e.g. a supplier
+# statement bundle). If exactly one is found we persist it and return it in
+# `single` mode so the UI opens the normal review modal. If multiple are
+# found we return `batch` mode with UNPERSISTED drafts — the frontend
+# shows a batch-review modal and calls `/scan-batch-commit` on save.
+# ---------------------------------------------------------------------------
+
+class BatchDraft(BaseModel):
+    supplier: str = ""
+    invoice_number: str = ""
+    invoice_date: str = ""
+    category: str = "other"
+    subtotal: float = 0.0
+    vat: float = 0.0
+    total: float = 0.0
+    items: List[dict] = []
+    page_start: int = 1
+    page_end: int = 1
+
+
+class BatchCommit(BaseModel):
+    location_id: str
+    note: Optional[str] = ""
+    source_file_id: str
+    filename: Optional[str] = "invoice"
+    content_type: Optional[str] = "application/pdf"
+    size: Optional[int] = 0
+    drafts: List[BatchDraft]
+
+
+@router.post("/scan-auto")
+async def scan_invoice_auto(
+    file: UploadFile = File(...),
+    location_id: str = Form(...),
+    note: str = Form(""),
+    category: str = Form(""),
+    user: dict = Depends(get_staff_or_above),
+):
+    """Detect whether the file is one invoice or a bundle, then act.
+
+    - 1 invoice → persist + return `{ mode: "single", invoice }`.
+    - N invoices → persist the source file in GridFS ONCE, return
+      `{ mode: "batch", drafts, source_file_id, ... }` (drafts NOT saved).
+    """
+    content_type = (file.content_type or "image/jpeg").lower()
+    if content_type not in ALLOWED_CT:
+        if not content_type.startswith("image/"):
+            raise HTTPException(415, f"Unsupported file type: {content_type}")
+        content_type = "image/jpeg"
+
+    blob = await file.read()
+    if not blob:
+        raise HTTPException(400, "Empty file")
+    if len(blob) > MAX_BYTES:
+        raise HTTPException(413, f"File exceeds {MAX_BYTES // (1024 * 1024)} MB limit")
+
+    # Store the source file exactly once. Both branches reference this ID.
+    source_file_id = _fs.put(
+        blob,
+        filename=file.filename or "invoice",
+        content_type=content_type,
+        metadata={"location_id": location_id, "batch_source": True},
+    )
+    source_ref = {
+        "file_id": str(source_file_id),
+        "filename": file.filename or "invoice",
+        "content_type": content_type,
+        "size": len(blob),
+    }
+
+    # Detect invoices via AI.
+    try:
+        drafts = await _detect_invoices(blob, content_type)
+    except HTTPException as e:
+        # AI failure — fall back to a single stub so the manager can still
+        # save the file and edit fields by hand.
+        stub = {
+            "supplier": "", "invoice_number": "", "invoice_date": "",
+            "category": "other", "subtotal": 0.0, "vat": 0.0, "total": 0.0,
+            "items": [], "page_start": 1, "page_end": 1,
+        }
+        drafts = [stub]
+        ai_error = str(e.detail)
+    else:
+        ai_error = ""
+
+    # Exactly one invoice → persist immediately and return `single`.
+    if len(drafts) == 1:
+        d = drafts[0]
+        final_cat = _norm_category(category) if category else d["category"]
+        now_iso = datetime.now(timezone.utc).isoformat()
+        doc = {
+            "id": str(uuid.uuid4())[:12],
+            "location_id": location_id,
+            "supplier": d["supplier"],
+            "invoice_number": d["invoice_number"],
+            "invoice_date": d["invoice_date"],
+            "category": final_cat,
+            "subtotal": d["subtotal"],
+            "vat": d["vat"],
+            "total": d["total"],
+            "items": d["items"],
+            "note": (note or "").strip(),
+            "file_id": source_ref["file_id"],
+            "filename": source_ref["filename"],
+            "content_type": source_ref["content_type"],
+            "size": source_ref["size"],
+            "pages": [source_ref],
+            "page_count": 1,
+            "uploaded_at": now_iso,
+            "uploaded_by": user.get("email", ""),
+            "uploaded_by_name": user.get("name", ""),
+            "ai_status": "ok" if not ai_error else "failed",
+            "ai_error": ai_error,
+        }
+        invoices.insert_one(dict(doc))
+        return {"mode": "single", "invoice": _strip(doc)}
+
+    # Multiple invoices detected — return drafts for review, source stays
+    # in GridFS ready to be attached on commit.
+    return {
+        "mode": "batch",
+        "drafts": drafts,
+        "source_file_id": source_ref["file_id"],
+        "filename": source_ref["filename"],
+        "content_type": source_ref["content_type"],
+        "size": source_ref["size"],
+    }
+
+
+@router.post("/scan-batch-commit")
+async def scan_batch_commit(body: BatchCommit, user: dict = Depends(get_staff_or_above)):
+    """Persist a set of drafts previously produced by `/scan-auto`.
+
+    The manager may have edited supplier/date/total fields in the batch
+    review modal; we trust the payload. Every created invoice references
+    the same source GridFS file — the audit trail (the actual bundle
+    PDF) is preserved verbatim.
+    """
+    if not body.drafts:
+        raise HTTPException(400, "No drafts to commit")
+
+    source_ref = {
+        "file_id": body.source_file_id,
+        "filename": body.filename or "invoice",
+        "content_type": body.content_type or "application/pdf",
+        "size": int(body.size or 0),
+    }
+    now_iso = datetime.now(timezone.utc).isoformat()
+    created = []
+    for d in body.drafts:
+        # Coerce items to the internal shape and drop blanks.
+        items = []
+        for it in (d.items or []):
+            desc = (it.get("description") or "").strip() if isinstance(it, dict) else ""
+            if not desc:
+                continue
+            items.append({
+                "description": desc,
+                "qty": _coerce_num(it.get("qty") or 1),
+                "unit_price": _coerce_num(it.get("unit_price")),
+                "line_total": _coerce_num(it.get("line_total")),
+            })
+        doc = {
+            "id": str(uuid.uuid4())[:12],
+            "location_id": body.location_id,
+            "supplier": (d.supplier or "").strip(),
+            "invoice_number": (d.invoice_number or "").strip(),
+            "invoice_date": (d.invoice_date or "").strip(),
+            "category": _norm_category(d.category),
+            "subtotal": _coerce_num(d.subtotal),
+            "vat": _coerce_num(d.vat),
+            "total": _coerce_num(d.total),
+            "items": items,
+            "note": (body.note or "").strip(),
+            "file_id": source_ref["file_id"],
+            "filename": source_ref["filename"],
+            "content_type": source_ref["content_type"],
+            "size": source_ref["size"],
+            "pages": [source_ref],
+            "page_count": 1,
+            "source_page_start": int(d.page_start or 1),
+            "source_page_end": int(d.page_end or d.page_start or 1),
+            "batch_source_file_id": source_ref["file_id"],
+            "uploaded_at": now_iso,
+            "uploaded_by": user.get("email", ""),
+            "uploaded_by_name": user.get("name", ""),
+            "ai_status": "ok",
+            "ai_error": "",
+        }
+        invoices.insert_one(dict(doc))
+        created.append(_strip(doc))
+    return {"created": len(created), "invoices": created}
 
 
 @router.post("/{invoice_id}/append-pages")

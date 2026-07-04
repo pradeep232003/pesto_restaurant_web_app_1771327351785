@@ -82,6 +82,7 @@ const Invoices = () => {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null); // full invoice doc
+  const [batch, setBatch] = useState(null);       // { drafts, source_file_id, filename, content_type, size }
 
   // Recent | All — view switcher. Recent = card grid scoped to the current
   // JKHive location (handover-friendly for staff). All = table for admins
@@ -146,7 +147,7 @@ const Invoices = () => {
         </button>
         <div style={{ flex: 1 }} />
         <ScanButton onScanned={load} adminLocationId={adminLocationId} setBusy={setBusy} busy={busy} setError={setError} />
-        <UploadReviewButton onReview={setEditing} adminLocationId={adminLocationId} setBusy={setBusy} busy={busy} setError={setError} />
+        <UploadReviewButton onReview={setEditing} onBatch={setBatch} adminLocationId={adminLocationId} setBusy={setBusy} busy={busy} setError={setError} />
         <MultiPageScanButton onScanned={load} adminLocationId={adminLocationId} setBusy={setBusy} busy={busy} setError={setError} />
       </div>
 
@@ -225,6 +226,15 @@ const Invoices = () => {
           onSaved={() => { setEditing(null); load(); }}
         />
       )}
+
+      {batch && (
+        <BatchReviewModal
+          batch={batch}
+          locationId={adminLocationId}
+          onClose={() => setBatch(null)}
+          onSaved={() => { setBatch(null); load(); }}
+        />
+      )}
     </div>
   );
 };
@@ -280,9 +290,12 @@ const ScanButton = ({ adminLocationId, setBusy, busy, setError, onScanned }) => 
 /** Upload + review — pick a single invoice file (no camera capture),
  *  run AI extraction, then IMMEDIATELY open the detail modal so the
  *  manager can adjust anything the AI got wrong before it lands in the
- *  list. Sits alongside `ScanButton` (camera) and `MultiPageScanButton`.
+ *  list. If the AI detects that the file contains MULTIPLE invoices
+ *  (e.g. a supplier statement bundle) we route to `BatchReviewModal`
+ *  instead so the manager can QA all N drafts and save them in one go.
+ *  Sits alongside `ScanButton` (camera) and `MultiPageScanButton`.
  */
-const UploadReviewButton = ({ adminLocationId, setBusy, busy, setError, onReview }) => {
+const UploadReviewButton = ({ adminLocationId, setBusy, busy, setError, onReview, onBatch }) => {
   const ref = useRef(null);
   const onPick = async (e) => {
     const file = e.target.files?.[0];
@@ -298,11 +311,18 @@ const UploadReviewButton = ({ adminLocationId, setBusy, busy, setError, onReview
       const fd = new FormData();
       fd.append('file', file);
       fd.append('location_id', adminLocationId);
-      const scanned = await api.invoiceScan(fd);
-      // Hand the returned doc straight to the parent's `setEditing` so
-      // the InvoiceModal opens with the AI's best guess pre-filled and
-      // the manager can verify before walking away.
-      if (scanned && scanned.id) onReview(scanned);
+      const res = await api.invoiceScanAuto(fd);
+      if (res.mode === 'batch') {
+        onBatch({
+          drafts: res.drafts,
+          source_file_id: res.source_file_id,
+          filename: res.filename,
+          content_type: res.content_type,
+          size: res.size,
+        });
+      } else if (res.mode === 'single' && res.invoice) {
+        onReview(res.invoice);
+      }
     } catch (err) {
       setError(err.message || 'Upload failed');
     } finally {
@@ -992,6 +1012,193 @@ const InvoiceCard = ({ invoice, locations, onOpen, onMerged }) => {
     </div>
   );
 };
+
+/** Batch review modal — shown when `/scan-auto` detects that one file
+ *  contains multiple invoices (e.g. a supplier statement bundle).
+ *  The manager can edit supplier / invoice number / date / total on each
+ *  draft, drop bogus rows the AI hallucinated, then hit "Save all" to
+ *  commit all remaining drafts in one call. Nothing is persisted server-
+ *  side until save — cancelling just discards the drafts (the source
+ *  PDF stays in GridFS but is orphaned; a tiny cost for a clean UX).
+ */
+const BatchReviewModal = ({ batch, locationId, onClose, onSaved }) => {
+  // Local editable copy so cancel truly discards edits.
+  const [drafts, setDrafts] = useState(() => (batch.drafts || []).map(d => ({ ...d })));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  const updateDraft = (i, patch) => {
+    setDrafts(prev => prev.map((d, idx) => (idx === i ? { ...d, ...patch } : d)));
+  };
+  const removeDraft = (i) => setDrafts(prev => prev.filter((_, idx) => idx !== i));
+
+  const grandTotal = drafts.reduce((s, d) => s + (Number(d.total) || 0), 0);
+
+  const save = async () => {
+    if (!drafts.length) return;
+    setSaving(true);
+    setErr('');
+    try {
+      await api.invoiceScanBatchCommit({
+        location_id: locationId,
+        source_file_id: batch.source_file_id,
+        filename: batch.filename,
+        content_type: batch.content_type,
+        size: batch.size,
+        drafts,
+      });
+      onSaved();
+    } catch (e) {
+      setErr(e.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div data-testid="batch-review-modal" style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', ...FONT }}>
+      <div onClick={() => !saving && onClose()} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)' }} />
+      <div style={{
+        position: 'relative', background: '#FFFFFF', width: '100%', maxWidth: 720,
+        borderRadius: '20px 20px 0 0', padding: '20px 20px 24px',
+        maxHeight: '92vh', overflowY: 'auto',
+        paddingBottom: 'calc(24px + env(safe-area-inset-bottom) + 84px)',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>Batch detected</p>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1D1D1F', margin: '2px 0 0' }}>
+              Found {drafts.length} invoice{drafts.length === 1 ? '' : 's'} in this file
+            </h2>
+          </div>
+          <button onClick={() => !saving && onClose()} aria-label="Cancel"
+            style={{ width: 32, height: 32, borderRadius: 999, background: '#F5F5F7', border: 0, cursor: saving ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={15} color="#1D1D1F" />
+          </button>
+        </div>
+        <p style={{ fontSize: 12, color: '#86868B', margin: '4px 0 14px' }}>
+          Review each row. Fix anything the AI got wrong, drop hallucinated rows, then Save all — every row becomes its own invoice record. The source file stays as the audit trail on every one.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {drafts.map((d, i) => (
+            <div
+              key={i}
+              data-testid={`batch-draft-${i}`}
+              style={{
+                background: '#F8F8FA', borderRadius: 12, padding: 12,
+                display: 'flex', flexDirection: 'column', gap: 8, position: 'relative',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{
+                  fontSize: 10, fontWeight: 800, color: '#007AFF',
+                  background: 'rgba(0,122,255,0.10)', padding: '3px 8px', borderRadius: 999,
+                  letterSpacing: '0.04em',
+                }}>
+                  Pages {d.page_start}{d.page_end !== d.page_start ? `–${d.page_end}` : ''}
+                </span>
+                <span style={{ fontSize: 11, color: '#86868B' }}>
+                  {(d.items || []).length} line item{(d.items || []).length === 1 ? '' : 's'}
+                </span>
+                <button
+                  data-testid={`batch-draft-remove-${i}`}
+                  onClick={() => removeDraft(i)}
+                  disabled={saving}
+                  aria-label="Discard this draft"
+                  style={{
+                    marginLeft: 'auto', background: 'transparent', border: 0, cursor: saving ? 'wait' : 'pointer',
+                    color: '#FF3B30', padding: 4, display: 'flex', alignItems: 'center', gap: 3,
+                    fontSize: 11, fontWeight: 600,
+                  }}
+                >
+                  <Trash2 size={12} /> Skip
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 6 }}>
+                <input
+                  data-testid={`batch-draft-supplier-${i}`}
+                  type="text"
+                  placeholder="Supplier"
+                  value={d.supplier || ''}
+                  onChange={(e) => updateDraft(i, { supplier: e.target.value })}
+                  style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E5EA', fontSize: 13, fontWeight: 600, ...FONT, background: '#FFFFFF' }}
+                />
+                <input
+                  data-testid={`batch-draft-number-${i}`}
+                  type="text"
+                  placeholder="Invoice #"
+                  value={d.invoice_number || ''}
+                  onChange={(e) => updateDraft(i, { invoice_number: e.target.value })}
+                  style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E5EA', fontSize: 13, ...FONT, background: '#FFFFFF' }}
+                />
+                <input
+                  data-testid={`batch-draft-date-${i}`}
+                  type="date"
+                  value={/^\d{4}-\d{2}-\d{2}$/.test(d.invoice_date || '') ? d.invoice_date : ''}
+                  onChange={(e) => updateDraft(i, { invoice_date: e.target.value })}
+                  style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E5EA', fontSize: 13, ...FONT, background: '#FFFFFF' }}
+                />
+                <input
+                  data-testid={`batch-draft-total-${i}`}
+                  type="number"
+                  step="0.01"
+                  placeholder="Total"
+                  value={d.total ?? ''}
+                  onChange={(e) => updateDraft(i, { total: Number(e.target.value) || 0 })}
+                  style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E5EA', fontSize: 13, fontWeight: 700, ...FONT, background: '#FFFFFF', textAlign: 'right' }}
+                />
+              </div>
+            </div>
+          ))}
+
+          {drafts.length === 0 && (
+            <div style={{ padding: 24, textAlign: 'center', color: '#86868B', fontSize: 13, background: '#F8F8FA', borderRadius: 12 }}>
+              All drafts skipped. Cancel and re-upload if this was a mistake.
+            </div>
+          )}
+        </div>
+
+        {err && (
+          <div data-testid="batch-error" style={{ marginTop: 12, background: 'rgba(255,59,48,0.08)', color: '#C0392B', padding: '8px 10px', borderRadius: 8, fontSize: 12 }}>
+            {err}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 16 }}>
+          <div style={{ fontSize: 12, color: '#86868B' }}>
+            Grand total <span style={{ color: '#1D1D1F', fontWeight: 700 }}>£{grandTotal.toFixed(2)}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              data-testid="batch-cancel"
+              onClick={onClose}
+              disabled={saving}
+              style={{ padding: '10px 16px', borderRadius: 10, border: 0, background: '#F5F5F7', color: '#1D1D1F', fontSize: 13, fontWeight: 700, cursor: saving ? 'wait' : 'pointer', ...FONT }}
+            >Cancel</button>
+            <button
+              data-testid="batch-save-all"
+              onClick={save}
+              disabled={saving || drafts.length === 0}
+              style={{
+                padding: '10px 18px', borderRadius: 10, border: 0,
+                background: 'linear-gradient(135deg, #34C759 0%, #007AFF 100%)',
+                color: '#FFFFFF', fontSize: 13, fontWeight: 700,
+                cursor: saving ? 'wait' : 'pointer', opacity: saving || drafts.length === 0 ? 0.6 : 1,
+                display: 'flex', alignItems: 'center', gap: 6, ...FONT,
+              }}
+            >
+              {saving ? <Loader2 size={12} className="animate-spin" /> : <Layers size={12} />}
+              {saving ? 'Saving…' : `Save all ${drafts.length}`}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 /** Detail / edit drawer. Admin can change location, edit fields, delete.
  *  Staff get a read-only view with the photo + line items. */
