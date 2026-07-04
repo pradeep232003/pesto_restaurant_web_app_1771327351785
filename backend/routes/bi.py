@@ -554,3 +554,161 @@ async def bi_ai_insights(
     }
     ai_cache.update_one({"key": key}, {"$set": record}, upsert=True)
     return {**{k: v for k, v in record.items() if k != "_id"}, "cached": False}
+
+
+# ---------------------------------------------------------------------------
+# Menu Engineering — Kasavana & Smith quadrant analysis.
+#
+# Classifies every menu item by (popularity, profitability) vs its site
+# average and buckets it into Stars / Plow Horses / Puzzles / Dogs so
+# owners can see at a glance what to promote, reprice, rebrand, or bin.
+#
+#   • Popularity  = units sold in the period, relative to the site mean.
+#   • Profitability = contribution margin (price − recipe cost) per unit,
+#     relative to the site mean.
+#
+# An item needs BOTH a recipe (to know food cost) AND at least one unit
+# sold in the window to be classified — otherwise it's returned as
+# `quadrant: "uncategorised"` so the manager can complete the setup.
+# ---------------------------------------------------------------------------
+
+orders_collection = db["orders"]
+
+# Any order that reached the "money in the till" stage counts as a real
+# sale. Cancelled/refunded ones are ignored so they don't skew popularity.
+_SALE_STATUSES = ("completed", "ready", "collected", "paid", "confirmed")
+
+
+def _classify(units: float, margin: float, mean_units: float, mean_margin: float) -> str:
+    high_pop = units >= mean_units
+    high_prof = margin >= mean_margin
+    if high_pop and high_prof:
+        return "star"
+    if high_pop and not high_prof:
+        return "plow_horse"
+    if not high_pop and high_prof:
+        return "puzzle"
+    return "dog"
+
+
+@router.get("/menu-engineering")
+async def menu_engineering(
+    location_id: Optional[str] = Query(None),
+    days: int = Query(30, ge=1, le=365),
+    user: dict = Depends(get_admin_user),
+):
+    """Kasavana & Smith 2x2 quadrant analysis for one site (or all)."""
+    now = datetime.now(timezone.utc)
+    start = (now - timedelta(days=days)).isoformat()
+    end = now.isoformat()
+
+    # 1. Pull menu items for the location (or all), keyed by id + name.
+    menu_query: dict = {}
+    if location_id:
+        menu_query["location_id"] = location_id
+    menu_docs = list(menu_items_collection.find(
+        menu_query,
+        {"_id": 0, "id": 1, "name": 1, "price": 1, "recipe": 1, "location_id": 1, "is_available": 1},
+    ))
+    menu_by_id: dict = {}
+    menu_by_name: dict = {}
+    for m in menu_docs:
+        recipe = m.get("recipe") or []
+        cost = round(sum(float(line.get("cost") or 0) for line in recipe if isinstance(line, dict)), 2)
+        price = float(m.get("price") or 0)
+        menu_by_id[m.get("id")] = {
+            "id": m.get("id"),
+            "name": m.get("name") or "",
+            "location_id": m.get("location_id"),
+            "price": price,
+            "cost": cost,
+            "margin": round(price - cost, 2),
+            "has_recipe": cost > 0,
+            "is_available": bool(m.get("is_available", True)),
+            "units": 0,
+            "revenue": 0.0,
+        }
+        if m.get("name"):
+            # Fallback lookup by name — order line items may lack a menu_id
+            # if they came from the old EPOS import.
+            menu_by_name[m["name"].strip().lower()] = menu_by_id[m.get("id")]
+
+    # 2. Aggregate units + revenue from orders in the window.
+    order_query: dict = {
+        "created_at": {"$gte": start, "$lte": end},
+        "status": {"$in": list(_SALE_STATUSES)},
+    }
+    if location_id:
+        order_query["location_id"] = location_id
+    for order in orders_collection.find(order_query, {"_id": 0, "items": 1}):
+        for line in (order.get("items") or []):
+            if not isinstance(line, dict):
+                continue
+            item_id = line.get("id") or line.get("menu_item_id")
+            qty = float(line.get("quantity") or 0)
+            price = float(line.get("price") or 0)
+            record = menu_by_id.get(item_id)
+            if record is None:
+                # Fallback — match by name so items renamed on the menu after
+                # the order was placed still count.
+                nm = (line.get("name") or "").strip().lower()
+                record = menu_by_name.get(nm)
+            if record is None:
+                continue
+            record["units"] += qty
+            record["revenue"] += qty * price
+
+    # 3. Compute site means over items that are actually eligible (sold AND
+    # priced with a recipe). Two separate means so a dish with no recipe
+    # doesn't drag the profitability mean toward zero.
+    eligible = [m for m in menu_by_id.values() if m["units"] > 0 and m["has_recipe"]]
+    total_units = sum(m["units"] for m in eligible)
+    total_margin = sum(m["margin"] for m in eligible)   # each item counted once, per Kasavana
+    unique_items = len(eligible)
+    mean_units = (total_units / unique_items) if unique_items else 0.0
+    mean_margin = (total_margin / unique_items) if unique_items else 0.0
+
+    # 4. Classify every item; uncategorised = missing recipe OR zero sales.
+    items_out: list = []
+    counts = {"star": 0, "plow_horse": 0, "puzzle": 0, "dog": 0, "uncategorised": 0}
+    for m in menu_by_id.values():
+        if m["units"] <= 0 or not m["has_recipe"]:
+            quadrant = "uncategorised"
+            reason = ("no sales" if m["units"] <= 0 else "") + \
+                     (" & " if m["units"] <= 0 and not m["has_recipe"] else "") + \
+                     ("no recipe" if not m["has_recipe"] else "")
+        else:
+            quadrant = _classify(m["units"], m["margin"], mean_units, mean_margin)
+            reason = ""
+        counts[quadrant] += 1
+        food_pct = round((m["cost"] / m["price"] * 100.0), 1) if m["price"] > 0 else 0.0
+        items_out.append({
+            **m,
+            "units": round(m["units"], 2),
+            "revenue": round(m["revenue"], 2),
+            "food_cost_pct": food_pct,
+            "quadrant": quadrant,
+            "reason": reason,
+        })
+
+    # Sort: dogs first (need action), then puzzles, plow horses, stars, uncat.
+    order_map = {"dog": 0, "plow_horse": 1, "puzzle": 2, "star": 3, "uncategorised": 4}
+    items_out.sort(key=lambda r: (order_map.get(r["quadrant"], 9), -r["revenue"]))
+
+    return {
+        "period": {
+            "start": start[:10],
+            "end": end[:10],
+            "days": days,
+        },
+        "location_id": location_id,
+        "benchmarks": {
+            "mean_units": round(mean_units, 2),
+            "mean_margin": round(mean_margin, 2),
+            "total_units": round(total_units, 2),
+            "eligible_items": unique_items,
+            "total_menu_items": len(menu_by_id),
+        },
+        "counts": counts,
+        "items": items_out,
+    }

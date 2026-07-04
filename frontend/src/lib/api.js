@@ -917,6 +917,11 @@ class ApiService {
   async invoiceNormaliseDates() {
     return this.fetch('/api/admin/invoices/admin/normalise-dates', { method: 'POST' });
   }
+  async biMenuEngineering({ location_id, days = 30 } = {}) {
+    const qs = [`days=${days}`];
+    if (location_id) qs.push(`location_id=${encodeURIComponent(location_id)}`);
+    return this.fetch(`/api/admin/bi/menu-engineering?${qs.join('&')}`);
+  }
   async invoiceAppendPages(id, formData) {
     const headers = {};
     const storedToken = localStorage.getItem('access_token');
