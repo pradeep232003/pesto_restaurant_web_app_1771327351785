@@ -290,6 +290,10 @@ const ShiftMgmt = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(null); // shift object or new template
+  // Quick-copy popover: { shift, anchor } — clicking the copy icon on any
+  // shift card opens a small popover with date presets (next day / +2 /
+  // next week / custom) that duplicates the shift into another date.
+  const [copyingShift, setCopyingShift] = useState(null);
   const [copyBusy, setCopyBusy] = useState(false);
   const [publishBusy, setPublishBusy] = useState(false);
   const [publishMsg, setPublishMsg] = useState('');
@@ -351,6 +355,39 @@ const ShiftMgmt = () => {
       await load();
     } catch (err) {
       setError(err.message || 'Could not copy week');
+    } finally {
+      setCopyBusy(false);
+    }
+  };
+
+  // Duplicate a single shift into a target date. Same staff, role and
+  // times; new shift starts as a draft (backend default) so the manager
+  // can review before publishing.
+  const copyShiftTo = async (shift, targetDateIso) => {
+    if (!shift || !targetDateIso) return;
+    setCopyBusy(true);
+    setError('');
+    try {
+      await api.shiftCreate({
+        location_id: shift.location_id || adminLocationId,
+        staff_id: shift.staff_id,
+        date: targetDateIso,
+        start_time: shift.start_time,
+        end_time: shift.end_time,
+        role: shift.role || '',
+        notes: shift.notes || '',
+      });
+      setCopyingShift(null);
+      // If the target lands outside the visible week, jump the view to
+      // that week so the manager immediately sees the new shift land.
+      const target = new Date(targetDateIso);
+      if (target < weekStart || target > addDays(weekStart, 6)) {
+        setWeekStart(startOfWeek(target));
+      } else {
+        await load();
+      }
+    } catch (e) {
+      setError(e.message || 'Could not copy shift');
     } finally {
       setCopyBusy(false);
     }
@@ -634,6 +671,13 @@ const ShiftMgmt = () => {
                 locationId={adminLocationId}
                 onChanged={load}
                 onEditShift={(s) => setEditing(s)}
+                onCopyShift={(s, ev) => {
+                  const rect = ev.currentTarget.getBoundingClientRect();
+                  setCopyingShift({
+                    shift: s,
+                    anchor: { left: rect.right + window.scrollX - 240, top: rect.bottom + window.scrollY + 6 },
+                  });
+                }}
               />
             </div>
           )}
@@ -674,13 +718,16 @@ const ShiftMgmt = () => {
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {day.map(s => (
-                        <button
+                        <div
                           key={s.id}
                           data-testid={`shifts-row-${s.id}`}
+                          role={isAdmin ? 'button' : undefined}
+                          tabIndex={isAdmin ? 0 : undefined}
                           onClick={() => isAdmin && setEditing(s)}
-                          disabled={!isAdmin}
+                          onKeyDown={(e) => { if (isAdmin && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setEditing(s); } }}
                           style={{
-                            display: 'grid', gridTemplateColumns: '1fr auto', gap: 6,
+                            display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 6,
+                            alignItems: 'center',
                             padding: '8px 10px', borderRadius: 10,
                             background: s.published ? '#F9F9FB' : 'rgba(255,149,0,0.10)',
                             borderLeft: s.published ? 'none' : '3px solid #FF9500',
@@ -701,7 +748,24 @@ const ShiftMgmt = () => {
                             </p>
                           </div>
                           <span style={{ alignSelf: 'center', fontSize: 12, fontWeight: 700, color: '#007AFF' }}>{s.hours}h</span>
-                        </button>
+                          {isAdmin && (
+                            <button
+                              data-testid={`shifts-copy-${s.id}`}
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                const rect = ev.currentTarget.getBoundingClientRect();
+                                setCopyingShift({
+                                  shift: s,
+                                  anchor: { left: rect.right + window.scrollX - 240, top: rect.bottom + window.scrollY + 6 },
+                                });
+                              }}
+                              aria-label="Copy shift to another day"
+                              title="Copy shift"
+                              style={{ width: 28, height: 28, borderRadius: 999, background: 'rgba(0,122,255,0.10)', color: '#007AFF', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Copy size={13} />
+                            </button>
+                          )}
+                        </div>
                       ))}
                     </div>
                   )}
@@ -743,6 +807,17 @@ const ShiftMgmt = () => {
         />
       )}
 
+      {/* Quick-copy popover — duplicates a shift to another date. */}
+      {copyingShift && (
+        <CopyShiftPopover
+          shift={copyingShift.shift}
+          anchor={copyingShift.anchor}
+          busy={copyBusy}
+          onClose={() => setCopyingShift(null)}
+          onCopy={(dateIso) => copyShiftTo(copyingShift.shift, dateIso)}
+        />
+      )}
+
       {/* AI rota error banner */}
       {aiError && !aiPreview && (
         <div data-testid="shifts-ai-error" style={{ background: 'rgba(255,59,48,0.10)', borderRadius: 12, padding: 12, marginTop: 12, color: '#C0392B', fontSize: 13, ...FONT }}>
@@ -778,7 +853,7 @@ const ShiftMgmt = () => {
  * Only rendered on `md:` and above; mobile keeps the day-card list which
  * is more thumb-friendly for staff viewing their own week.
  */
-const ShiftGrid = ({ weekStart, staffList, shifts, staffFilter, locationId, onChanged, onEditShift }) => {
+const ShiftGrid = ({ weekStart, staffList, shifts, staffFilter, locationId, onChanged, onEditShift, onCopyShift }) => {
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const rows = useMemo(() => {
     const list = staffFilter ? staffList.filter(s => s.id === staffFilter) : staffList;
@@ -980,13 +1055,16 @@ const ShiftGrid = ({ weekStart, staffList, shifts, staffFilter, locationId, onCh
                         <Plus size={16} />
                       </div>
                     ) : cellShifts.map(s => (
-                      <button
+                      <div
                         key={s.id}
                         data-testid={`shifts-grid-block-${s.id}`}
                         draggable
+                        role="button"
+                        tabIndex={0}
                         onDragStart={(ev) => handleDragStart(s, ev)}
                         onDragEnd={handleDragEnd}
                         onClick={(ev) => { ev.stopPropagation(); onEditShift(s); }}
+                        onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onEditShift(s); } }}
                         title={`${s.start_time}–${s.end_time}${s.role ? ' · ' + s.role : ''}${s.notes ? '\n' + s.notes : ''}`}
                         style={{
                           textAlign: 'left',
@@ -999,6 +1077,7 @@ const ShiftGrid = ({ weekStart, staffList, shifts, staffFilter, locationId, onCh
                           cursor: 'grab',
                           fontFamily: 'inherit',
                           display: 'flex', flexDirection: 'column', gap: 2,
+                          position: 'relative',
                         }}
                       >
                         <span style={{ fontSize: 11, fontWeight: 700 }}>
@@ -1011,7 +1090,27 @@ const ShiftGrid = ({ weekStart, staffList, shifts, staffFilter, locationId, onCh
                             <span style={{ marginLeft: 'auto', padding: '0 4px', borderRadius: 4, background: 'rgba(255,149,0,0.25)', color: '#A35E00', fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Draft</span>
                           )}
                         </span>
-                      </button>
+                        {onCopyShift && (
+                          <button
+                            data-testid={`shifts-grid-copy-${s.id}`}
+                            onClick={(ev) => { ev.stopPropagation(); onCopyShift(s, ev); }}
+                            onMouseDown={(ev) => ev.stopPropagation()}
+                            draggable={false}
+                            aria-label="Copy shift to another day"
+                            title="Copy shift"
+                            style={{
+                              position: 'absolute', top: 2, right: 2,
+                              width: 20, height: 20, borderRadius: 999,
+                              background: 'rgba(255,255,255,0.85)', border: 0,
+                              color: '#007AFF', cursor: 'pointer',
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+                            }}
+                          >
+                            <Copy size={11} />
+                          </button>
+                        )}
+                      </div>
                     ))}
                   </div>
                 );
@@ -1342,6 +1441,131 @@ const ShiftModal = ({ shift, staffList, onClose, onSaved }) => {
         </div>
       </div>
     </div>
+  );
+};
+
+/**
+ * Quick-copy popover — duplicates an existing shift into another date.
+ * Anchored to the right edge of the copy icon so it opens leftwards on
+ * mobile without overflowing the viewport.
+ *
+ * Presets: Next day, In 2 days, Next week (same weekday +7 days), plus a
+ * native `<input type="date">` for anywhere-else duplication.
+ */
+const CopyShiftPopover = ({ shift, anchor, busy, onClose, onCopy }) => {
+  const base = useMemo(() => {
+    const [y, m, d] = (shift.date || '').split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+  }, [shift.date]);
+
+  const presets = useMemo(() => ([
+    { key: 'next-day', label: 'Next day', date: toIso(addDays(base, 1)) },
+    { key: 'two-days', label: 'In 2 days', date: toIso(addDays(base, 2)) },
+    { key: 'next-week', label: 'Next week', date: toIso(addDays(base, 7)) },
+  ]), [base]);
+
+  const [custom, setCustom] = useState(toIso(addDays(base, 1)));
+
+  // Clamp anchor so the popover never overflows the right edge.
+  const left = Math.max(12, Math.min(anchor.left, window.innerWidth - 268));
+
+  return (
+    <>
+      <div
+        data-testid="shifts-copy-popover-scrim"
+        onClick={onClose}
+        style={{ position: 'fixed', inset: 0, zIndex: 55, background: 'transparent' }}
+      />
+      <div
+        data-testid="shifts-copy-popover"
+        style={{
+          position: 'absolute',
+          left,
+          top: anchor.top,
+          zIndex: 56,
+          width: 256,
+          background: '#FFFFFF',
+          borderRadius: 14,
+          boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
+          padding: 12,
+          ...FONT,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+          <Copy size={13} color="#007AFF" />
+          <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#1D1D1F' }}>
+            Copy shift
+          </p>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            style={{ marginLeft: 'auto', width: 24, height: 24, borderRadius: 999, background: '#F5F5F7', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <X size={12} color="#1D1D1F" />
+          </button>
+        </div>
+
+        <p style={{ margin: '0 0 10px', fontSize: 11, color: '#86868B' }}>
+          {shift.staff_name} · {shift.start_time}–{shift.end_time}
+          {shift.role && ` · ${shift.role}`}
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+          {presets.map(p => (
+            <button
+              key={p.key}
+              data-testid={`shifts-copy-preset-${p.key}`}
+              disabled={busy}
+              onClick={() => onCopy(p.date)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '9px 12px', borderRadius: 10, border: 0,
+                background: '#F5F5F7', color: '#1D1D1F',
+                fontSize: 13, fontWeight: 600, cursor: busy ? 'not-allowed' : 'pointer',
+                opacity: busy ? 0.5 : 1, ...FONT,
+              }}
+            >
+              <span>{p.label}</span>
+              <span style={{ fontSize: 11, color: '#86868B' }}>
+                {new Date(p.date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div style={{ borderTop: '1px solid #ECECEF', paddingTop: 10 }}>
+          <label style={{ display: 'block' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Custom date
+            </span>
+            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+              <input
+                data-testid="shifts-copy-custom-date"
+                type="date"
+                value={custom}
+                min={toIso(base)}
+                onChange={(e) => setCustom(e.target.value)}
+                style={{ flex: 1, padding: '8px 10px', borderRadius: 8, background: '#F5F5F7', border: 0, fontSize: 12, color: '#1D1D1F', ...FONT }}
+              />
+              <button
+                data-testid="shifts-copy-custom-go"
+                disabled={busy || !custom}
+                onClick={() => onCopy(custom)}
+                style={{
+                  padding: '8px 14px', borderRadius: 8, border: 0,
+                  background: '#1D1D1F', color: '#FFFFFF',
+                  fontSize: 12, fontWeight: 700,
+                  cursor: (busy || !custom) ? 'not-allowed' : 'pointer',
+                  opacity: (busy || !custom) ? 0.5 : 1,
+                }}
+              >
+                {busy ? '…' : 'Go'}
+              </button>
+            </div>
+          </label>
+        </div>
+      </div>
+    </>
   );
 };
 
