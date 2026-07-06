@@ -949,6 +949,13 @@ class ApiService {
   async salesTrainingRefresh(locationId) {
     return this.fetch(`/api/sales-training/refresh?location_id=${encodeURIComponent(locationId)}`, { method: 'POST' });
   }
+  async sliceAndDice({ locations, start, end } = {}) {
+    const qs = [];
+    if (locations && locations.length) qs.push(`locations=${encodeURIComponent(locations.join(','))}`);
+    if (start) qs.push(`start=${start}`);
+    if (end) qs.push(`end=${end}`);
+    return this.fetch(`/api/admin/slice-and-dice${qs.length ? '?' + qs.join('&') : ''}`);
+  }
   async invoiceAppendPages(id, formData) {
     const headers = {};
     const storedToken = localStorage.getItem('access_token');

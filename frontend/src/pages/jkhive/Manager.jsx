@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Users, ShieldCheck, BarChart3, TrendingUp, TrendingDown, UtensilsCrossed, Snowflake, LineChart, Trash2, ChefHat } from 'lucide-react';
+import { Settings, Users, ShieldCheck, BarChart3, TrendingUp, TrendingDown, UtensilsCrossed, Snowflake, LineChart, Trash2, ChefHat, LayoutGrid } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -34,6 +34,11 @@ const Manager = () => {
           <Tile testId="tile-menu-engineering" to="/jkhive/menu-engineering" icon={ChefHat} color="#FFCC00" title="Menu Engineering" subtitle="Stars · Dogs · Puzzles" />
         ) : (
           <Tile testId="tile-menu-engineering" comingSoon icon={ChefHat} color="#FFCC00" title="Menu Engineering" subtitle="Admin only" />
+        )}
+        {isAdmin ? (
+          <Tile testId="tile-slice-dice" to="/jkhive/slice-and-dice" icon={LayoutGrid} color="#5856D6" title="Slice & Dice" subtitle="Ops + compliance drilldown" />
+        ) : (
+          <Tile testId="tile-slice-dice" comingSoon icon={LayoutGrid} color="#5856D6" title="Slice & Dice" subtitle="Admin only" />
         )}
         <Tile testId="tile-food-wastage"          comingSoon icon={Trash2}    color="#FF3B30" title="Food Wastage"          subtitle="Track all food loss" />
       </div>
