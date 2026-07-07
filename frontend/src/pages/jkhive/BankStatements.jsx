@@ -368,7 +368,7 @@ const BankStatements = () => {
           <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: 'rgba(0,122,255,0.08)', color: '#1D1D1F', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Loader2 size={14} className="animate-spin" color="#007AFF" />
             Parsing the file locally with Python — no AI tokens spent. Usually finishes in
-            under 2 seconds. If the parser can't read your bank's format, click the
+            under 2 seconds. If the parser can&apos;t read your bank&apos;s format, click the
             purple sparkle button on the row afterwards to try the AI classifier instead.
           </div>
         )}
@@ -864,7 +864,7 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
                   <th style={thStyle}>Description</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}>Type</th>
                   <th style={thStyle}>Category</th>
-                  <th style={thStyle}>Matched supplier</th>
+                  <th style={thStyle}>Matched Invoice</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Amount</th>
                   <th style={thStyle}>Site · Statement</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}> </th>
@@ -896,7 +896,11 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
                         </span>
                       )}
                     </td>
-                    <td style={tdStyle}>{r.matched_supplier || '—'}</td>
+                    <td style={tdStyle}>
+                      {r.type === 'expense'
+                        ? (r.matched_invoice_ref || r.matched_supplier || '—')
+                        : (r.matched_supplier || '—')}
+                    </td>
                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, color: r.type === 'income' ? '#1D5A2F' : '#8A2822' }}>
                       {fmtGBP(r.amount)}
                     </td>

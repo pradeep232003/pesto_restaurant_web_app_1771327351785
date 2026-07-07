@@ -315,6 +315,156 @@ def _match_supplier(description: str, suppliers: List[str]) -> str:
     return best[0]
 
 
+def _load_invoices(location_id: str) -> List[dict]:
+    """Fetch scanned + uploaded invoices for a location — minimal
+    projection so we don't pull GridFS blobs. Used to match bank-statement
+    expense rows to actual invoices."""
+    try:
+        rows = list(invoices_col.find(
+            {"location_id": location_id},
+            {
+                "id": 1, "supplier": 1, "invoice_number": 1,
+                "invoice_date": 1, "total": 1, "grand_total": 1,
+            },
+        ).limit(2000))
+    except Exception:
+        return []
+    out = []
+    for r in rows:
+        supplier = (r.get("supplier") or "").strip()
+        if not supplier:
+            continue
+        # invoice value — most records use `total`; some legacy use `grand_total`.
+        amt = r.get("total") or r.get("grand_total") or 0
+        try:
+            amt = float(amt)
+        except (TypeError, ValueError):
+            amt = 0.0
+        out.append({
+            "id": r.get("id", ""),
+            "supplier": supplier,
+            "invoice_number": (r.get("invoice_number") or "").strip(),
+            "invoice_date": (r.get("invoice_date") or "").strip(),
+            "amount": round(amt, 2),
+        })
+    return out
+
+
+def _match_invoice(description: str, txn_amount: float, txn_date: str,
+                   invoices: List[dict]) -> Optional[dict]:
+    """Find the single best invoice match for a bank-statement expense.
+
+    Strategy (all fuzzy):
+      1. Normalise description AND supplier names, then find every
+         invoice whose supplier tokens all appear in the description.
+      2. Among those, prefer the invoice whose amount matches to within
+         ±£0.05, then whose date is closest to the txn date.
+      3. If no candidates by supplier, fall back to amount+date only
+         within a tighter tolerance (rare — for descriptions where the
+         supplier text is missing entirely).
+    Returns the matching invoice dict, or None.
+    """
+    if not invoices:
+        return None
+
+    def _parse_date(s: str) -> Optional[datetime]:
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+            try:
+                return datetime.strptime(s[:10], fmt)
+            except Exception:
+                continue
+        return None
+
+    txn_dt = _parse_date(txn_date) if txn_date else None
+    norm_desc = _normalise_supplier(description)
+    desc_tokens = set(norm_desc.split())
+
+    # Pass 1: supplier-token match
+    supplier_candidates = []
+    for inv in invoices:
+        norm_sup = _normalise_supplier(inv["supplier"])
+        if not norm_sup:
+            continue
+        sup_tokens = norm_sup.split()
+        if all(t in desc_tokens for t in sup_tokens):
+            supplier_candidates.append(inv)
+
+    def _rank(candidate: dict) -> tuple:
+        amt_diff = abs(candidate["amount"] - txn_amount)
+        # Prefer exact amount matches (within 5p)
+        amt_score = 0 if amt_diff < 0.05 else amt_diff
+        # Date proximity in days (large penalty if we can't parse)
+        inv_dt = _parse_date(candidate["invoice_date"])
+        if inv_dt and txn_dt:
+            date_score = abs((inv_dt - txn_dt).days)
+        else:
+            date_score = 999
+        # Also prefer longer supplier names (more specific match)
+        specificity = -len(_normalise_supplier(candidate["supplier"]))
+        return (amt_score, date_score, specificity)
+
+    if supplier_candidates:
+        return sorted(supplier_candidates, key=_rank)[0]
+
+    # Pass 2: amount + date fallback (rare)
+    if txn_dt and txn_amount > 0:
+        loose = []
+        for inv in invoices:
+            if abs(inv["amount"] - txn_amount) > 0.05:
+                continue
+            inv_dt = _parse_date(inv["invoice_date"])
+            if not inv_dt:
+                continue
+            if abs((inv_dt - txn_dt).days) <= 7:
+                loose.append(inv)
+        if loose:
+            return sorted(loose, key=_rank)[0]
+    return None
+
+
+def _format_invoice_ref(inv: dict) -> str:
+    """Pretty display string for a matched invoice — 'Bidfood #INV1234'."""
+    if not inv:
+        return ""
+    supplier = inv.get("supplier") or ""
+    number = inv.get("invoice_number") or ""
+    if supplier and number:
+        return f"{supplier} #{number}"
+    return supplier or number or ""
+
+
+def _enrich_with_invoices(txns: List[dict], location_id: str) -> int:
+    """Match every EXPENSE txn against real invoice records for the
+    location. Updates each txn in place with `matched_invoice_id`,
+    `matched_invoice_ref` ("Supplier #INVNUM") and keeps
+    `matched_supplier` in sync (used by the Supplier pivot).
+
+    Returns the number of matches made — logged upstream so managers
+    can see how many statement rows the system found paperwork for.
+    """
+    invoices = _load_invoices(location_id)
+    if not invoices:
+        return 0
+    matches = 0
+    for t in txns:
+        if t.get("type") != "expense":
+            continue
+        inv = _match_invoice(
+            description=t.get("description", ""),
+            txn_amount=float(t.get("amount") or 0),
+            txn_date=t.get("date", ""),
+            invoices=invoices,
+        )
+        if not inv:
+            continue
+        t["matched_invoice_id"] = inv.get("id", "")
+        t["matched_invoice_ref"] = _format_invoice_ref(inv)
+        if not t.get("matched_supplier"):
+            t["matched_supplier"] = inv.get("supplier", "")
+        matches += 1
+    return matches
+
+
 def _chunk_text(text: str, target_size: int = 15_000) -> List[str]:
     """Split extracted statement text into ~15 kB chunks along natural
     page boundaries (`--- Page N ---` markers). Falls back to line-based
@@ -931,8 +1081,10 @@ async def upload_statement(
                 custom_rules=custom_rules,
             )
             strategy = parsed.pop("_strategy", "python")
-            _log.info("upload: python parser %s → %d txns in %.1fs (%d custom rules)",
-                      strategy, len(parsed["transactions"]), time.monotonic() - t_parse, len(custom_rules))
+            n_matched = _enrich_with_invoices(parsed["transactions"], location_id)
+            _log.info("upload: python parser %s → %d txns in %.1fs (%d custom rules, %d invoice matches)",
+                      strategy, len(parsed["transactions"]), time.monotonic() - t_parse,
+                      len(custom_rules), n_matched)
         except ValueError as ve:
             try:
                 _fs.delete(file_id)
@@ -981,6 +1133,7 @@ async def upload_statement(
         try:
             parsed = await _classify(text, location_id)
             strategy = "ai"
+            _enrich_with_invoices(parsed["transactions"], location_id)
         except HTTPException as he:
             try:
                 _fs.delete(file_id)
@@ -1112,6 +1265,10 @@ async def reclassify_statement(
         strategy = "ai"
 
     txns = parsed["transactions"]
+    # Match each expense against real invoices for this location. Both
+    # python and AI paths funnel through here so the "Matched Invoice"
+    # column stays consistent regardless of engine.
+    _enrich_with_invoices(txns, location_id)
     total_income = round(sum(t["amount"] for t in txns if t["type"] == "income"), 2)
     total_expense = round(sum(t["amount"] for t in txns if t["type"] == "expense"), 2)
 
@@ -1170,12 +1327,15 @@ def _build_split_xlsx(income_txns: list, expense_txns: list, summary_rows: list)
         # Expenses tab gets an extra "Rule fired" column so managers can
         # see which Python regex matched each row (or "no match → other"
         # when the description didn't match any rule — a big red flag
-        # that a new rule is needed).
+        # that a new rule is needed). Expenses also show "Matched
+        # Invoice" (a link back to the paperwork) instead of just the
+        # supplier name.
         is_expenses = title == "Expenses"
+        supplier_col_label = "Matched Invoice" if is_expenses else "Matched Supplier"
         headers = ["Date", "Description", "Category"]
         if is_expenses:
             headers.append("Rule fired")
-        headers += ["Matched Supplier", "Amount"]
+        headers += [supplier_col_label, "Amount"]
         if aggregated:
             headers += ["Statement", "Site"]
         widths = [14, 56, 18] + ([32] if is_expenses else []) + [28, 14] + ([28, 22] if aggregated else [])
@@ -1194,7 +1354,13 @@ def _build_split_xlsx(income_txns: list, expense_txns: list, summary_rows: list)
             if is_expenses:
                 ws.cell(row=r, column=col, value=t.get("category_rule", "—"))
                 col += 1
-            ws.cell(row=r, column=col, value=t.get("matched_supplier", ""))
+            # Expenses show the matched invoice ref (Supplier #INVNUM) so
+            # managers can trace which paperwork corresponds to each row.
+            # Income rows still show the (unused) supplier field.
+            if is_expenses:
+                ws.cell(row=r, column=col, value=t.get("matched_invoice_ref", "") or t.get("matched_supplier", ""))
+            else:
+                ws.cell(row=r, column=col, value=t.get("matched_supplier", ""))
             col += 1
             amt_cell = ws.cell(row=r, column=col, value=float(t.get("amount") or 0))
             amt_cell.number_format = '"£"#,##0.00'
