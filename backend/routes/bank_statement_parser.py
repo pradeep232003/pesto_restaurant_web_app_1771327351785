@@ -143,6 +143,8 @@ def _categorise(description: str, txn_type: str, custom_rules: Optional[List[dic
 # Date normalisation — bank statements print dates in many formats.
 # ---------------------------------------------------------------------------
 _DATE_PATTERNS = [
+    # DD/MM/YYYY HH:MM (Tide, Starling, some Barclays exports)
+    ("%d/%m/%Y %H:%M", re.compile(r"\b(\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2})\b")),
     # ISO
     ("%Y-%m-%d", re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")),
     # UK dd/mm/yyyy or dd/mm/yy
@@ -221,8 +223,9 @@ _HEADER_PAID_OUT = re.compile(r"\b(paid\s*out|money\s*out|debit|payments?|withdr
 _HEADER_AMOUNT = re.compile(r"\b(amount|value)\b", re.I)
 _HEADER_BALANCE = re.compile(r"\b(balance|running\s*balance)\b", re.I)
 _HEADER_DATE = re.compile(r"\b(date|posting|transaction\s*date)\b", re.I)
-_HEADER_DESC = re.compile(r"\b(description|details|payee|reference|narrative|memo)\b", re.I)
+_HEADER_DESC = re.compile(r"\b(description|details|payee|reference|narrative|memo|transaction\s*description)\b", re.I)
 _HEADER_TXN_TYPE = re.compile(r"\b(transaction\s*type|type|txn\s*type|tt|payment\s*type)\b", re.I)
+_HEADER_CATEGORY = re.compile(r"\b(category\s*name|category|classification|nominal|account\s*type)\b", re.I)
 
 # Common transaction-type codes UK banks print in a dedicated column.
 # Stripping them keeps the categorised description free of noise like
@@ -313,6 +316,8 @@ def _classify_header_cell(cell: str) -> str:
         return "amount"
     if _HEADER_DATE.search(c):
         return "date"
+    if _HEADER_CATEGORY.search(c):
+        return "category"
     if _HEADER_DESC.search(c):
         return "desc"
     if _HEADER_TXN_TYPE.search(c):
@@ -323,6 +328,67 @@ def _classify_header_cell(cell: str) -> str:
 # ---------------------------------------------------------------------------
 # CSV / XLSX row-based parsers.
 # ---------------------------------------------------------------------------
+
+def _normalise_category_slug(raw: str, txn_type: str) -> str:
+    """Convert a free-text category from a CSV/XLSX 'Category name'
+    column into one of our canonical slugs. Unknown values are stored
+    as-is (lowercased, spaces → underscore) so the user's own naming
+    survives the round-trip to the downloaded XLSX.
+    """
+    if not raw:
+        return "other"
+    key = raw.strip().lower()
+    # Well-known aliases
+    aliases = {
+        "stock": "supplier",
+        "stocks": "supplier",
+        "inventory": "supplier",
+        "suppliers": "supplier",
+        "supplies": "supplier",
+        "cost of sales": "supplier",
+        "cogs": "supplier",
+        "food": "supplier",
+        "food & beverage": "supplier",
+        "utilities": "utilities",
+        "energy": "utilities",
+        "gas & electric": "utilities",
+        "water": "utilities",
+        "rent": "rent",
+        "wages": "wages",
+        "salaries": "wages",
+        "payroll": "wages",
+        "staff": "wages",
+        "software": "software",
+        "subscriptions": "software",
+        "saas": "software",
+        "marketing": "marketing",
+        "advertising": "marketing",
+        "cleaning": "cleaning",
+        "repairs": "repairs",
+        "maintenance": "repairs",
+        "insurance": "insurance",
+        "bank fees": "bank_fees",
+        "bankfees": "bank_fees",
+        "bank charges": "bank_fees",
+        "fees": "bank_fees",
+        "tax": "tax",
+        "vat": "tax",
+        "hmrc": "tax",
+        "transfer": "transfer",
+        "sales": "sales",
+        "revenue": "sales",
+        "income": "sales" if txn_type == "income" else "other",
+        "card sales": "sales",
+        "cash sales": "sales",
+        "delivery": "delivery",
+        "grant": "grant",
+        "refund": "refund_in",
+    }
+    if key in aliases:
+        return aliases[key]
+    # Fall back to a lowercase-underscore slug so user's own naming shows in reports.
+    return re.sub(r"\s+", "_", key)[:32]
+
 
 def _rows_to_txns(rows: List[List[str]]) -> List[dict]:
     """Turn a list of CSV/XLSX rows into transaction dicts.
@@ -390,6 +456,13 @@ def _rows_to_txns(rows: List[List[str]]) -> List[dict]:
         if not ttype or amt <= 0:
             continue
 
+        # Capture the CSV 'Category name' column if present — will bypass
+        # the rule engine downstream, since the user's accounting system
+        # already knows what this row is.
+        csv_cat = ""
+        if "category" in col and col["category"] < len(cells):
+            csv_cat = cells[col["category"]].strip()
+
         txns.append({
             "date": date_iso,
             "description": desc_cell,
@@ -397,6 +470,7 @@ def _rows_to_txns(rows: List[List[str]]) -> List[dict]:
             "type": ttype,
             "category": "",
             "matched_supplier": "",
+            "_csv_category": csv_cat,
         })
     return txns
 
@@ -701,9 +775,16 @@ def parse_locally(
 
     # Enrich each row with category + rule label + supplier
     for t in txns:
-        cat, rule = _categorise(t["description"], t["type"], custom_rules=custom_rules)
-        t["category"] = cat
-        t["category_rule"] = rule
+        csv_cat = t.pop("_csv_category", "") or ""
+        if csv_cat:
+            # Trust the CSV's category column — user's accounting system
+            # already categorised this row.
+            t["category"] = _normalise_category_slug(csv_cat, t["type"])
+            t["category_rule"] = f"from CSV column: {csv_cat}"
+        else:
+            cat, rule = _categorise(t["description"], t["type"], custom_rules=custom_rules)
+            t["category"] = cat
+            t["category_rule"] = rule
         if t["type"] == "expense" and not t["matched_supplier"] and suppliers and supplier_matcher:
             t["matched_supplier"] = supplier_matcher(t["description"], suppliers)
 
