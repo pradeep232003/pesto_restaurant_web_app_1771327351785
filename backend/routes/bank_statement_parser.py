@@ -36,55 +36,59 @@ _log = logging.getLogger("bank_statements.parser")
 
 
 # ---------------------------------------------------------------------------
-# Category rules — first match wins. Add more here or via a future admin UI.
+# Category rules — first match wins. Each rule has a human-friendly label
+# that ends up in the "Rule fired" column of the download so you can see
+# exactly which pattern classified each expense (invaluable for spotting
+# rules that need updating).
 # ---------------------------------------------------------------------------
-# We store patterns pre-compiled for speed on large statements.
-_CATEGORY_RULES: List[Tuple[re.Pattern, str, str]] = [
+# Tuple shape: (label, compiled pattern, txn_type, category_slug)
+_CATEGORY_RULES: List[Tuple[str, re.Pattern, str, str]] = [
     # Wages / payroll
-    (re.compile(r"\b(PAYROLL|SALARY|WAGES|HMRC\s*PAYE|NI\s*CONTRIB|PENSION\s+CONTR)\b", re.I), "expense", "wages"),
+    ("wages: payroll/PAYE", re.compile(r"\b(PAYROLL|SALARY|WAGES|HMRC\s*PAYE|NI\s*CONTRIB|PENSION\s+CONTR)\b", re.I), "expense", "wages"),
     # Utilities
-    (re.compile(r"\b(BRITISH\s*GAS|BULB|OCTOPUS|E\.?ON|EDF|OVO|SCOTTISH\s*POWER|NPOWER|SSE|SHELL\s*ENERGY|UNITED\s*UTIL|SEVERN\s*TRENT|THAMES\s*WATER|GAS|ELECTRIC|WATER\s*BILL)\b", re.I), "expense", "utilities"),
+    ("utilities: energy/water", re.compile(r"\b(BRITISH\s*GAS|BULB|OCTOPUS|E\.?ON|EDF|OVO|SCOTTISH\s*POWER|NPOWER|SSE|SHELL\s*ENERGY|UNITED\s*UTIL|SEVERN\s*TRENT|THAMES\s*WATER|GAS|ELECTRIC|WATER\s*BILL)\b", re.I), "expense", "utilities"),
     # Rent
-    (re.compile(r"\b(RENT|LEASE|LANDLORD)\b", re.I), "expense", "rent"),
+    ("rent/lease", re.compile(r"\b(RENT|LEASE|LANDLORD)\b", re.I), "expense", "rent"),
     # Software / SaaS
-    (re.compile(r"\b(ADOBE|MICROSOFT|GOOGLE\s*WORKSPACE|GSUITE|SLACK|CANVA|XERO|QUICKBOOKS|SAGE|STRIPE\s*FEE|SHOPIFY|SQUARESPACE|NOTION|ATLASSIAN|LINEAR|CLOUDFLARE|VERCEL|RAILWAY|AWS|AZURE)\b", re.I), "expense", "software"),
+    ("software: SaaS/hosting", re.compile(r"\b(ADOBE|MICROSOFT|GOOGLE\s*WORKSPACE|GSUITE|SLACK|CANVA|XERO|QUICKBOOKS|SAGE|STRIPE\s*FEE|SHOPIFY|SQUARESPACE|NOTION|ATLASSIAN|LINEAR|CLOUDFLARE|VERCEL|RAILWAY|AWS|AZURE)\b", re.I), "expense", "software"),
     # Marketing / ads
-    (re.compile(r"\b(FACEBOOK\s*ADS|META\s*ADS|GOOGLE\s*ADS|LINKEDIN\s*ADS|TIKTOK\s*ADS|MAILCHIMP|KLAVIYO|PRINT.*FLYER|MARKETING)\b", re.I), "expense", "marketing"),
+    ("marketing/ads", re.compile(r"\b(FACEBOOK\s*ADS|META\s*ADS|GOOGLE\s*ADS|LINKEDIN\s*ADS|TIKTOK\s*ADS|MAILCHIMP|KLAVIYO|PRINT.*FLYER|MARKETING)\b", re.I), "expense", "marketing"),
     # Cleaning
-    (re.compile(r"\b(JANITOR|CLEANING|LAUNDR)\b", re.I), "expense", "cleaning"),
+    ("cleaning/laundry", re.compile(r"\b(JANITOR|CLEANING|LAUNDR)\b", re.I), "expense", "cleaning"),
     # Repairs / maintenance
-    (re.compile(r"\b(REPAIR|MAINTENANCE|FIX|ENGINEER|PLUMB|ELECTRICIAN)\b", re.I), "expense", "repairs"),
+    ("repairs/maintenance", re.compile(r"\b(REPAIR|MAINTENANCE|FIX|ENGINEER|PLUMB|ELECTRICIAN)\b", re.I), "expense", "repairs"),
     # Insurance
-    (re.compile(r"\b(INSURANCE|AXA|AVIVA|HISCOX|SIMPLYBUSINESS)\b", re.I), "expense", "insurance"),
+    ("insurance", re.compile(r"\b(INSURANCE|AXA|AVIVA|HISCOX|SIMPLYBUSINESS)\b", re.I), "expense", "insurance"),
     # Bank fees
-    (re.compile(r"\b(BANK\s*FEE|CHARGE|OVERDRAFT|INTEREST\s*CHARGE|SERVICE\s*FEE)\b", re.I), "expense", "bank_fees"),
+    ("bank fees/charges", re.compile(r"\b(BANK\s*FEE|CHARGE|OVERDRAFT|INTEREST\s*CHARGE|SERVICE\s*FEE)\b", re.I), "expense", "bank_fees"),
     # Tax
-    (re.compile(r"\b(HMRC\s*(?!PAYE)|VAT\s*PAYM|CORPORATION\s*TAX|COUNCIL\s*TAX)\b", re.I), "expense", "tax"),
+    ("tax: HMRC/VAT/council", re.compile(r"\b(HMRC\s*(?!PAYE)|VAT\s*PAYM|CORPORATION\s*TAX|COUNCIL\s*TAX)\b", re.I), "expense", "tax"),
     # Suppliers (food & bev wholesalers common in UK hospitality)
-    (re.compile(r"\b(BIDFOOD|BIDVEST|BOOKER|BRAKES|SYSCO|COSTCO|AMAZON|EBAY|AMZN|MAKRO|COLES|JJ\s*FOOD|APOLLO|MATTHEW\s*CLARK|MOLSON|HEINEKEN|COCA\s*COLA|PEPSI|NESTLE|UNILEVER)\b", re.I), "expense", "supplier"),
+    ("supplier: hospitality wholesalers", re.compile(r"\b(BIDFOOD|BIDVEST|BOOKER|BRAKES|SYSCO|COSTCO|AMAZON|EBAY|AMZN|MAKRO|COLES|JJ\s*FOOD|APOLLO|MATTHEW\s*CLARK|MOLSON|HEINEKEN|COCA\s*COLA|PEPSI|NESTLE|UNILEVER)\b", re.I), "expense", "supplier"),
     # Transfers between accounts
-    (re.compile(r"\b(TRANSFER|TFR|MOVE|INTERNAL)\b", re.I), "expense", "transfer"),
+    ("internal transfer", re.compile(r"\b(TRANSFER|TFR|MOVE|INTERNAL)\b", re.I), "expense", "transfer"),
 
     # ------------------- Income ----------------------
-    (re.compile(r"\b(SUMUP|IZETTLE|SQUARE|STRIPE\s*PAYOUT|WORLDPAY|GLOBALPAY|CARD\s*PAYMENT|POS)\b", re.I), "income", "sales"),
-    (re.compile(r"\b(DELIVEROO|UBER\s*EATS|JUST\s*EAT|FOOD\s*HUB|SLERP)\b", re.I), "income", "delivery"),
-    (re.compile(r"\b(GRANT|SUBSIDY|LOCAL\s*AUTHORITY|COUNCIL\s*GRANT)\b", re.I), "income", "grant"),
-    (re.compile(r"\b(REFUND\s*RECEIVED|REVERSAL)\b", re.I), "income", "refund_in"),
+    ("sales: card/POS", re.compile(r"\b(SUMUP|IZETTLE|SQUARE|STRIPE\s*PAYOUT|WORLDPAY|GLOBALPAY|CARD\s*PAYMENT|POS)\b", re.I), "income", "sales"),
+    ("delivery platforms", re.compile(r"\b(DELIVEROO|UBER\s*EATS|JUST\s*EAT|FOOD\s*HUB|SLERP)\b", re.I), "income", "delivery"),
+    ("grant/subsidy", re.compile(r"\b(GRANT|SUBSIDY|LOCAL\s*AUTHORITY|COUNCIL\s*GRANT)\b", re.I), "income", "grant"),
+    ("refund received", re.compile(r"\b(REFUND\s*RECEIVED|REVERSAL)\b", re.I), "income", "refund_in"),
 ]
 
 
-def _categorise(description: str, txn_type: str) -> str:
-    """Return a category slug for a transaction description. Rules are
-    typed (income vs expense) so a "HMRC PAYE" credit doesn't get
-    mis-tagged as an income-side category and vice-versa."""
+def _categorise(description: str, txn_type: str) -> Tuple[str, str]:
+    """Return (category_slug, rule_label). Rule label is a human-friendly
+    description of which pattern matched — surfaces in the download's
+    'Rule fired' column so managers can see *why* each row landed where
+    it did, and spot missing rules (rows with 'no match → other')."""
     if not description:
-        return "other"
-    for pattern, rule_type, cat in _CATEGORY_RULES:
+        return "other", "no match → other"
+    for label, pattern, rule_type, cat in _CATEGORY_RULES:
         if rule_type != txn_type:
             continue
         if pattern.search(description):
-            return cat
-    return "other"
+            return cat, label
+    return "other", "no match → other"
 
 
 # ---------------------------------------------------------------------------
@@ -522,9 +526,11 @@ def parse_locally(
             "online banking, or click 'Re-classify with AI' after upload."
         )
 
-    # Enrich each row with category + supplier
+    # Enrich each row with category + rule label + supplier
     for t in txns:
-        t["category"] = _categorise(t["description"], t["type"])
+        cat, rule = _categorise(t["description"], t["type"])
+        t["category"] = cat
+        t["category_rule"] = rule
         if t["type"] == "expense" and not t["matched_supplier"] and suppliers and supplier_matcher:
             t["matched_supplier"] = supplier_matcher(t["description"], suppliers)
 

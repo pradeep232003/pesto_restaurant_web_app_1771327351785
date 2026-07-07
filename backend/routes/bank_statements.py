@@ -1029,10 +1029,18 @@ def _build_split_xlsx(income_txns: list, expense_txns: list, summary_rows: list)
 
     def _write_sheet(ws, title, txns, fill):
         ws.title = title
-        headers = ["Date", "Description", "Category", "Matched Supplier", "Amount"]
+        # Expenses tab gets an extra "Rule fired" column so managers can
+        # see which Python regex matched each row (or "no match → other"
+        # when the description didn't match any rule — a big red flag
+        # that a new rule is needed).
+        is_expenses = title == "Expenses"
+        headers = ["Date", "Description", "Category"]
+        if is_expenses:
+            headers.append("Rule fired")
+        headers += ["Matched Supplier", "Amount"]
         if aggregated:
             headers += ["Statement", "Site"]
-        widths = [14, 56, 18, 28, 14] + ([28, 22] if aggregated else [])
+        widths = [14, 56, 18] + ([32] if is_expenses else []) + [28, 14] + ([28, 22] if aggregated else [])
         for c, h in enumerate(headers, start=1):
             cell = ws.cell(row=1, column=c, value=h)
             cell.font = header_font
@@ -1044,16 +1052,24 @@ def _build_split_xlsx(income_txns: list, expense_txns: list, summary_rows: list)
             ws.cell(row=r, column=1, value=t.get("date", ""))
             ws.cell(row=r, column=2, value=t.get("description", ""))
             ws.cell(row=r, column=3, value=t.get("category", ""))
-            ws.cell(row=r, column=4, value=t.get("matched_supplier", ""))
-            amt_cell = ws.cell(row=r, column=5, value=float(t.get("amount") or 0))
+            col = 4
+            if is_expenses:
+                ws.cell(row=r, column=col, value=t.get("category_rule", "—"))
+                col += 1
+            ws.cell(row=r, column=col, value=t.get("matched_supplier", ""))
+            col += 1
+            amt_cell = ws.cell(row=r, column=col, value=float(t.get("amount") or 0))
             amt_cell.number_format = '"£"#,##0.00'
+            col += 1
             if aggregated:
-                ws.cell(row=r, column=6, value=t.get("statement_filename", ""))
-                ws.cell(row=r, column=7, value=t.get("location_id", ""))
+                ws.cell(row=r, column=col, value=t.get("statement_filename", ""))
+                col += 1
+                ws.cell(row=r, column=col, value=t.get("location_id", ""))
         if txns:
+            amt_col = 6 if is_expenses else 5
             total_row = len(txns) + 2
-            ws.cell(row=total_row, column=4, value="Total").font = Font(bold=True)
-            total_cell = ws.cell(row=total_row, column=5, value=sum(float(t.get("amount") or 0) for t in txns))
+            ws.cell(row=total_row, column=amt_col - 1, value="Total").font = Font(bold=True)
+            total_cell = ws.cell(row=total_row, column=amt_col, value=sum(float(t.get("amount") or 0) for t in txns))
             total_cell.font = Font(bold=True)
             total_cell.number_format = '"£"#,##0.00'
         ws.freeze_panes = "A2"
@@ -1066,20 +1082,32 @@ def _build_split_xlsx(income_txns: list, expense_txns: list, summary_rows: list)
     # ---- Expenses by Category & Supplier — pivot summaries ----
     total_exp = round(sum(float(t.get("amount") or 0) for t in expense_txns), 2)
 
-    def _group_expenses(key_fn, title, unmatched_label):
+    def _group_expenses(key_fn, title, unmatched_label, include_rules=False):
         """Group expense txns by a key function, sort by spend DESC, write a
-        pivot sheet with Category/Supplier · Count · Total · Share (%)."""
+        pivot sheet with Category/Supplier · Count · Total · Share (%).
+
+        If `include_rules` is True (Category pivot), an extra 'Rules fired'
+        column joins the distinct `category_rule` labels that contributed
+        to each category — an at-a-glance audit of which regexes fired
+        and where the 'no match → other' bucket is bleeding from.
+        """
         agg: dict = {}
         for t in expense_txns:
             k = (key_fn(t) or "").strip() or unmatched_label
-            row = agg.setdefault(k, {"count": 0, "total": 0.0})
+            row = agg.setdefault(k, {"count": 0, "total": 0.0, "rules": {}})
             row["count"] += 1
             row["total"] += float(t.get("amount") or 0)
+            if include_rules:
+                rule = (t.get("category_rule") or "no match → other").strip()
+                row["rules"][rule] = row["rules"].get(rule, 0) + 1
         rows_sorted = sorted(agg.items(), key=lambda kv: kv[1]["total"], reverse=True)
 
         ws = wb.create_sheet(title=title)
         headers = [title.split(" by ")[-1], "Transactions", "Total", "Share"]
         widths = [30, 14, 16, 12]
+        if include_rules:
+            headers.append("Rules fired (count)")
+            widths.append(48)
         for c, h in enumerate(headers, start=1):
             cell = ws.cell(row=1, column=c, value=h)
             cell.font = header_font
@@ -1096,6 +1124,9 @@ def _build_split_xlsx(income_txns: list, expense_txns: list, summary_rows: list)
             share = (v["total"] / total_exp) if total_exp else 0
             sc = ws.cell(row=r, column=4, value=share)
             sc.number_format = "0.0%"
+            if include_rules:
+                rules = sorted(v["rules"].items(), key=lambda x: x[1], reverse=True)
+                ws.cell(row=r, column=5, value=", ".join(f"{name} ({cnt})" for name, cnt in rules))
 
         if rows_sorted:
             total_row = len(rows_sorted) + 2
@@ -1109,7 +1140,7 @@ def _build_split_xlsx(income_txns: list, expense_txns: list, summary_rows: list)
             sc.number_format = "0.0%"
         ws.freeze_panes = "A2"
 
-    _group_expenses(lambda t: t.get("category"), "Expenses by Category", "uncategorised")
+    _group_expenses(lambda t: t.get("category"), "Expenses by Category", "uncategorised", include_rules=True)
     _group_expenses(lambda t: t.get("matched_supplier"), "Expenses by Supplier", "Unmatched")
 
     ws3 = wb.create_sheet(title="Summary")
