@@ -991,6 +991,46 @@ class ApiService {
     return URL.createObjectURL(blob);
   }
 
+  // ============== BANK STATEMENTS (AI income/expense splitter) ==============
+  async bankStatementsList({ location_id } = {}) {
+    const qs = new URLSearchParams(
+      Object.entries({ location_id }).filter(([, v]) => v),
+    ).toString();
+    return this.fetch(`/api/admin/bank-statements${qs ? '?' + qs : ''}`);
+  }
+  async bankStatementUpload(formData) {
+    const tok = localStorage.getItem('access_token');
+    const response = await fetch(`${API_BASE_URL}/api/admin/bank-statements/upload`, {
+      method: 'POST',
+      headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+      body: formData,
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || 'Upload failed');
+    }
+    return response.json();
+  }
+  async bankStatementGet(id) {
+    return this.fetch(`/api/admin/bank-statements/${id}`);
+  }
+  async bankStatementXlsxUrl(id) {
+    // Returns a blob URL for immediate download — auth header included.
+    const tok = localStorage.getItem('access_token');
+    const res = await fetch(`${API_BASE_URL}/api/admin/bank-statements/${id}/xlsx`, {
+      headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `XLSX download failed (${res.status})`);
+    }
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  }
+  async bankStatementDelete(id) {
+    return this.fetch(`/api/admin/bank-statements/${id}`, { method: 'DELETE' });
+  }
+
   // ============== INSPECTION PACK (EHO-ready audit bundle) ==============
   async adminInspectionPack({ location_id, start_date, end_date } = {}) {
     const qs = new URLSearchParams(
