@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Upload, FileSpreadsheet, Download, Trash2, Loader2,
   TrendingUp, TrendingDown, Wallet, CheckCircle2, AlertTriangle, FileText, Sparkles,
-  ListFilter, Search, MapPin, Layers, Check,
+  ListFilter, Search, MapPin, Layers, Check, RefreshCw,
 } from 'lucide-react';
 import api, { API_BASE_URL } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -215,6 +215,29 @@ const BankStatements = () => {
       setErr(e.message || 'Delete failed');
     } finally {
       setBusy(false);
+    }
+  };
+
+  // Track which row is currently mid-reclassify so we can show a spinner
+  // on just that button instead of a global busy-lock (reclassify can
+  // take 30-60s for large PDFs).
+  const [reclassifyingId, setReclassifyingId] = useState(null);
+
+  const reclassifyOne = async (rec) => {
+    const ok = window.confirm(
+      `Re-classify "${rec.filename}"? The AI will re-read the stored file, apply the latest supplier list and update all transactions.\n\nThis can take 30-60 seconds.`,
+    );
+    if (!ok) return;
+    setReclassifyingId(rec.id);
+    setErr('');
+    try {
+      const updated = await api.bankStatementReclassify(rec.id);
+      setLastResult(updated);
+      await load();
+    } catch (e) {
+      setErr(e.message || 'Re-classify failed');
+    } finally {
+      setReclassifyingId(null);
     }
   };
 
@@ -465,6 +488,18 @@ const BankStatements = () => {
                   style={{ width: 36, height: 36, borderRadius: 999, background: '#1D1D1F', color: '#FFFFFF', border: 0, cursor: busy ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.6 : 1 }}
                 >
                   <Download size={15} />
+                </button>
+                <button
+                  data-testid={`bs-reclassify-${rec.id}`}
+                  onClick={() => reclassifyOne(rec)}
+                  disabled={busy || reclassifyingId === rec.id}
+                  aria-label="Re-classify with AI"
+                  title="Re-classify with latest supplier list & prompt (30-60s)"
+                  style={{ width: 36, height: 36, borderRadius: 999, background: 'rgba(88,86,214,0.10)', color: '#5856D6', border: 0, cursor: (busy || reclassifyingId === rec.id) ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', opacity: (busy || reclassifyingId === rec.id) ? 0.6 : 1 }}
+                >
+                  {reclassifyingId === rec.id
+                    ? <Loader2 size={15} className="animate-spin" />
+                    : <RefreshCw size={15} />}
                 </button>
                 <button
                   data-testid={`bs-delete-${rec.id}`}

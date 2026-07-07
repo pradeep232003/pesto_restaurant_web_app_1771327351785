@@ -1056,6 +1056,9 @@ class ApiService {
   async bankStatementDelete(id) {
     return this.fetch(`/api/admin/bank-statements/${id}`, { method: 'DELETE' });
   }
+  async bankStatementReclassify(id) {
+    return this.fetch(`/api/admin/bank-statements/${id}/reclassify`, { method: 'POST' });
+  }
 
   // ============== INSPECTION PACK (EHO-ready audit bundle) ==============
   async adminInspectionPack({ location_id, start_date, end_date } = {}) {

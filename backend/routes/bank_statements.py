@@ -266,6 +266,53 @@ def _known_suppliers(location_id: str) -> List[str]:
     return sorted({(n or "").strip() for n in names if n and str(n).strip()})[:200]
 
 
+# Common corporate suffixes / tokens to strip when comparing supplier
+# names against transaction descriptions. Keeps things simple — we don't
+# need Levenshtein, just uppercase + suffix strip + substring match.
+_SUPPLIER_STOPWORDS = {
+    "LTD", "LIMITED", "PLC", "LLC", "LLP", "INC", "INCORPORATED",
+    "CO", "COMPANY", "UK", "GB", "AND", "&", "THE",
+}
+
+
+def _normalise_supplier(name: str) -> str:
+    """Uppercase, strip punctuation and common corporate suffixes so
+    'BOOKER LTD' and 'Booker Wholesale Ltd' both collapse to 'BOOKER'."""
+    if not name:
+        return ""
+    s = name.upper()
+    s = re.sub(r"[.,'\"()\[\]{}/\\\-_&]+", " ", s)
+    tokens = [t for t in s.split() if t and t not in _SUPPLIER_STOPWORDS]
+    return " ".join(tokens)
+
+
+def _match_supplier(description: str, suppliers: List[str]) -> str:
+    """Best-effort fuzzy match: normalise both sides, then look for a
+    whole-word supplier fragment inside the description. The longest
+    matching supplier wins (so 'Booker Wholesale' beats plain 'Booker'
+    when both are known). Returns the ORIGINAL (unnormalised) supplier
+    name so what the user sees on invoices stays consistent.
+    """
+    norm_desc = _normalise_supplier(description)
+    if not norm_desc:
+        return ""
+    best: tuple = ("", 0)  # (original_name, score = length of match)
+    desc_tokens = set(norm_desc.split())
+    for orig in suppliers:
+        norm_sup = _normalise_supplier(orig)
+        if not norm_sup:
+            continue
+        sup_tokens = norm_sup.split()
+        # Require ALL supplier tokens to appear as whole words in the
+        # description (order-independent). Cheap but effective — avoids
+        # false hits like matching "Booker" against "Bookworm Cafe".
+        if all(t in desc_tokens for t in sup_tokens):
+            score = len(norm_sup)
+            if score > best[1]:
+                best = (orig, score)
+    return best[0]
+
+
 def _chunk_text(text: str, target_size: int = 15_000) -> List[str]:
     """Split extracted statement text into ~15 kB chunks along natural
     page boundaries (`--- Page N ---` markers). Falls back to line-based
@@ -527,6 +574,12 @@ async def _classify(text: str, location_id: str) -> dict:
         if ttype == "income" and cat not in INCOME_CATEGORIES:
             cat = "other"
         supplier = (t.get("matched_supplier") or "").strip() if ttype == "expense" else ""
+        # If the AI didn't tag a supplier for this expense, run our own
+        # normalised fuzzy match (uppercase, strip 'LTD'/'LIMITED'/'PLC'
+        # etc.) so 'BOOKER LTD' still maps to a known 'Booker' invoice
+        # supplier even when the AI plays it safe.
+        if ttype == "expense" and not supplier and suppliers:
+            supplier = _match_supplier(desc, suppliers)
         txns.append({
             "date": (t.get("date") or "").strip(),
             "description": desc,
@@ -803,6 +856,88 @@ async def get_statement(sid: str, user: dict = Depends(get_admin_user)):
     if not rec:
         raise HTTPException(404, "Not found")
     return _strip(rec)
+
+
+@router.post("/{sid}/reclassify")
+async def reclassify_statement(sid: str, user: dict = Depends(get_admin_user)):
+    """Re-run the AI classifier on a statement's stored file — useful
+    when the known-supplier list has grown (e.g. new invoices added) or
+    the prompt has been improved. Keeps the original file in GridFS and
+    the uploaded_at/uploaded_by metadata; overwrites transactions,
+    category tags, matched_supplier and totals.
+    """
+    rec = statements.find_one({"id": sid})
+    if not rec:
+        raise HTTPException(404, "Not found")
+
+    fid = rec.get("file_id")
+    if not fid:
+        raise HTTPException(
+            400,
+            "Original file no longer available for this statement — "
+            "please delete and re-upload instead.",
+        )
+
+    try:
+        gf = _fs.get(fid if isinstance(fid, ObjectId) else ObjectId(str(fid)))
+        blob = gf.read()
+    except Exception as e:
+        raise HTTPException(500, f"Could not read stored file: {e.__class__.__name__}")
+
+    ct = rec.get("content_type") or "application/octet-stream"
+    fname = rec.get("filename") or "statement"
+    location_id = rec.get("location_id") or ""
+    if not location_id:
+        raise HTTPException(400, "Statement has no location_id — cannot re-classify")
+
+    _log.info("reclassify: sid=%s file=%r size=%d loc=%s", sid, fname, len(blob), location_id)
+
+    t0 = time.monotonic()
+    try:
+        text = _extract_text(blob, ct, fname)
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, f"Could not re-read the file — {e.__class__.__name__}: {str(e)[:200]}")
+
+    if not text or not text.strip():
+        raise HTTPException(400, "The stored file contained no readable text")
+
+    try:
+        parsed = await _classify(text, location_id)
+    except HTTPException:
+        raise
+
+    txns = parsed["transactions"]
+    total_income = round(sum(t["amount"] for t in txns if t["type"] == "income"), 2)
+    total_expense = round(sum(t["amount"] for t in txns if t["type"] == "expense"), 2)
+
+    updated_fields = {
+        "period_start": parsed["period_start"],
+        "period_end": parsed["period_end"],
+        "account_ref": parsed["account_ref"],
+        "currency": parsed["currency"],
+        "transactions": txns,
+        "income_count": sum(1 for t in txns if t["type"] == "income"),
+        "expense_count": sum(1 for t in txns if t["type"] == "expense"),
+        "total_income": total_income,
+        "total_expense": total_expense,
+        "net": round(total_income - total_expense, 2),
+        "reclassified_at": datetime.now(timezone.utc).isoformat(),
+        "reclassified_by": user.get("email", ""),
+        "reclassified_by_name": user.get("name", ""),
+    }
+    statements.update_one({"id": sid}, {"$set": updated_fields})
+
+    _log.info(
+        "reclassify: OK in %.1fs · %d income (£%.2f) · %d expense (£%.2f)",
+        time.monotonic() - t0,
+        updated_fields["income_count"], total_income,
+        updated_fields["expense_count"], total_expense,
+    )
+
+    rec2 = statements.find_one({"id": sid})
+    return _strip(rec2)
 
 
 def _build_split_xlsx(income_txns: list, expense_txns: list, summary_rows: list) -> io.BytesIO:
