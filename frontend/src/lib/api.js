@@ -1018,10 +1018,24 @@ class ApiService {
     const url = `${API_BASE_URL}/api/admin/bank-statements/aggregate/xlsx${params.toString() ? '?' + params.toString() : ''}`;
     const res = await fetch(url, { headers: tok ? { Authorization: `Bearer ${tok}` } : {} });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || `XLSX download failed (${res.status})`);
+      const raw = await res.text().catch(() => '');
+      let detail = raw;
+      try {
+        const j = JSON.parse(raw);
+        detail = j.detail || j.message || JSON.stringify(j).slice(0, 300);
+      } catch {
+        if (/<html/i.test(raw)) {
+          detail = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240);
+        } else {
+          detail = raw.slice(0, 300);
+        }
+      }
+      throw new Error(`XLSX download failed (HTTP ${res.status}): ${detail || res.statusText || 'no body'}`);
     }
     const blob = await res.blob();
+    if (!blob || blob.size === 0) {
+      throw new Error('XLSX download failed: server returned an empty file.');
+    }
     return URL.createObjectURL(blob);
   }
   async bankStatementUpload(formData) {
@@ -1042,15 +1056,31 @@ class ApiService {
   }
   async bankStatementXlsxUrl(id) {
     // Returns a blob URL for immediate download — auth header included.
+    // Reads the body as text first so non-JSON error pages (Cloudflare
+    // HTML, plain-text stack traces, etc.) surface useful diagnostics.
     const tok = localStorage.getItem('access_token');
     const res = await fetch(`${API_BASE_URL}/api/admin/bank-statements/${id}/xlsx`, {
       headers: tok ? { Authorization: `Bearer ${tok}` } : {},
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || `XLSX download failed (${res.status})`);
+      const raw = await res.text().catch(() => '');
+      let detail = raw;
+      try {
+        const j = JSON.parse(raw);
+        detail = j.detail || j.message || JSON.stringify(j).slice(0, 300);
+      } catch {
+        if (/<html/i.test(raw)) {
+          detail = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240);
+        } else {
+          detail = raw.slice(0, 300);
+        }
+      }
+      throw new Error(`XLSX download failed (HTTP ${res.status}): ${detail || res.statusText || 'no body'}`);
     }
     const blob = await res.blob();
+    if (!blob || blob.size === 0) {
+      throw new Error('XLSX download failed: server returned an empty file.');
+    }
     return URL.createObjectURL(blob);
   }
   async bankStatementDelete(id) {

@@ -194,7 +194,15 @@ const BankStatements = () => {
   };
 
   const deleteOne = async (rec) => {
-    if (!window.confirm(`Delete "${rec.filename}"? This can't be undone.`)) return;
+    const typed = window.prompt(
+      `This will permanently delete "${rec.filename}" and all its parsed transactions (${(rec.income_count || 0) + (rec.expense_count || 0)} rows). This cannot be undone.\n\nType DELETE to confirm:`,
+      '',
+    );
+    if (typed === null) return; // Cancelled
+    if (typed.trim().toUpperCase() !== 'DELETE') {
+      setErr('Delete cancelled — you must type DELETE (in capitals) to confirm.');
+      return;
+    }
     setBusy(true); setErr('');
     try {
       await api.bankStatementDelete(rec.id);
