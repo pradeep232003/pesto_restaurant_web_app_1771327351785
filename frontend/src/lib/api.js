@@ -1056,6 +1056,20 @@ class ApiService {
   async bankStatementDelete(id) {
     return this.fetch(`/api/admin/bank-statements/${id}`, { method: 'DELETE' });
   }
+  // ============== BANK STATEMENT RULES (custom category rules) ==============
+  async bankRulesList() {
+    return this.fetch(`/api/admin/bank-statements/rules`);
+  }
+  async bankRuleCreate(body) {
+    return this.fetch(`/api/admin/bank-statements/rules`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+  async bankRuleDelete(id) {
+    return this.fetch(`/api/admin/bank-statements/rules/${id}`, { method: 'DELETE' });
+  }
+
   async bankStatementReclassify(id, engine = 'python') {
     const qs = new URLSearchParams({ engine }).toString();
     return this.fetch(`/api/admin/bank-statements/${id}/reclassify?${qs}`, { method: 'POST' });

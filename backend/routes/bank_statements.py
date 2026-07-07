@@ -35,6 +35,7 @@ import httpx
 from bson import ObjectId
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from auth import get_admin_user
 from db import db
@@ -615,6 +616,139 @@ async def _classify(text: str, location_id: str) -> dict:
 # Routes
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Custom rules — global (one rule set for the whole business per user's
+# earlier choice). Kept in the `bank_statement_rules` Mongo collection.
+# Registered BEFORE the /{sid}/* paths so 'rules' never gets swallowed as
+# a statement id.
+# ---------------------------------------------------------------------------
+rules_col = db["bank_statement_rules"]
+
+_ALLOWED_EXPENSE_CATS = [
+    "supplier", "wages", "rent", "utilities", "software",
+    "repairs", "marketing", "equipment", "cleaning", "insurance",
+    "bank_fees", "tax", "transfer", "other",
+]
+_ALLOWED_INCOME_CATS = [
+    "sales", "delivery", "loyalty_topup", "refund_in", "grant", "transfer", "other",
+]
+
+
+def _load_custom_rules() -> List[dict]:
+    """Fetch and compile all active custom rules once per request. Rules
+    that fail to compile (bad regex) are silently skipped — the UI shows
+    a compile-error flag on the row so the manager can fix it."""
+    out: List[dict] = []
+    for r in rules_col.find({"disabled": {"$ne": True}}).sort("created_at", 1):
+        try:
+            compiled = bank_statement_parser.compile_custom_rule(
+                r.get("pattern", ""), r.get("mode", "simple"),
+            )
+        except Exception:
+            continue
+        out.append({
+            "label": r.get("label", ""),
+            "type": r.get("type", "expense"),
+            "category": r.get("category", "other"),
+            "_compiled": compiled,
+        })
+    return out
+
+
+@router.get("/rules")
+async def list_rules(user: dict = Depends(get_admin_user)):
+    """Return built-in + custom rules for display in the Manager UI."""
+    builtins = bank_statement_parser.get_builtin_rules()
+    custom_docs = list(rules_col.find().sort("created_at", -1))
+    customs: List[dict] = []
+    for r in custom_docs:
+        # Test-compile so we can surface a broken-regex badge in the UI.
+        compile_error = ""
+        try:
+            bank_statement_parser.compile_custom_rule(
+                r.get("pattern", ""), r.get("mode", "simple"),
+            )
+        except Exception as e:  # noqa: BLE001
+            compile_error = str(e)[:180]
+        customs.append({
+            "id": r.get("id"),
+            "label": r.get("label", ""),
+            "pattern": r.get("pattern", ""),
+            "mode": r.get("mode", "simple"),
+            "type": r.get("type", "expense"),
+            "category": r.get("category", "other"),
+            "disabled": bool(r.get("disabled")),
+            "created_at": r.get("created_at", ""),
+            "created_by_name": r.get("created_by_name", ""),
+            "compile_error": compile_error,
+            "builtin": False,
+        })
+    return {
+        "custom": customs,
+        "builtin": builtins,
+        "expense_categories": _ALLOWED_EXPENSE_CATS,
+        "income_categories": _ALLOWED_INCOME_CATS,
+    }
+
+
+class RuleIn(BaseModel):
+    label: str
+    pattern: str
+    type: str          # 'income' | 'expense'
+    category: str      # slug from _ALLOWED_*_CATS
+    mode: Optional[str] = "simple"  # 'simple' | 'regex'
+
+
+@router.post("/rules")
+async def create_rule(body: RuleIn, user: dict = Depends(get_admin_user)):
+    label = (body.label or "").strip()[:80]
+    pattern = (body.pattern or "").strip()[:400]
+    ttype = (body.type or "").strip().lower()
+    cat = (body.category or "").strip().lower()
+    mode = (body.mode or "simple").strip().lower()
+    if mode not in ("simple", "regex"):
+        mode = "simple"
+    if ttype not in ("income", "expense"):
+        raise HTTPException(400, "type must be 'income' or 'expense'")
+    allowed = _ALLOWED_INCOME_CATS if ttype == "income" else _ALLOWED_EXPENSE_CATS
+    if cat not in allowed:
+        raise HTTPException(400, f"category must be one of {allowed}")
+    if not label:
+        raise HTTPException(400, "label is required")
+    if not pattern:
+        raise HTTPException(400, "pattern is required")
+
+    # Validate the pattern compiles before saving.
+    try:
+        bank_statement_parser.compile_custom_rule(pattern, mode)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, f"Invalid pattern: {str(e)[:160]}")
+
+    doc = {
+        "id": str(uuid.uuid4())[:12],
+        "label": label,
+        "pattern": pattern,
+        "mode": mode,
+        "type": ttype,
+        "category": cat,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": user.get("email", ""),
+        "created_by_name": user.get("name", ""),
+    }
+    rules_col.insert_one(dict(doc))
+    _log.info("rule created: label=%r type=%s cat=%s by=%s", label, ttype, cat, user.get("email"))
+    return doc
+
+
+@router.delete("/rules/{rid}")
+async def delete_rule(rid: str, user: dict = Depends(get_admin_user)):
+    res = rules_col.delete_one({"id": rid})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Rule not found")
+    _log.info("rule deleted: id=%s by=%s", rid, user.get("email"))
+    return {"deleted": True}
+
+
 @router.get("")
 async def list_statements(
     location_id: Optional[str] = None,
@@ -790,13 +924,15 @@ async def upload_statement(
         try:
             t_parse = time.monotonic()
             suppliers = _known_suppliers(location_id)
+            custom_rules = _load_custom_rules()
             parsed = bank_statement_parser.parse_locally(
                 blob=blob, content_type=ct, filename=fname,
                 suppliers=suppliers, supplier_matcher=_match_supplier,
+                custom_rules=custom_rules,
             )
             strategy = parsed.pop("_strategy", "python")
-            _log.info("upload: python parser %s → %d txns in %.1fs",
-                      strategy, len(parsed["transactions"]), time.monotonic() - t_parse)
+            _log.info("upload: python parser %s → %d txns in %.1fs (%d custom rules)",
+                      strategy, len(parsed["transactions"]), time.monotonic() - t_parse, len(custom_rules))
         except ValueError as ve:
             try:
                 _fs.delete(file_id)
@@ -954,9 +1090,11 @@ async def reclassify_statement(
     if engine == "python":
         try:
             suppliers = _known_suppliers(location_id)
+            custom_rules = _load_custom_rules()
             parsed = bank_statement_parser.parse_locally(
                 blob=blob, content_type=ct, filename=fname,
                 suppliers=suppliers, supplier_matcher=_match_supplier,
+                custom_rules=custom_rules,
             )
             strategy = parsed.pop("_strategy", "python")
         except ValueError as ve:

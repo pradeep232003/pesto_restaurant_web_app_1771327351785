@@ -76,13 +76,61 @@ _CATEGORY_RULES: List[Tuple[str, re.Pattern, str, str]] = [
 ]
 
 
-def _categorise(description: str, txn_type: str) -> Tuple[str, str]:
+def get_builtin_rules() -> List[dict]:
+    """Expose the immutable built-in rules so the Manager UI can show them
+    alongside the user-added custom rules for context."""
+    return [
+        {"label": label, "pattern": pat.pattern, "type": rtype, "category": cat, "builtin": True}
+        for label, pat, rtype, cat in _CATEGORY_RULES
+    ]
+
+
+def compile_custom_rule(pattern: str, mode: str = "simple") -> re.Pattern:
+    """Turn a user-typed rule pattern into a compiled regex.
+
+    * mode='simple' — treat the pattern as a keyword. Each whitespace
+      run in the input becomes `\\s+`, everything else is regex-escaped,
+      and the whole thing is wrapped in `\\b...\\b` so it matches whole
+      words only. Case-insensitive.
+    * mode='regex' — trust the user's regex as-is. Case-insensitive.
+    """
+    p = (pattern or "").strip()
+    if not p:
+        raise ValueError("Pattern is empty")
+    if mode == "regex":
+        return re.compile(p, re.I)
+    # simple: keyword mode
+    tokens = [re.escape(tok) for tok in p.split() if tok]
+    if not tokens:
+        raise ValueError("Pattern has no usable tokens")
+    return re.compile(r"\b" + r"\s+".join(tokens) + r"\b", re.I)
+
+
+def _categorise(description: str, txn_type: str, custom_rules: Optional[List[dict]] = None) -> Tuple[str, str]:
     """Return (category_slug, rule_label). Rule label is a human-friendly
     description of which pattern matched — surfaces in the download's
     'Rule fired' column so managers can see *why* each row landed where
-    it did, and spot missing rules (rows with 'no match → other')."""
+    it did, and spot missing rules (rows with 'no match → other').
+
+    Custom rules (from the Manager 'Bank Rules' screen) are checked
+    FIRST so users can override built-in classifications for their own
+    merchant idiosyncrasies.
+    """
     if not description:
         return "other", "no match → other"
+    # Custom rules first — user overrides win
+    for r in (custom_rules or []):
+        if r.get("type") != txn_type:
+            continue
+        pattern = r.get("_compiled")
+        if pattern is None:
+            continue
+        try:
+            if pattern.search(description):
+                return r.get("category", "other"), f"custom: {r.get('label', 'unlabelled')}"
+        except Exception:
+            continue
+    # Built-in rules
     for label, pattern, rule_type, cat in _CATEGORY_RULES:
         if rule_type != txn_type:
             continue
@@ -412,12 +460,50 @@ def _parse_pdf_layout_text(text: str) -> List[dict]:
             txns.append({
                 "date": date_iso, "description": desc, "amount": round(pin_val, 2),
                 "type": "income", "category": "", "matched_supplier": "",
+                "_line_idx": i,
             })
         if pout_val is not None:
             txns.append({
                 "date": date_iso, "description": desc, "amount": round(pout_val, 2),
                 "type": "expense", "category": "", "matched_supplier": "",
+                "_line_idx": i,
             })
+
+    # ---- Merge continuation lines into the parent transaction ----
+    # UK bank statements often print the merchant/reference on a second
+    # (or third) indented line under the "Details" column — no date at
+    # the start. Join those lines onto the preceding transaction's
+    # description so category rules see the FULL detail (e.g. the AMZN
+    # reference on the second line of an AMAZON EU row).
+    if txns:
+        for j, t in enumerate(txns):
+            line_idx = t.pop("_line_idx")
+            # Look ahead until the next transaction's line index (or EOF).
+            next_line_idx = txns[j + 1]["_line_idx"] if j + 1 < len(txns) else len(lines)
+            # Skip our own line, absorb intermediate continuation lines.
+            extra_bits = []
+            for cont_idx in range(line_idx + 1, next_line_idx):
+                cont = lines[cont_idx]
+                if not cont.strip():
+                    continue
+                # Skip lines that look like transaction rows (have a date
+                # or a monetary amount + balance).
+                if _LINE_STARTS_WITH_DATE.match(cont):
+                    continue
+                if _AMOUNT_RE.search(cont):
+                    # Continuation lines can carry a running balance but
+                    # usually they're reference codes. Only skip if the
+                    # line is essentially JUST amounts.
+                    non_amt = _AMOUNT_RE.sub("", cont).strip()
+                    if len(non_amt) < 3:
+                        continue
+                    cont_text = non_amt
+                else:
+                    cont_text = cont.strip()
+                if cont_text:
+                    extra_bits.append(cont_text)
+            if extra_bits:
+                t["description"] = (t["description"] + " | " + " ".join(extra_bits)).strip()
 
     return txns
 
@@ -487,6 +573,7 @@ def parse_locally(
     filename: str,
     suppliers: List[str],
     supplier_matcher: Optional[Callable[[str, List[str]], str]] = None,
+    custom_rules: Optional[List[dict]] = None,
 ) -> dict:
     """Parse a statement file into a canonical dict. Falls back across
     strategies. Raises ValueError if nothing could be extracted.
@@ -528,7 +615,7 @@ def parse_locally(
 
     # Enrich each row with category + rule label + supplier
     for t in txns:
-        cat, rule = _categorise(t["description"], t["type"])
+        cat, rule = _categorise(t["description"], t["type"], custom_rules=custom_rules)
         t["category"] = cat
         t["category_rule"] = rule
         if t["type"] == "expense" and not t["matched_supplier"] and suppliers and supplier_matcher:
