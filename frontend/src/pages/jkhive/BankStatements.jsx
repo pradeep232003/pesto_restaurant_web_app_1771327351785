@@ -4,7 +4,7 @@ import {
   ArrowLeft, Upload, FileSpreadsheet, Download, Trash2, Loader2,
   TrendingUp, TrendingDown, Wallet, CheckCircle2, AlertTriangle, FileText, Sparkles,
 } from 'lucide-react';
-import api from '../../lib/api';
+import api, { API_BASE_URL } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
 
@@ -112,11 +112,8 @@ const BankStatements = () => {
       fd.append('location_id', adminLocationId);
 
       const tok = localStorage.getItem('access_token');
-      const base = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_BACKEND_URL)
-        || (typeof process !== 'undefined' && process.env && process.env.REACT_APP_BACKEND_URL)
-        || '';
-      const url = `${base}/api/admin/bank-statements/upload`;
-      pushDebug(`POST ${url}`);
+      const url = `${API_BASE_URL}/api/admin/bank-statements/upload`;
+      pushDebug(`POST ${url || '(relative)'}`);
 
       let response;
       try {

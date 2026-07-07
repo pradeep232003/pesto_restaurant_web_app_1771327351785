@@ -1,8 +1,9 @@
 // API service for connecting to MongoDB backend
 // Use VITE_API_URL if set, otherwise auto-detect production backend
 const PROD_BACKEND = 'https://jollys-kafe-backend-production.up.railway.app';
+const PROD_HOSTS = new Set(['www.jollyskafe.com', 'jollyskafe.com']);
 const API_BASE_URL = import.meta.env.VITE_API_URL ||
-  (typeof window !== 'undefined' && window.location.hostname === 'www.jollyskafe.com' ? PROD_BACKEND : '');
+  (typeof window !== 'undefined' && PROD_HOSTS.has(window.location.hostname) ? PROD_BACKEND : '');
 
 export { API_BASE_URL };
 
