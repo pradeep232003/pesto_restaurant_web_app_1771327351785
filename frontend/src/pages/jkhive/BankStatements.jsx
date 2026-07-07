@@ -170,18 +170,6 @@ const BankStatements = () => {
       }
       pushDebug(`Parsed OK · ${rec.income_count} income, ${rec.expense_count} expenses · net £${rec.net}`);
       setLastResult(rec);
-
-      // Auto-download the XLSX.
-      pushDebug('Requesting XLSX download …');
-      try {
-        const downloadUrl = await api.bankStatementXlsxUrl(rec.id);
-        const stem = (file.name || 'statement').replace(/\.[^.]+$/, '');
-        downloadBlobUrl(downloadUrl, `${stem}_split.xlsx`);
-        pushDebug('XLSX downloaded');
-      } catch (downloadErr) {
-        pushDebug(`XLSX download failed: ${downloadErr.message}`);
-        setErr(`Saved, but download failed: ${downloadErr.message}`);
-      }
       await load();
     } catch (ex) {
       pushDebug(`FAIL · ${ex.message}`);
@@ -224,19 +212,15 @@ const BankStatements = () => {
   // take 30-60s for large PDFs).
   const [reclassifyingId, setReclassifyingId] = useState(null);
 
-  const reclassifyOne = async (rec, engine = 'python') => {
-    const label = engine === 'ai' ? 'Try AI classifier' : 'Re-classify';
-    const cost = engine === 'ai'
-      ? 'This will burn AI tokens (typically £0.05-£0.30 per statement).'
-      : 'This is free — the Python parser rebuilds transactions with the current supplier list.';
+  const reclassifyOne = async (rec) => {
     const ok = window.confirm(
-      `${label} for "${rec.filename}"?\n\n${cost}\n\n${engine === 'ai' ? 'Can take 30-60 s.' : 'Usually takes <2 s.'}`,
+      `Re-classify "${rec.filename}"?\n\nThis rebuilds transactions with the current supplier list and invoices (free · usually <2s).`,
     );
     if (!ok) return;
     setReclassifyingId(rec.id);
     setErr('');
     try {
-      const updated = await api.bankStatementReclassify(rec.id, engine);
+      const updated = await api.bankStatementReclassify(rec.id, 'python');
       setLastResult(updated);
       await load();
     } catch (e) {
@@ -265,7 +249,7 @@ const BankStatements = () => {
         </div>
         <p style={{ fontSize: 13, color: '#86868B', margin: '6px 0 0' }}>
           {tab === 'upload'
-            ? <>Upload a bank statement — a local Python parser splits Income vs Expenses in seconds (no AI cost). Site: <strong style={{ color: '#1D1D1F' }}>{locName}</strong></>
+            ? <>Upload a bank statement to split Income vs Expenses. Site: <strong style={{ color: '#1D1D1F' }}>{locName}</strong></>
             : <>Drill into uploaded statements across one, many or all sites. Download a combined XLSX in the same 5-tab format.</>
           }
         </p>
@@ -335,9 +319,7 @@ const BankStatements = () => {
               Drop a statement here
             </p>
             <p style={{ margin: '2px 0 0', fontSize: 12, color: '#86868B' }}>
-              PDF · CSV · XLSX — up to 15 MB. Local Python parser splits every
-              row into Income vs Expenses (free — no AI tokens burnt). Suppliers
-              auto-match against your invoice history. Download starts automatically.
+              PDF · CSV · XLSX — up to 15 MB. Suppliers auto-match against your invoice history.
             </p>
           </div>
           <button
@@ -367,9 +349,7 @@ const BankStatements = () => {
         {busy && (
           <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: 'rgba(0,122,255,0.08)', color: '#1D1D1F', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Loader2 size={14} className="animate-spin" color="#007AFF" />
-            Parsing the file locally with Python — no AI tokens spent. Usually finishes in
-            under 2 seconds. If the parser can&apos;t read your bank&apos;s format, click the
-            purple sparkle button on the row afterwards to try the AI classifier instead.
+            Parsing the statement — usually finishes in under 2 seconds.
           </div>
         )}
       </div>
@@ -425,7 +405,7 @@ const BankStatements = () => {
             </p>
             <p style={{ margin: '2px 0 0', color: '#3A3A3C', fontSize: 12 }}>
               Total income {fmtGBP(lastResult.total_income)} · Total expense {fmtGBP(lastResult.total_expense)} ·
-              Net <strong>{fmtGBP(lastResult.net)}</strong>. XLSX has been downloaded to your device.
+              Net <strong>{fmtGBP(lastResult.net)}</strong>. Use the download button on the row below to grab the XLSX.
             </p>
           </div>
         </div>
@@ -443,8 +423,7 @@ const BankStatements = () => {
 
       {!loading && items.length === 0 && (
         <div data-testid="bs-empty" style={{ background: '#FFFFFF', borderRadius: 14, padding: 28, textAlign: 'center', color: '#86868B', fontSize: 13, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
-          No statements uploaded yet for this site. Upload one above and the split XLSX will
-          download automatically.
+          No statements uploaded yet for this site. Upload one above to get started.
         </div>
       )}
 
@@ -520,16 +499,6 @@ const BankStatements = () => {
                   {reclassifyingId === rec.id
                     ? <Loader2 size={15} className="animate-spin" />
                     : <RefreshCw size={15} />}
-                </button>
-                <button
-                  data-testid={`bs-reclassify-ai-${rec.id}`}
-                  onClick={() => reclassifyOne(rec, 'ai')}
-                  disabled={busy || reclassifyingId === rec.id}
-                  aria-label="Try AI classifier (costs tokens)"
-                  title="Use AI instead — for statements the Python parser can't handle. Costs tokens."
-                  style={{ width: 36, height: 36, borderRadius: 999, background: 'rgba(88,86,214,0.10)', color: '#5856D6', border: 0, cursor: (busy || reclassifyingId === rec.id) ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', opacity: (busy || reclassifyingId === rec.id) ? 0.6 : 1 }}
-                >
-                  <Sparkles size={15} />
                 </button>
                 <button
                   data-testid={`bs-delete-${rec.id}`}
@@ -860,7 +829,7 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, ...FONT }}>
               <thead>
                 <tr style={{ background: '#F5F5F7' }}>
-                  <th style={thStyle}>Date</th>
+                  <th style={{ ...thStyle, minWidth: 110 }}>Date</th>
                   <th style={thStyle}>Description</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}>Type</th>
                   <th style={thStyle}>Category</th>
@@ -875,7 +844,7 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
                   const unmatched = (r.category || 'other') === 'other';
                   return (
                   <tr key={`${r.statement_id}-${idx}`} style={{ borderTop: '1px solid #ECECEF', background: unmatched ? 'rgba(255,204,0,0.06)' : 'transparent' }}>
-                    <td style={tdStyle}>{r.date || '—'}</td>
+                    <td style={{ ...tdStyle, whiteSpace: 'nowrap', minWidth: 110 }}>{r.date || '—'}</td>
                     <td style={{ ...tdStyle, fontWeight: 500 }}>{r.description}</td>
                     <td style={{ ...tdStyle, textAlign: 'center' }}>
                       <span style={{
