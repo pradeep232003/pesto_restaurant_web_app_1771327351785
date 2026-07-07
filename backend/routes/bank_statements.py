@@ -90,7 +90,7 @@ def _extract_text_pdf(blob: bytes) -> str:
         raise HTTPException(
             500,
             f"PDF support unavailable on this server: {e}. Ask the developer to add "
-            "'pypdf' to backend/requirements.txt and redeploy.",
+            "'pypdf' to backend/requirements-prod.txt and redeploy.",
         )
     reader = PdfReader(io.BytesIO(blob))
     pages = []
