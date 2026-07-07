@@ -38,6 +38,7 @@ from fastapi.responses import StreamingResponse
 
 from auth import get_admin_user
 from db import db
+from routes import bank_statement_parser
 
 router = APIRouter(prefix="/api/admin/bank-statements", tags=["bank-statements"])
 _log = logging.getLogger("bank_statements")
@@ -752,6 +753,7 @@ async def aggregate_xlsx(
 async def upload_statement(
     file: UploadFile = File(...),
     location_id: str = Form(...),
+    engine: str = Form("python"),  # 'python' (default, free) | 'ai' (Claude fallback)
     user: dict = Depends(get_admin_user),
 ):
     if not location_id:
@@ -766,54 +768,97 @@ async def upload_statement(
 
     ct = file.content_type or "application/octet-stream"
     fname = file.filename or "statement"
+    engine = (engine or "python").lower()
+    if engine not in ("python", "ai"):
+        engine = "python"
     _log.info(
-        "upload: user=%s file=%r size=%d ct=%s loc=%s",
-        user.get("email", "?"), fname, len(blob), ct, location_id,
+        "upload: user=%s file=%r size=%d ct=%s loc=%s engine=%s",
+        user.get("email", "?"), fname, len(blob), ct, location_id, engine,
     )
     if ct not in ALLOWED_CT and not any(fname.lower().endswith(x) for x in (".pdf", ".csv", ".xlsx", ".xls")):
         raise HTTPException(400, f"Unsupported file type: {ct}. Upload PDF, CSV or XLSX.")
 
-    # Extract raw text FIRST — cheapest failure to surface early.
-    try:
-        t_extract = time.monotonic()
-        text = _extract_text(blob, ct, fname)
-        _log.info("upload: extracted %d chars in %.1fs", len(text), time.monotonic() - t_extract)
-    except HTTPException:
-        raise
-    except Exception as e:  # noqa: BLE001
-        _log.exception("upload: text extraction failed")
-        raise HTTPException(400, f"Could not read the file — {e.__class__.__name__}: {str(e)[:200]}")
-
-    if not text or not text.strip():
-        raise HTTPException(
-            400,
-            "The file contained no readable text. Scanned/image-only PDFs "
-            "aren't supported yet — please export a text-based PDF or CSV "
-            "from your online banking.",
-        )
-
-    # Persist the file in GridFS so the manager can re-download the
-    # original later if audit requires it.
+    # Persist the file in GridFS FIRST so the manager can re-download the
+    # original later — and so the AI fallback (via /{sid}/reclassify-ai)
+    # has something to work with even if the Python parser succeeded.
     file_id = _fs.put(blob, filename=fname, content_type=ct)
 
-    # AI split — this can take 30-60s for large statements.
-    try:
-        parsed = await _classify(text, location_id)
-    except HTTPException as he:
-        # Roll back the file so we don't leave orphan bytes when AI errors.
+    strategy = ""
+    parsed: dict
+    if engine == "python":
+        # Free deterministic parser — no AI tokens burnt.
         try:
-            _fs.delete(file_id)
-        except Exception:
-            pass
-        _log.warning("upload: classify failed after %.1fs · %s", time.monotonic() - upload_t0, he.detail)
-        raise
-    except Exception as e:  # noqa: BLE001 — anything else we haven't anticipated
+            t_parse = time.monotonic()
+            suppliers = _known_suppliers(location_id)
+            parsed = bank_statement_parser.parse_locally(
+                blob=blob, content_type=ct, filename=fname,
+                suppliers=suppliers, supplier_matcher=_match_supplier,
+            )
+            strategy = parsed.pop("_strategy", "python")
+            _log.info("upload: python parser %s → %d txns in %.1fs",
+                      strategy, len(parsed["transactions"]), time.monotonic() - t_parse)
+        except ValueError as ve:
+            try:
+                _fs.delete(file_id)
+            except Exception:
+                pass
+            raise HTTPException(422, str(ve))
+        except Exception as e:  # noqa: BLE001
+            try:
+                _fs.delete(file_id)
+            except Exception:
+                pass
+            _log.exception("upload: python parser crashed")
+            raise HTTPException(500, f"Parser error — {e.__class__.__name__}: {str(e)[:200]}")
+    else:
+        # Explicit AI path — much more expensive but robust to weird PDFs.
         try:
-            _fs.delete(file_id)
-        except Exception:
-            pass
-        _log.exception("upload: unexpected classify error")
-        raise HTTPException(500, f"Unexpected AI error: {e.__class__.__name__}: {str(e)[:200]}")
+            t_extract = time.monotonic()
+            text = _extract_text(blob, ct, fname)
+            _log.info("upload: extracted %d chars in %.1fs", len(text), time.monotonic() - t_extract)
+        except HTTPException:
+            try:
+                _fs.delete(file_id)
+            except Exception:
+                pass
+            raise
+        except Exception as e:  # noqa: BLE001
+            try:
+                _fs.delete(file_id)
+            except Exception:
+                pass
+            _log.exception("upload: text extraction failed")
+            raise HTTPException(400, f"Could not read the file — {e.__class__.__name__}: {str(e)[:200]}")
+
+        if not text or not text.strip():
+            try:
+                _fs.delete(file_id)
+            except Exception:
+                pass
+            raise HTTPException(
+                400,
+                "The file contained no readable text. Scanned/image-only PDFs "
+                "aren't supported yet — please export a text-based PDF or CSV "
+                "from your online banking.",
+            )
+
+        try:
+            parsed = await _classify(text, location_id)
+            strategy = "ai"
+        except HTTPException as he:
+            try:
+                _fs.delete(file_id)
+            except Exception:
+                pass
+            _log.warning("upload: classify failed after %.1fs · %s", time.monotonic() - upload_t0, he.detail)
+            raise
+        except Exception as e:  # noqa: BLE001
+            try:
+                _fs.delete(file_id)
+            except Exception:
+                pass
+            _log.exception("upload: unexpected classify error")
+            raise HTTPException(500, f"Unexpected AI error: {e.__class__.__name__}: {str(e)[:200]}")
 
     txns = parsed["transactions"]
     total_income = round(sum(t["amount"] for t in txns if t["type"] == "income"), 2)
@@ -839,10 +884,15 @@ async def upload_statement(
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
         "uploaded_by": user.get("email", ""),
         "uploaded_by_name": user.get("name", ""),
+        # engine records how this statement was classified so the UI can
+        # decide whether to offer the "Re-classify with AI" upgrade path.
+        "engine": engine,       # 'python' or 'ai'
+        "strategy": strategy,   # 'pypdf' / 'pdfplumber' / 'csv' / 'xlsx' / 'ai'
     }
     statements.insert_one(dict(doc))
     _log.info(
-        "upload: OK in %.1fs · %d income (£%.2f) · %d expense (£%.2f) · net £%.2f",
+        "upload: OK (%s / %s) in %.1fs · %d income (£%.2f) · %d expense (£%.2f) · net £%.2f",
+        engine, strategy,
         time.monotonic() - upload_t0,
         doc["income_count"], doc["total_income"],
         doc["expense_count"], doc["total_expense"], doc["net"],
@@ -859,12 +909,15 @@ async def get_statement(sid: str, user: dict = Depends(get_admin_user)):
 
 
 @router.post("/{sid}/reclassify")
-async def reclassify_statement(sid: str, user: dict = Depends(get_admin_user)):
-    """Re-run the AI classifier on a statement's stored file — useful
-    when the known-supplier list has grown (e.g. new invoices added) or
-    the prompt has been improved. Keeps the original file in GridFS and
-    the uploaded_at/uploaded_by metadata; overwrites transactions,
-    category tags, matched_supplier and totals.
+async def reclassify_statement(
+    sid: str,
+    engine: str = "python",  # 'python' (default) | 'ai'
+    user: dict = Depends(get_admin_user),
+):
+    """Re-run the classifier on a statement's stored file — useful when
+    the known-supplier list has grown, category rules have improved, or
+    the user wants to escalate a Python-parsed statement to the AI
+    classifier for a second opinion.
     """
     rec = statements.find_one({"id": sid})
     if not rec:
@@ -890,23 +943,35 @@ async def reclassify_statement(sid: str, user: dict = Depends(get_admin_user)):
     if not location_id:
         raise HTTPException(400, "Statement has no location_id — cannot re-classify")
 
-    _log.info("reclassify: sid=%s file=%r size=%d loc=%s", sid, fname, len(blob), location_id)
+    engine = (engine or "python").lower()
+    if engine not in ("python", "ai"):
+        engine = "python"
+    _log.info("reclassify: sid=%s file=%r size=%d loc=%s engine=%s",
+              sid, fname, len(blob), location_id, engine)
 
     t0 = time.monotonic()
-    try:
-        text = _extract_text(blob, ct, fname)
-    except HTTPException:
-        raise
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(400, f"Could not re-read the file — {e.__class__.__name__}: {str(e)[:200]}")
-
-    if not text or not text.strip():
-        raise HTTPException(400, "The stored file contained no readable text")
-
-    try:
+    strategy = ""
+    if engine == "python":
+        try:
+            suppliers = _known_suppliers(location_id)
+            parsed = bank_statement_parser.parse_locally(
+                blob=blob, content_type=ct, filename=fname,
+                suppliers=suppliers, supplier_matcher=_match_supplier,
+            )
+            strategy = parsed.pop("_strategy", "python")
+        except ValueError as ve:
+            raise HTTPException(422, str(ve))
+    else:
+        try:
+            text = _extract_text(blob, ct, fname)
+        except HTTPException:
+            raise
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(400, f"Could not re-read the file — {e.__class__.__name__}: {str(e)[:200]}")
+        if not text or not text.strip():
+            raise HTTPException(400, "The stored file contained no readable text")
         parsed = await _classify(text, location_id)
-    except HTTPException:
-        raise
+        strategy = "ai"
 
     txns = parsed["transactions"]
     total_income = round(sum(t["amount"] for t in txns if t["type"] == "income"), 2)
@@ -923,6 +988,8 @@ async def reclassify_statement(sid: str, user: dict = Depends(get_admin_user)):
         "total_income": total_income,
         "total_expense": total_expense,
         "net": round(total_income - total_expense, 2),
+        "engine": engine,
+        "strategy": strategy,
         "reclassified_at": datetime.now(timezone.utc).isoformat(),
         "reclassified_by": user.get("email", ""),
         "reclassified_by_name": user.get("name", ""),
@@ -930,7 +997,8 @@ async def reclassify_statement(sid: str, user: dict = Depends(get_admin_user)):
     statements.update_one({"id": sid}, {"$set": updated_fields})
 
     _log.info(
-        "reclassify: OK in %.1fs · %d income (£%.2f) · %d expense (£%.2f)",
+        "reclassify: OK (%s/%s) in %.1fs · %d income (£%.2f) · %d expense (£%.2f)",
+        engine, strategy,
         time.monotonic() - t0,
         updated_fields["income_count"], total_income,
         updated_fields["expense_count"], total_expense,

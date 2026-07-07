@@ -1056,8 +1056,9 @@ class ApiService {
   async bankStatementDelete(id) {
     return this.fetch(`/api/admin/bank-statements/${id}`, { method: 'DELETE' });
   }
-  async bankStatementReclassify(id) {
-    return this.fetch(`/api/admin/bank-statements/${id}/reclassify`, { method: 'POST' });
+  async bankStatementReclassify(id, engine = 'python') {
+    const qs = new URLSearchParams({ engine }).toString();
+    return this.fetch(`/api/admin/bank-statements/${id}/reclassify?${qs}`, { method: 'POST' });
   }
 
   // ============== INSPECTION PACK (EHO-ready audit bundle) ==============

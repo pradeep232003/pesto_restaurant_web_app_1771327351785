@@ -112,6 +112,7 @@ const BankStatements = () => {
       const fd = new FormData();
       fd.append('file', file);
       fd.append('location_id', adminLocationId);
+      fd.append('engine', 'python'); // free local parser; AI available via row action after upload
 
       const tok = localStorage.getItem('access_token');
       const url = `${API_BASE_URL}/api/admin/bank-statements/upload`;
@@ -223,15 +224,19 @@ const BankStatements = () => {
   // take 30-60s for large PDFs).
   const [reclassifyingId, setReclassifyingId] = useState(null);
 
-  const reclassifyOne = async (rec) => {
+  const reclassifyOne = async (rec, engine = 'python') => {
+    const label = engine === 'ai' ? 'Try AI classifier' : 'Re-classify';
+    const cost = engine === 'ai'
+      ? 'This will burn AI tokens (typically £0.05-£0.30 per statement).'
+      : 'This is free — the Python parser rebuilds transactions with the current supplier list.';
     const ok = window.confirm(
-      `Re-classify "${rec.filename}"? The AI will re-read the stored file, apply the latest supplier list and update all transactions.\n\nThis can take 30-60 seconds.`,
+      `${label} for "${rec.filename}"?\n\n${cost}\n\n${engine === 'ai' ? 'Can take 30-60 s.' : 'Usually takes <2 s.'}`,
     );
     if (!ok) return;
     setReclassifyingId(rec.id);
     setErr('');
     try {
-      const updated = await api.bankStatementReclassify(rec.id);
+      const updated = await api.bankStatementReclassify(rec.id, engine);
       setLastResult(updated);
       await load();
     } catch (e) {
@@ -260,8 +265,8 @@ const BankStatements = () => {
         </div>
         <p style={{ fontSize: 13, color: '#86868B', margin: '6px 0 0' }}>
           {tab === 'upload'
-            ? <>Upload a bank statement — AI splits it into Income & Expenses and gives you a 3-tab XLSX. Site: <strong style={{ color: '#1D1D1F' }}>{locName}</strong></>
-            : <>Drill into uploaded statements across one, many or all sites. Download a combined XLSX in the same 3-tab format.</>
+            ? <>Upload a bank statement — a local Python parser splits Income vs Expenses in seconds (no AI cost). Site: <strong style={{ color: '#1D1D1F' }}>{locName}</strong></>
+            : <>Drill into uploaded statements across one, many or all sites. Download a combined XLSX in the same 5-tab format.</>
           }
         </p>
       </div>
@@ -330,8 +335,9 @@ const BankStatements = () => {
               Drop a statement here
             </p>
             <p style={{ margin: '2px 0 0', fontSize: 12, color: '#86868B' }}>
-              PDF · CSV · XLSX — up to 15 MB. AI classifies each transaction, matches suppliers, then
-              XLSX downloads automatically with Income and Expenses on separate tabs.
+              PDF · CSV · XLSX — up to 15 MB. Local Python parser splits every
+              row into Income vs Expenses (free — no AI tokens burnt). Suppliers
+              auto-match against your invoice history. Download starts automatically.
             </p>
           </div>
           <button
@@ -361,9 +367,9 @@ const BankStatements = () => {
         {busy && (
           <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: 'rgba(0,122,255,0.08)', color: '#1D1D1F', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Loader2 size={14} className="animate-spin" color="#007AFF" />
-            Reading the file and asking Claude to classify each transaction — large statements
-            (20+ pages) are split into chunks and processed in parallel, typically ~30–60 s.
-            Please stay on this page.
+            Parsing the file locally with Python — no AI tokens spent. Usually finishes in
+            under 2 seconds. If the parser can't read your bank's format, click the
+            purple sparkle button on the row afterwards to try the AI classifier instead.
           </div>
         )}
       </div>
@@ -476,6 +482,20 @@ const BankStatements = () => {
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 9px', borderRadius: 999, background: '#F5F5F7', color: '#1D1D1F', fontSize: 11, fontWeight: 700 }}>
                     <Wallet size={11} /> Net {fmtGBP(rec.net)}
                   </span>
+                  {rec.engine && (
+                    <span
+                      title={rec.engine === 'ai' ? 'Classified by Claude AI' : `Parsed by Python (${rec.strategy || 'auto'})`}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 9px', borderRadius: 999,
+                        background: rec.engine === 'ai' ? 'rgba(88,86,214,0.14)' : 'rgba(0,122,255,0.10)',
+                        color: rec.engine === 'ai' ? '#3E3AA8' : '#0552B5',
+                        fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                      }}
+                    >
+                      {rec.engine === 'ai' ? <Sparkles size={10} /> : <Wallet size={10} />}
+                      {rec.engine === 'ai' ? 'AI' : `Free · ${rec.strategy || 'python'}`}
+                    </span>
+                  )}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -491,15 +511,25 @@ const BankStatements = () => {
                 </button>
                 <button
                   data-testid={`bs-reclassify-${rec.id}`}
-                  onClick={() => reclassifyOne(rec)}
+                  onClick={() => reclassifyOne(rec, 'python')}
                   disabled={busy || reclassifyingId === rec.id}
-                  aria-label="Re-classify with AI"
-                  title="Re-classify with latest supplier list & prompt (30-60s)"
-                  style={{ width: 36, height: 36, borderRadius: 999, background: 'rgba(88,86,214,0.10)', color: '#5856D6', border: 0, cursor: (busy || reclassifyingId === rec.id) ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', opacity: (busy || reclassifyingId === rec.id) ? 0.6 : 1 }}
+                  aria-label="Re-classify with Python (free)"
+                  title="Re-classify — free, uses local Python parser (<2s)"
+                  style={{ width: 36, height: 36, borderRadius: 999, background: 'rgba(0,122,255,0.10)', color: '#007AFF', border: 0, cursor: (busy || reclassifyingId === rec.id) ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', opacity: (busy || reclassifyingId === rec.id) ? 0.6 : 1 }}
                 >
                   {reclassifyingId === rec.id
                     ? <Loader2 size={15} className="animate-spin" />
                     : <RefreshCw size={15} />}
+                </button>
+                <button
+                  data-testid={`bs-reclassify-ai-${rec.id}`}
+                  onClick={() => reclassifyOne(rec, 'ai')}
+                  disabled={busy || reclassifyingId === rec.id}
+                  aria-label="Try AI classifier (costs tokens)"
+                  title="Use AI instead — for statements the Python parser can't handle. Costs tokens."
+                  style={{ width: 36, height: 36, borderRadius: 999, background: 'rgba(88,86,214,0.10)', color: '#5856D6', border: 0, cursor: (busy || reclassifyingId === rec.id) ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', opacity: (busy || reclassifyingId === rec.id) ? 0.6 : 1 }}
+                >
+                  <Sparkles size={15} />
                 </button>
                 <button
                   data-testid={`bs-delete-${rec.id}`}
