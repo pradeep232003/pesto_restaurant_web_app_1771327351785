@@ -824,6 +824,55 @@ def _build_split_xlsx(income_txns: list, expense_txns: list, summary_rows: list)
     ws2 = wb.create_sheet(title="Expenses")
     _write_sheet(ws2, "Expenses", expense_txns, expense_fill)
 
+    # ---- Expenses by Category & Supplier — pivot summaries ----
+    total_exp = round(sum(float(t.get("amount") or 0) for t in expense_txns), 2)
+
+    def _group_expenses(key_fn, title, unmatched_label):
+        """Group expense txns by a key function, sort by spend DESC, write a
+        pivot sheet with Category/Supplier · Count · Total · Share (%)."""
+        agg: dict = {}
+        for t in expense_txns:
+            k = (key_fn(t) or "").strip() or unmatched_label
+            row = agg.setdefault(k, {"count": 0, "total": 0.0})
+            row["count"] += 1
+            row["total"] += float(t.get("amount") or 0)
+        rows_sorted = sorted(agg.items(), key=lambda kv: kv[1]["total"], reverse=True)
+
+        ws = wb.create_sheet(title=title)
+        headers = [title.split(" by ")[-1], "Transactions", "Total", "Share"]
+        widths = [30, 14, 16, 12]
+        for c, h in enumerate(headers, start=1):
+            cell = ws.cell(row=1, column=c, value=h)
+            cell.font = header_font
+            cell.fill = expense_fill
+            cell.alignment = center
+        for i, w in enumerate(widths, start=1):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+
+        for r, (k, v) in enumerate(rows_sorted, start=2):
+            ws.cell(row=r, column=1, value=k)
+            ws.cell(row=r, column=2, value=int(v["count"]))
+            tc = ws.cell(row=r, column=3, value=round(v["total"], 2))
+            tc.number_format = '"£"#,##0.00'
+            share = (v["total"] / total_exp) if total_exp else 0
+            sc = ws.cell(row=r, column=4, value=share)
+            sc.number_format = "0.0%"
+
+        if rows_sorted:
+            total_row = len(rows_sorted) + 2
+            ws.cell(row=total_row, column=1, value="Total").font = Font(bold=True)
+            ws.cell(row=total_row, column=2, value=sum(v["count"] for _, v in rows_sorted)).font = Font(bold=True)
+            gt = ws.cell(row=total_row, column=3, value=round(total_exp, 2))
+            gt.font = Font(bold=True)
+            gt.number_format = '"£"#,##0.00'
+            sc = ws.cell(row=total_row, column=4, value=1 if total_exp else 0)
+            sc.font = Font(bold=True)
+            sc.number_format = "0.0%"
+        ws.freeze_panes = "A2"
+
+    _group_expenses(lambda t: t.get("category"), "Expenses by Category", "uncategorised")
+    _group_expenses(lambda t: t.get("matched_supplier"), "Expenses by Supplier", "Unmatched")
+
     ws3 = wb.create_sheet(title="Summary")
     ws3.column_dimensions["A"].width = 24
     ws3.column_dimensions["B"].width = 34
