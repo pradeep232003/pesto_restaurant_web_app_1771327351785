@@ -993,11 +993,36 @@ class ApiService {
   }
 
   // ============== BANK STATEMENTS (AI income/expense splitter) ==============
-  async bankStatementsList({ location_id } = {}) {
+  async bankStatementsList({ location_id, location_ids } = {}) {
+    const params = { location_id };
+    if (Array.isArray(location_ids) && location_ids.length) {
+      params.location_ids = location_ids.join(',');
+    }
     const qs = new URLSearchParams(
-      Object.entries({ location_id }).filter(([, v]) => v),
+      Object.entries(params).filter(([, v]) => v),
     ).toString();
     return this.fetch(`/api/admin/bank-statements${qs ? '?' + qs : ''}`);
+  }
+  async bankStatementsAggregate({ location_ids, ids } = {}) {
+    const params = {};
+    if (Array.isArray(location_ids) && location_ids.length) params.location_ids = location_ids.join(',');
+    if (Array.isArray(ids) && ids.length) params.ids = ids.join(',');
+    const qs = new URLSearchParams(params).toString();
+    return this.fetch(`/api/admin/bank-statements/aggregate${qs ? '?' + qs : ''}`);
+  }
+  async bankStatementsAggregateXlsxUrl({ location_ids, ids } = {}) {
+    const params = new URLSearchParams();
+    if (Array.isArray(location_ids) && location_ids.length) params.set('location_ids', location_ids.join(','));
+    if (Array.isArray(ids) && ids.length) params.set('ids', ids.join(','));
+    const tok = localStorage.getItem('access_token');
+    const url = `${API_BASE_URL}/api/admin/bank-statements/aggregate/xlsx${params.toString() ? '?' + params.toString() : ''}`;
+    const res = await fetch(url, { headers: tok ? { Authorization: `Bearer ${tok}` } : {} });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `XLSX download failed (${res.status})`);
+    }
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
   }
   async bankStatementUpload(formData) {
     const tok = localStorage.getItem('access_token');
