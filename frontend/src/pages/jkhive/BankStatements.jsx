@@ -203,8 +203,9 @@ const BankStatements = () => {
         {busy && (
           <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: 'rgba(0,122,255,0.08)', color: '#1D1D1F', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Loader2 size={14} className="animate-spin" color="#007AFF" />
-            Reading the file and asking Claude to classify each transaction — this can take 30–60 s
-            for large statements. Please stay on this page.
+            Reading the file and asking Claude to classify each transaction — large statements
+            (20+ pages) are split into chunks and processed in parallel, typically ~30–60 s.
+            Please stay on this page.
           </div>
         )}
       </div>

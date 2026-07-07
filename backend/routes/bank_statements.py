@@ -219,7 +219,108 @@ def _known_suppliers(location_id: str) -> List[str]:
     return sorted({(n or "").strip() for n in names if n and str(n).strip()})[:200]
 
 
+def _chunk_text(text: str, target_size: int = 15_000) -> List[str]:
+    """Split extracted statement text into ~15 kB chunks along natural
+    page boundaries (`--- Page N ---` markers). Falls back to line-based
+    chunking if no page markers are present (CSV/XLSX). Each chunk keeps
+    the AI response well under the 8 000-token cap, and parallel calls
+    stay comfortably under Cloudflare's 100 s ingress timeout.
+    """
+    if len(text) <= target_size:
+        return [text]
+
+    # Prefer page-marker splits — cleanest for PDFs.
+    page_split = re.split(r"(?=--- Page \d+)", text)
+    page_split = [p for p in page_split if p.strip()]
+
+    # Fallback: split by lines if no markers detected.
+    if len(page_split) <= 1:
+        lines = text.splitlines()
+        page_split = []
+        cur: list = []
+        cur_len = 0
+        for ln in lines:
+            cur.append(ln)
+            cur_len += len(ln) + 1
+            if cur_len >= target_size:
+                page_split.append("\n".join(cur))
+                cur, cur_len = [], 0
+        if cur:
+            page_split.append("\n".join(cur))
+
+    # Now pack consecutive small pages together up to target_size.
+    chunks: List[str] = []
+    buf: list = []
+    buf_len = 0
+    for piece in page_split:
+        piece_len = len(piece)
+        if buf and buf_len + piece_len > target_size:
+            chunks.append("".join(buf) if not buf[0].startswith("--- Page") else "\n".join(buf))
+            buf, buf_len = [], 0
+        buf.append(piece)
+        buf_len += piece_len
+    if buf:
+        chunks.append("".join(buf) if not buf[0].startswith("--- Page") else "\n".join(buf))
+    return [c.strip() for c in chunks if c.strip()]
+
+
+async def _classify_chunk(chunk_text: str, chunk_idx: int, total_chunks: int,
+                          supplier_hint: str, api_key: str, provider: str) -> dict:
+    """Send a single chunk to Claude and return the parsed transactions
+    (+ optional meta fields). Isolated in its own coroutine so multiple
+    chunks can run in parallel via asyncio.gather().
+    """
+    import asyncio  # noqa: F401 — imported for context
+    part_note = (
+        f"NOTE: This is chunk {chunk_idx} of {total_chunks} from a larger bank "
+        f"statement. Return transactions ONLY from THIS chunk. If period_start "
+        f"/ period_end / account_ref / currency are visible in this chunk, "
+        f"include them; otherwise return empty strings.\n\n"
+        if total_chunks > 1 else ""
+    )
+    user_msg = (
+        supplier_hint
+        + part_note
+        + "BANK STATEMENT TEXT:\n"
+        + chunk_text
+        + "\n\nReturn strict JSON per the system schema. No prose."
+    )
+    req = {
+        "model": "claude-sonnet-4-5-20250929",
+        "max_tokens": 8000,
+        "system": _AI_SYSTEM,
+        "messages": [{"role": "user", "content": user_msg}],
+    }
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        resp = await client.post("https://api.anthropic.com/v1/messages", json=req, headers=headers)
+
+    if resp.status_code >= 400:
+        try:
+            err = resp.json().get("error", {}).get("message", resp.text)
+        except Exception:
+            err = resp.text
+        raise HTTPException(500, f"AI provider error ({provider}, {resp.status_code}) on chunk {chunk_idx}: {err[:240]}")
+
+    data = resp.json()
+    out = "".join(
+        block.get("text", "") for block in (data.get("content") or [])
+        if block.get("type") == "text"
+    ).strip()
+    if not out:
+        raise HTTPException(500, f"AI returned an empty response for chunk {chunk_idx}")
+    try:
+        return json.loads(_scrub_json(out))
+    except json.JSONDecodeError as e:
+        raise HTTPException(500, f"AI returned non-JSON on chunk {chunk_idx}: {e}")
+
+
 async def _classify(text: str, location_id: str) -> dict:
+    import asyncio
     from routes.ai_settings import get_active_ai_key, get_active_ai_provider
     api_key = get_active_ai_key()
     if not api_key:
@@ -233,11 +334,11 @@ async def _classify(text: str, location_id: str) -> dict:
     if not text or not text.strip():
         raise HTTPException(400, "Could not extract any text from the file")
 
-    # Guard against enormous statements — Claude has a 200k context but
-    # cost / latency scales linearly. Truncate to ~120k chars (≈30k
-    # tokens) which comfortably covers a year of transactions.
-    if len(text) > 120_000:
-        text = text[:120_000] + "\n\n... (truncated by server)"
+    # Hard-cap total input at ~250 k chars (~60k tokens) — covers a full
+    # year of transactions. Anything beyond is very unusual and would
+    # bust the 200 k context anyway.
+    if len(text) > 250_000:
+        text = text[:250_000] + "\n\n... (truncated by server)"
 
     suppliers = _known_suppliers(location_id)
     supplier_hint = ""
@@ -249,52 +350,49 @@ async def _classify(text: str, location_id: str) -> dict:
             + "\n\n"
         )
 
-    user_msg = (
-        supplier_hint
-        + "BANK STATEMENT TEXT:\n"
-        + text
-        + "\n\nReturn strict JSON per the system schema. No prose."
-    )
+    chunks = _chunk_text(text, target_size=15_000)
+    total = len(chunks)
 
-    req = {
-        "model": "claude-sonnet-4-5-20250929",
-        "max_tokens": 8000,
-        "system": _AI_SYSTEM,
-        "messages": [{"role": "user", "content": user_msg}],
-    }
-    headers = {
-        "x-api-key": api_key,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-    }
-    try:
-        async with httpx.AsyncClient(timeout=180.0) as client:
-            resp = await client.post("https://api.anthropic.com/v1/messages", json=req, headers=headers)
-    except Exception as e:  # noqa: BLE001
-        snippet = (str(e) or e.__class__.__name__).splitlines()[0][:240]
-        raise HTTPException(500, f"AI provider error ({provider}): {snippet}")
+    # Bounded concurrency — 4 chunks in parallel keeps us under
+    # Anthropic's per-tier rate limits while still finishing a 20-page
+    # statement in ~30-40 s wall-clock.
+    sem = asyncio.Semaphore(4)
 
-    if resp.status_code >= 400:
-        try:
-            err = resp.json().get("error", {}).get("message", resp.text)
-        except Exception:
-            err = resp.text
-        raise HTTPException(500, f"AI provider error ({provider}, {resp.status_code}): {err[:240]}")
-
-    data = resp.json()
-    out = "".join(
-        block.get("text", "") for block in (data.get("content") or [])
-        if block.get("type") == "text"
-    ).strip()
-    if not out:
-        raise HTTPException(500, "AI returned an empty response")
+    async def _one(idx_text):
+        idx, chunk = idx_text
+        async with sem:
+            try:
+                return await _classify_chunk(chunk, idx, total, supplier_hint, api_key, provider)
+            except HTTPException:
+                raise
+            except Exception as e:  # noqa: BLE001
+                snippet = (str(e) or e.__class__.__name__).splitlines()[0][:240]
+                raise HTTPException(500, f"AI provider error ({provider}) on chunk {idx}: {snippet}")
 
     try:
-        parsed = json.loads(_scrub_json(out))
-    except json.JSONDecodeError as e:
-        raise HTTPException(500, f"AI returned non-JSON: {e}")
+        parts = await asyncio.gather(*[_one((i + 1, c)) for i, c in enumerate(chunks)])
+    except HTTPException:
+        raise
 
-    txns_raw = parsed.get("transactions") or []
+    # Merge — first non-empty meta wins; concatenate transactions.
+    merged: dict = {
+        "period_start": "",
+        "period_end": "",
+        "account_ref": "",
+        "currency": "GBP",
+        "transactions": [],
+    }
+    for p in parts:
+        if not isinstance(p, dict):
+            continue
+        for k in ("period_start", "period_end", "account_ref", "currency"):
+            if not merged[k] and (p.get(k) or "").strip():
+                merged[k] = (p.get(k) or "").strip()
+        txns = p.get("transactions") or []
+        if isinstance(txns, list):
+            merged["transactions"].extend(txns)
+
+    txns_raw = merged["transactions"]
     if not isinstance(txns_raw, list):
         raise HTTPException(500, "AI response missing 'transactions' array")
 
@@ -331,12 +429,24 @@ async def _classify(text: str, location_id: str) -> dict:
             "matched_supplier": supplier,
         })
 
+    # Deduplicate — parallel chunks with overlapping page splits could
+    # theoretically emit the same row twice. Cheap fingerprint on
+    # (date, description, amount, type).
+    seen: set = set()
+    deduped: List[dict] = []
+    for t in txns:
+        key = (t["date"], t["description"], t["amount"], t["type"])
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(t)
+
     return {
-        "period_start": (parsed.get("period_start") or "").strip(),
-        "period_end": (parsed.get("period_end") or "").strip(),
-        "account_ref": (parsed.get("account_ref") or "").strip(),
-        "currency": (parsed.get("currency") or "GBP").strip(),
-        "transactions": txns,
+        "period_start": merged["period_start"],
+        "period_end": merged["period_end"],
+        "account_ref": merged["account_ref"],
+        "currency": merged["currency"] or "GBP",
+        "transactions": deduped,
     }
 
 
