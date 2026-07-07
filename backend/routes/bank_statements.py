@@ -95,10 +95,18 @@ def _extract_text_pdf(blob: bytes) -> str:
     reader = PdfReader(io.BytesIO(blob))
     pages = []
     for i, page in enumerate(reader.pages):
+        # Prefer layout mode — preserves horizontal column positions
+        # (crucial for UK bank statements that print separate 'Paid in'
+        # and 'Paid out' columns). Fall back to plain flow if layout
+        # mode chokes on the page (some scanned/malformed PDFs).
+        txt = ""
         try:
-            txt = page.extract_text() or ""
+            txt = page.extract_text(extraction_mode="layout") or ""
         except Exception:
-            txt = ""
+            try:
+                txt = page.extract_text() or ""
+            except Exception:
+                txt = ""
         if txt.strip():
             pages.append(f"--- Page {i + 1} ---\n{txt}")
     return "\n\n".join(pages)
@@ -167,15 +175,43 @@ _AI_SYSTEM = (
     "business. You receive raw text extracted from a bank statement (PDF, "
     "CSV or XLSX). Your job is to identify EVERY financial transaction and "
     "return a strict JSON split of income vs expense.\n\n"
+    "===== HOW TO READ UK BANK STATEMENTS — READ CAREFULLY =====\n"
+    "UK bank statements ALWAYS use two dedicated money columns:\n"
+    "  • 'Paid in' / 'Money in' / 'Credit' / 'CR'  = INCOME  (type='income')\n"
+    "  • 'Paid out' / 'Money out' / 'Debit' / 'DR' = EXPENSE (type='expense')\n"
+    "The column POSITION on the row (or the sign/prefix) is the AUTHORITATIVE "
+    "signal — NEVER override it based on the merchant name.\n"
+    "\nPDF text extraction often flattens tables into space-separated text. "
+    "Before classifying, locate the header row (look for the words 'Paid in', "
+    "'Paid out', 'Money in', 'Money out', 'Credit', 'Debit', 'Balance') and "
+    "note the horizontal position of each money column. Then for every "
+    "transaction row, the amount that sits under the 'Paid in' column is "
+    "INCOME and the amount under 'Paid out' is an EXPENSE — even if the "
+    "description looks like a supplier name (a refund from Bidfood is still "
+    "income; wages arriving from HMRC as a grant are still income).\n"
+    "\nRow patterns you will see after PDF extraction:\n"
+    "  DATE  DESC  <blank>  87.50  4,230.10   → 87.50 is 'Paid out' → EXPENSE\n"
+    "  DATE  DESC  1,240.00  <blank>  5,470.10 → 1,240.00 is 'Paid in' → INCOME\n"
+    "Some banks (Barclays, NatWest, Lloyds, Santander, HSBC) print CR / DR "
+    "after the amount instead of using two columns — 'CR' = income, 'DR' = "
+    "expense. Amounts with a leading minus '-' or in brackets '(…)' are "
+    "expenses. A leading '+' is income.\n"
+    "\nIf, after applying these rules, you still can't tell the direction of a "
+    "specific row, default to expense and add a note in the description "
+    "'(direction unclear)'. NEVER guess based only on the merchant.\n"
+    "===== END OF DIRECTION RULES =====\n\n"
     "RULES:\n"
     "1. Output STRICT JSON, no markdown, no commentary.\n"
     "2. One row per transaction — never combine credits and debits into one "
     "row.\n"
-    "3. Ignore running-balance rows and opening/closing balance summaries.\n"
+    "3. Ignore running-balance rows and opening/closing balance summaries. "
+    "The Balance column is NEVER a transaction.\n"
     "4. Dates: return ISO YYYY-MM-DD. If year is missing, infer from the "
     "statement period; if impossible, use empty string ''.\n"
     "5. Amounts are positive floats with 2 decimals — the row's `type` field "
-    "carries the direction ('income' or 'expense'). Strip currency symbols.\n"
+    "carries the direction ('income' or 'expense'). Strip currency symbols, "
+    "thousands separators, +/- signs and CR/DR suffixes before writing the "
+    "number.\n"
     "6. `description` = the counterparty / merchant / reference line as "
     "printed. Trim whitespace but do NOT paraphrase.\n"
     "7. Best-guess a category slug (see lists below). If uncertain use "
