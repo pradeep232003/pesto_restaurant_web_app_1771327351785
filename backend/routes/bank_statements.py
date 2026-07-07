@@ -84,7 +84,14 @@ def _strip(doc: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 def _extract_text_pdf(blob: bytes) -> str:
-    from pypdf import PdfReader
+    try:
+        from pypdf import PdfReader
+    except ImportError as e:
+        raise HTTPException(
+            500,
+            f"PDF support unavailable on this server: {e}. Ask the developer to add "
+            "'pypdf' to backend/requirements.txt and redeploy.",
+        )
     reader = PdfReader(io.BytesIO(blob))
     pages = []
     for i, page in enumerate(reader.pages):
