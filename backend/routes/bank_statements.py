@@ -23,7 +23,9 @@ import base64
 import csv
 import io
 import json
+import logging
 import re
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, List, Optional
@@ -38,6 +40,8 @@ from auth import get_admin_user
 from db import db
 
 router = APIRouter(prefix="/api/admin/bank-statements", tags=["bank-statements"])
+_log = logging.getLogger("bank_statements")
+_log.setLevel(logging.INFO)
 
 _fs = gridfs.GridFS(db, collection="bank_statement_files")
 statements = db["bank_statements"]
@@ -352,6 +356,10 @@ async def _classify(text: str, location_id: str) -> dict:
 
     chunks = _chunk_text(text, target_size=15_000)
     total = len(chunks)
+    _log.info(
+        "classify: text=%d chars, suppliers=%d, chunks=%d",
+        len(text), len(suppliers), total,
+    )
 
     # Bounded concurrency — 4 chunks in parallel keeps us under
     # Anthropic's per-tier rate limits while still finishing a 20-page
@@ -361,18 +369,29 @@ async def _classify(text: str, location_id: str) -> dict:
     async def _one(idx_text):
         idx, chunk = idx_text
         async with sem:
+            t0 = time.monotonic()
             try:
-                return await _classify_chunk(chunk, idx, total, supplier_hint, api_key, provider)
-            except HTTPException:
+                res = await _classify_chunk(chunk, idx, total, supplier_hint, api_key, provider)
+                dur = time.monotonic() - t0
+                n = len(res.get("transactions") or []) if isinstance(res, dict) else 0
+                _log.info("classify: chunk %d/%d OK in %.1fs · %d txns", idx, total, dur, n)
+                return res
+            except HTTPException as he:
+                dur = time.monotonic() - t0
+                _log.warning("classify: chunk %d/%d FAILED in %.1fs · %s", idx, total, dur, he.detail)
                 raise
             except Exception as e:  # noqa: BLE001
+                dur = time.monotonic() - t0
                 snippet = (str(e) or e.__class__.__name__).splitlines()[0][:240]
+                _log.exception("classify: chunk %d/%d CRASHED in %.1fs · %s", idx, total, dur, snippet)
                 raise HTTPException(500, f"AI provider error ({provider}) on chunk {idx}: {snippet}")
 
+    t_start = time.monotonic()
     try:
         parts = await asyncio.gather(*[_one((i + 1, c)) for i, c in enumerate(chunks)])
     except HTTPException:
         raise
+    _log.info("classify: all %d chunks done in %.1fs", total, time.monotonic() - t_start)
 
     # Merge — first non-empty meta wins; concatenate transactions.
     merged: dict = {
@@ -475,6 +494,7 @@ async def upload_statement(
     if not location_id:
         raise HTTPException(400, "location_id is required")
 
+    upload_t0 = time.monotonic()
     blob = await file.read()
     if not blob:
         raise HTTPException(400, "Empty file")
@@ -483,11 +503,31 @@ async def upload_statement(
 
     ct = file.content_type or "application/octet-stream"
     fname = file.filename or "statement"
+    _log.info(
+        "upload: user=%s file=%r size=%d ct=%s loc=%s",
+        user.get("email", "?"), fname, len(blob), ct, location_id,
+    )
     if ct not in ALLOWED_CT and not any(fname.lower().endswith(x) for x in (".pdf", ".csv", ".xlsx", ".xls")):
         raise HTTPException(400, f"Unsupported file type: {ct}. Upload PDF, CSV or XLSX.")
 
     # Extract raw text FIRST — cheapest failure to surface early.
-    text = _extract_text(blob, ct, fname)
+    try:
+        t_extract = time.monotonic()
+        text = _extract_text(blob, ct, fname)
+        _log.info("upload: extracted %d chars in %.1fs", len(text), time.monotonic() - t_extract)
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        _log.exception("upload: text extraction failed")
+        raise HTTPException(400, f"Could not read the file — {e.__class__.__name__}: {str(e)[:200]}")
+
+    if not text or not text.strip():
+        raise HTTPException(
+            400,
+            "The file contained no readable text. Scanned/image-only PDFs "
+            "aren't supported yet — please export a text-based PDF or CSV "
+            "from your online banking.",
+        )
 
     # Persist the file in GridFS so the manager can re-download the
     # original later if audit requires it.
@@ -496,13 +536,21 @@ async def upload_statement(
     # AI split — this can take 30-60s for large statements.
     try:
         parsed = await _classify(text, location_id)
-    except HTTPException:
+    except HTTPException as he:
         # Roll back the file so we don't leave orphan bytes when AI errors.
         try:
             _fs.delete(file_id)
         except Exception:
             pass
+        _log.warning("upload: classify failed after %.1fs · %s", time.monotonic() - upload_t0, he.detail)
         raise
+    except Exception as e:  # noqa: BLE001 — anything else we haven't anticipated
+        try:
+            _fs.delete(file_id)
+        except Exception:
+            pass
+        _log.exception("upload: unexpected classify error")
+        raise HTTPException(500, f"Unexpected AI error: {e.__class__.__name__}: {str(e)[:200]}")
 
     txns = parsed["transactions"]
     total_income = round(sum(t["amount"] for t in txns if t["type"] == "income"), 2)
@@ -530,6 +578,12 @@ async def upload_statement(
         "uploaded_by_name": user.get("name", ""),
     }
     statements.insert_one(dict(doc))
+    _log.info(
+        "upload: OK in %.1fs · %d income (£%.2f) · %d expense (£%.2f) · net £%.2f",
+        time.monotonic() - upload_t0,
+        doc["income_count"], doc["total_income"],
+        doc["expense_count"], doc["total_expense"], doc["net"],
+    )
     return _strip(doc)
 
 

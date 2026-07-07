@@ -75,31 +75,119 @@ const BankStatements = () => {
     inputRef.current?.click();
   };
 
+  const [debug, setDebug] = useState([]); // { t, msg } — visible diagnostic trail
+
+  const pushDebug = (msg) => {
+    const stamp = new Date().toLocaleTimeString('en-GB', { hour12: false });
+    // Also log to browser console so users can screenshot for us.
+     
+    console.log('[BankStatement]', stamp, msg);
+    setDebug((prev) => [...prev, { t: stamp, msg: String(msg).slice(0, 400) }]);
+  };
+
   const onFileChosen = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
     if (!adminLocationId) { setErr('Pick a location first'); return; }
 
-    setBusy(true); setErr(''); setLastResult(null);
+    setBusy(true); setErr(''); setLastResult(null); setDebug([]);
+    const t0 = performance.now();
+    pushDebug(`Picked file "${file.name}" · ${(file.size / 1024).toFixed(1)} KB · type=${file.type || 'unknown'}`);
+    pushDebug(`Uploading to ${adminLocationId} …`);
+
+    // Direct fetch so we can inspect status, headers and raw body on failure.
+    // 5-minute explicit timeout — well beyond backend's 120 s per-chunk
+    // limit but generous enough to survive slow mobile links.
+    const controller = new AbortController();
+    const timeoutMs = 5 * 60 * 1000;
+    const timeoutId = setTimeout(() => {
+      pushDebug(`ABORTED — client timeout after ${timeoutMs / 1000}s`);
+      controller.abort();
+    }, timeoutMs);
+
     try {
       const fd = new FormData();
       fd.append('file', file);
       fd.append('location_id', adminLocationId);
-      const rec = await api.bankStatementUpload(fd);
-      setLastResult(rec);
-      // Auto-download the XLSX so the manager gets the file immediately.
+
+      const tok = localStorage.getItem('access_token');
+      const base = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_BACKEND_URL)
+        || (typeof process !== 'undefined' && process.env && process.env.REACT_APP_BACKEND_URL)
+        || '';
+      const url = `${base}/api/admin/bank-statements/upload`;
+      pushDebug(`POST ${url}`);
+
+      let response;
       try {
-        const url = await api.bankStatementXlsxUrl(rec.id);
+        response = await fetch(url, {
+          method: 'POST',
+          headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+          body: fd,
+          signal: controller.signal,
+        });
+      } catch (netErr) {
+        // Network-level failure: DNS, TLS, connection reset, abort.
+        const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+        const name = netErr?.name || 'NetworkError';
+        const reason = netErr?.message || String(netErr);
+        pushDebug(`NETWORK ERROR after ${elapsed}s · ${name} · ${reason}`);
+        if (name === 'AbortError') {
+          throw new Error(`Client timeout after ${elapsed}s — the request was aborted before the server responded. Likely the upload is stuck at a proxy (Cloudflare) or offline.`);
+        }
+        throw new Error(`Network error (${name}): ${reason}. Elapsed ${elapsed}s.`);
+      }
+
+      const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+      pushDebug(`Response after ${elapsed}s · HTTP ${response.status} ${response.statusText || ''}`);
+
+      // Try to read the body as text first so a non-JSON error page (e.g.
+      // Cloudflare's HTML error page) still shows something useful.
+      const rawBody = await response.text();
+      pushDebug(`Body size: ${rawBody.length} bytes${rawBody.length ? ` · first bytes: ${rawBody.slice(0, 160).replace(/\s+/g, ' ')}` : ' (empty)'}`);
+
+      if (!response.ok) {
+        let detail = rawBody;
+        try {
+          const j = JSON.parse(rawBody);
+          detail = j.detail || j.message || JSON.stringify(j).slice(0, 300);
+        } catch {
+          // Not JSON — probably Cloudflare / Nginx HTML error page.
+          if (/cloudflare/i.test(rawBody) || /<html/i.test(rawBody)) {
+            detail = `Proxy returned an HTML error page (likely an ingress timeout or 502). Raw: ${rawBody.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200)}`;
+          } else {
+            detail = rawBody.slice(0, 300);
+          }
+        }
+        throw new Error(`HTTP ${response.status}: ${detail}`);
+      }
+
+      let rec;
+      try {
+        rec = JSON.parse(rawBody);
+      } catch (parseErr) {
+        throw new Error(`Response wasn't JSON: ${parseErr.message}. First 200 chars: ${rawBody.slice(0, 200)}`);
+      }
+      pushDebug(`Parsed OK · ${rec.income_count} income, ${rec.expense_count} expenses · net £${rec.net}`);
+      setLastResult(rec);
+
+      // Auto-download the XLSX.
+      pushDebug('Requesting XLSX download …');
+      try {
+        const downloadUrl = await api.bankStatementXlsxUrl(rec.id);
         const stem = (file.name || 'statement').replace(/\.[^.]+$/, '');
-        downloadBlobUrl(url, `${stem}_split.xlsx`);
+        downloadBlobUrl(downloadUrl, `${stem}_split.xlsx`);
+        pushDebug('XLSX downloaded');
       } catch (downloadErr) {
+        pushDebug(`XLSX download failed: ${downloadErr.message}`);
         setErr(`Saved, but download failed: ${downloadErr.message}`);
       }
       await load();
     } catch (ex) {
+      pushDebug(`FAIL · ${ex.message}`);
       setErr(ex.message || 'Upload failed');
     } finally {
+      clearTimeout(timeoutId);
       setBusy(false);
     }
   };
@@ -211,8 +299,44 @@ const BankStatements = () => {
       </div>
 
       {err && (
-        <div data-testid="bs-error" style={{ background: 'rgba(255,59,48,0.10)', color: '#C0392B', padding: 12, borderRadius: 12, fontSize: 13, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <AlertTriangle size={14} /> {err}
+        <div data-testid="bs-error" style={{ background: 'rgba(255,59,48,0.10)', color: '#C0392B', padding: 12, borderRadius: 12, fontSize: 13, marginBottom: 12, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+          <div style={{ flex: 1, wordBreak: 'break-word' }}>{err}</div>
+        </div>
+      )}
+
+      {/* Debug trail — visible so managers can screenshot the exact failure. */}
+      {debug.length > 0 && (
+        <div data-testid="bs-debug" style={{
+          background: '#0B0B0F', color: '#E5E5EA',
+          padding: 12, borderRadius: 12, fontSize: 11,
+          marginBottom: 12, ...FONT,
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+          maxHeight: 260, overflowY: 'auto',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ color: '#8E8E93', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
+              Debug trail
+            </span>
+            <button
+              onClick={() => {
+                const txt = debug.map(d => `${d.t} ${d.msg}`).join('\n');
+                if (navigator.clipboard?.writeText) {
+                  navigator.clipboard.writeText(txt);
+                }
+              }}
+              data-testid="bs-debug-copy"
+              style={{ background: 'transparent', border: '1px solid #3A3A3C', color: '#E5E5EA', fontSize: 10, padding: '3px 8px', borderRadius: 6, cursor: 'pointer' }}
+            >
+              Copy
+            </button>
+          </div>
+          {debug.map((d, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, lineHeight: 1.5 }}>
+              <span style={{ color: '#48D597', flexShrink: 0 }}>{d.t}</span>
+              <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{d.msg}</span>
+            </div>
+          ))}
         </div>
       )}
 
