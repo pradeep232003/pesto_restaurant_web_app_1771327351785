@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, ListChecks, Plus, Trash2, Loader2, AlertTriangle,
   CheckCircle2, Sparkles, Code2, Search, RefreshCw, Lock,
@@ -9,8 +9,27 @@ import { useAuth } from '../../contexts/AuthContext';
 
 const FONT = { fontFamily: 'Outfit, sans-serif' };
 
+// Extract a merchant token from a raw description. Bank statements
+// often carry lots of noise (reference codes, dates, amounts, etc.),
+// so we pick the FIRST run of alphabetic tokens (uppercase or mixed)
+// and cap at 3 tokens — that's usually the merchant name.
+const suggestMerchantKeyword = (desc) => {
+  if (!desc) return '';
+  // Strip common noise: dates, amounts, ref numbers
+  const stripped = String(desc)
+    .replace(/\d{2,4}[/\-]\d{1,2}[/\-]\d{1,4}/g, ' ')  // dates
+    .replace(/[\d.,]+\.\d{2}\b/g, ' ')                  // amounts
+    .replace(/[|]/g, ' ')                                // pipe separator
+    .replace(/REF[:.]?\s*\S+/gi, ' ')                    // ref codes
+    .replace(/\*[A-Z0-9]+/g, ' ')                        // *ABC123 codes
+    .trim();
+  const tokens = stripped.split(/\s+/).filter(t => /^[A-Za-z][A-Za-z&.'-]*$/.test(t));
+  return tokens.slice(0, 3).join(' ').toUpperCase();
+};
+
 const BankRules = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { isAdmin, loading: authLoading } = useAuth();
   const [data, setData] = useState({ custom: [], builtin: [], expense_categories: [], income_categories: [] });
   const [loading, setLoading] = useState(false);
@@ -19,9 +38,17 @@ const BankRules = () => {
   const [ok, setOk] = useState('');
   const [search, setSearch] = useState('');
 
-  // Add-rule form state
-  const [form, setForm] = useState({
-    label: '', pattern: '', type: 'expense', category: 'supplier', mode: 'simple',
+  // Add-rule form state — accepts prefill via ?desc=…&type=…
+  const [form, setForm] = useState(() => {
+    const rawDesc = searchParams.get('desc') || '';
+    const t = (searchParams.get('type') || 'expense').toLowerCase();
+    return {
+      label: rawDesc ? rawDesc.slice(0, 60) : '',
+      pattern: rawDesc ? suggestMerchantKeyword(rawDesc) || rawDesc.slice(0, 40) : '',
+      type: t === 'income' ? 'income' : 'expense',
+      category: t === 'income' ? 'sales' : 'supplier',
+      mode: 'simple',
+    };
   });
 
   useEffect(() => {
@@ -125,6 +152,23 @@ const BankRules = () => {
           After adding a rule, open a statement and click <strong style={{ color: '#5856D6' }}>Re-classify</strong> to apply it retroactively.
         </p>
       </div>
+
+      {searchParams.get('desc') && (
+        <div data-testid="br-prefill-banner" style={{
+          background: 'rgba(88,86,214,0.10)', color: '#3E3AA8',
+          padding: 12, borderRadius: 12, fontSize: 13, marginBottom: 14,
+          display: 'flex', alignItems: 'flex-start', gap: 8,
+        }}>
+          <Sparkles size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+          <div style={{ flex: 1 }}>
+            <p style={{ margin: 0, fontWeight: 700, color: '#1D1D1F' }}>Prefilled from an unmatched statement row</p>
+            <p style={{ margin: '2px 0 0', fontSize: 12, color: '#4A48B0' }}>
+              Description: <strong>{searchParams.get('desc')}</strong> — tidy the keyword below to just the merchant name,
+              pick the right category, and hit Add. Then click Re-classify on that statement to apply.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Add rule form */}
       <form

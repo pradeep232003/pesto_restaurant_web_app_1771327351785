@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Upload, FileSpreadsheet, Download, Trash2, Loader2,
   TrendingUp, TrendingDown, Wallet, CheckCircle2, AlertTriangle, FileText, Sparkles,
-  ListFilter, Search, MapPin, Layers, Check, RefreshCw,
+  ListFilter, Search, MapPin, Layers, Check, RefreshCw, Plus,
 } from 'lucide-react';
 import api, { API_BASE_URL } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -867,11 +867,14 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
                   <th style={thStyle}>Matched supplier</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Amount</th>
                   <th style={thStyle}>Site · Statement</th>
+                  <th style={{ ...thStyle, textAlign: 'center' }}> </th>
                 </tr>
               </thead>
               <tbody>
-                {filteredRows.slice(0, 500).map((r, idx) => (
-                  <tr key={`${r.statement_id}-${idx}`} style={{ borderTop: '1px solid #ECECEF' }}>
+                {filteredRows.slice(0, 500).map((r, idx) => {
+                  const unmatched = (r.category || 'other') === 'other';
+                  return (
+                  <tr key={`${r.statement_id}-${idx}`} style={{ borderTop: '1px solid #ECECEF', background: unmatched ? 'rgba(255,204,0,0.06)' : 'transparent' }}>
                     <td style={tdStyle}>{r.date || '—'}</td>
                     <td style={{ ...tdStyle, fontWeight: 500 }}>{r.description}</td>
                     <td style={{ ...tdStyle, textAlign: 'center' }}>
@@ -885,7 +888,14 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
                         {r.type === 'income' ? <TrendingUp size={9} /> : <TrendingDown size={9} />} {r.type}
                       </span>
                     </td>
-                    <td style={tdStyle}>{r.category || '—'}</td>
+                    <td style={tdStyle}>
+                      {r.category || '—'}
+                      {unmatched && (
+                        <span title="No category rule matched this row" style={{ marginLeft: 4, padding: '1px 6px', borderRadius: 999, background: 'rgba(255,149,0,0.16)', color: '#A35E00', fontSize: 9, fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+                          Unmatched
+                        </span>
+                      )}
+                    </td>
                     <td style={tdStyle}>{r.matched_supplier || '—'}</td>
                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, color: r.type === 'income' ? '#1D5A2F' : '#8A2822' }}>
                       {fmtGBP(r.amount)}
@@ -893,8 +903,27 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
                     <td style={{ ...tdStyle, color: '#86868B', fontSize: 11 }}>
                       {locName(r.location_id)} · <span title={r.statement_filename}>{(r.statement_filename || '').slice(0, 20)}{(r.statement_filename || '').length > 20 ? '…' : ''}</span>
                     </td>
+                    <td style={{ ...tdStyle, textAlign: 'center' }}>
+                      {unmatched && (
+                        <a
+                          data-testid={`bs-add-rule-${idx}`}
+                          href={`/jkhive/bank-rules?desc=${encodeURIComponent(r.description || '')}&type=${encodeURIComponent(r.type || 'expense')}`}
+                          title="Add a category rule for this merchant"
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 3,
+                            padding: '3px 9px', borderRadius: 999,
+                            background: '#5856D6', color: '#FFFFFF',
+                            fontSize: 10, fontWeight: 700, textDecoration: 'none',
+                            letterSpacing: '0.02em', textTransform: 'uppercase',
+                          }}
+                        >
+                          <Plus size={10} /> Rule
+                        </a>
+                      )}
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

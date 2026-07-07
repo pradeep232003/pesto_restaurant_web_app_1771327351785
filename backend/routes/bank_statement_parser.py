@@ -222,6 +222,78 @@ _HEADER_AMOUNT = re.compile(r"\b(amount|value)\b", re.I)
 _HEADER_BALANCE = re.compile(r"\b(balance|running\s*balance)\b", re.I)
 _HEADER_DATE = re.compile(r"\b(date|posting|transaction\s*date)\b", re.I)
 _HEADER_DESC = re.compile(r"\b(description|details|payee|reference|narrative|memo)\b", re.I)
+_HEADER_TXN_TYPE = re.compile(r"\b(transaction\s*type|type|txn\s*type|tt|payment\s*type)\b", re.I)
+
+# Common transaction-type codes UK banks print in a dedicated column.
+# Stripping them keeps the categorised description free of noise like
+# "BAC BIDFOOD" or "TFR BOOKER" (the codes distract rules and pivots).
+_TXN_TYPE_TOKENS = {
+    "BAC", "BACS", "DDR", "DD",  # Direct debits
+    "TFR", "TFR.", "SO",         # Transfers / standing orders
+    "FP", "FPI", "FPO", "FPS",   # Faster Payments
+    "CHG", "CHQ",                # Charges / cheques
+    "POS", "ATM", "CRD",         # Card / cash
+    "BGC",                       # Bank giro credit
+    "DR", "CR",                  # Debit / credit column markers
+    # NOTE: We deliberately do NOT include "DEBIT", "CREDIT", "DEB",
+    # "INT" or "COR" here — those words appear legitimately inside
+    # merchant descriptions ("DIRECT DEBIT", "CREDIT UNION", etc.).
+}
+
+# Header / footer noise line patterns — matched line-wise BEFORE we
+# start looking for transaction rows. Any line matching one of these is
+# skipped, which means it also can't accidentally become part of a
+# continuation-line description merge.
+_SKIP_LINE_PATTERNS = [
+    re.compile(r"^\s*Page\s+\d+", re.I),
+    re.compile(r"^\s*Page\s+\d+\s+of\s+\d+", re.I),
+    re.compile(r"^\s*Continued\s+overleaf", re.I),
+    re.compile(r"^\s*Please\s+turn\s+over", re.I),
+    re.compile(r"^\s*Statement\s+continues", re.I),
+    re.compile(r"^\s*Sort\s+Code\s*[:.]?\s*\d", re.I),
+    re.compile(r"^\s*Account\s+Number\s*[:.]?\s*\d", re.I),
+    re.compile(r"^\s*Registered\s+office", re.I),
+    re.compile(r"^\s*Authorised\s+and\s+regulated", re.I),
+    re.compile(r"^\s*(www\.|http[s]?://)", re.I),
+    re.compile(r"^\s*[A-Z][a-z]+\s+Bank\s+(plc|Ltd|Limited)", re.I),
+    re.compile(r"^\s*Statement\s+date", re.I),
+    re.compile(r"^\s*Opening\s+balance", re.I),
+    re.compile(r"^\s*Closing\s+balance", re.I),
+    re.compile(r"^\s*Balance\s+brought\s+forward", re.I),
+    re.compile(r"^\s*Balance\s+carried\s+forward", re.I),
+    re.compile(r"^\s*BALANCE\s+B/F", re.I),
+    re.compile(r"^\s*BALANCE\s+C/F", re.I),
+    re.compile(r"^\s*--- Page \d+", re.I),  # our own page markers
+]
+
+_TXN_TYPE_STRIP_RE = re.compile(
+    r"\b(" + "|".join(sorted(_TXN_TYPE_TOKENS, key=len, reverse=True)) + r")\b(?:\s+|$)",
+    re.I,
+)
+
+
+def _should_skip_line(line: str) -> bool:
+    """True if the line is header/footer boilerplate — page numbers,
+    bank contact details, opening/closing balance summaries, etc.
+    Skipped lines are neither parsed as transactions NOR merged into
+    another transaction's Details as continuation text."""
+    if not line or not line.strip():
+        return False  # blank lines handled separately elsewhere
+    for pat in _SKIP_LINE_PATTERNS:
+        if pat.match(line):
+            return True
+    return False
+
+
+def _strip_txn_type_codes(desc: str) -> str:
+    """Remove UK transaction-type codes (BAC, DDR, TFR, POS, FP, ATM,
+    BGC, DR, CR, DD, SO, etc.) from the description so category rules
+    match the actual merchant text and downloaded tabs stay readable."""
+    if not desc:
+        return desc
+    # Strip codes from anywhere in the string, then collapse whitespace.
+    cleaned = _TXN_TYPE_STRIP_RE.sub(" ", desc)
+    return re.sub(r"\s{2,}", " ", cleaned).strip(" -|")
 
 
 def _classify_header_cell(cell: str) -> str:
@@ -243,6 +315,8 @@ def _classify_header_cell(cell: str) -> str:
         return "date"
     if _HEADER_DESC.search(c):
         return "desc"
+    if _HEADER_TXN_TYPE.search(c):
+        return "txn_type"
     return ""
 
 
@@ -292,10 +366,12 @@ def _rows_to_txns(rows: List[List[str]]) -> List[dict]:
             continue
         desc_cell = cells[col["desc"]] if "desc" in col and col["desc"] < len(cells) else ""
         # Combine remaining unclassified cells into description if no
-        # explicit description column exists.
+        # explicit description column exists. Excludes the txn_type
+        # column since user asked to ignore it.
         if not desc_cell:
             known = set(col.values())
             desc_cell = " ".join(cells[i] for i in range(len(cells)) if i not in known).strip()
+        desc_cell = _strip_txn_type_codes(desc_cell)
 
         pin = _parse_amount(cells[col["paid_in"]]) if "paid_in" in col and col["paid_in"] < len(cells) else None
         pout = _parse_amount(cells[col["paid_out"]]) if "paid_out" in col and col["paid_out"] < len(cells) else None
@@ -398,6 +474,10 @@ def _parse_pdf_layout_text(text: str) -> List[dict]:
         return None
 
     for i, line in enumerate(lines):
+        # Skip header/footer boilerplate — page numbers, bank contact
+        # lines, opening/closing balance summaries, etc.
+        if _should_skip_line(line):
+            continue
         if header_positions is None:
             hp = _find_header(line)
             if hp:
@@ -455,6 +535,7 @@ def _parse_pdf_layout_text(text: str) -> List[dict]:
         if first_amt_pos < 0:
             first_amt_pos = None
         desc = (after_date[:first_amt_pos] if first_amt_pos else after_date).strip()
+        desc = _strip_txn_type_codes(desc)
 
         if pin_val is not None:
             txns.append({
@@ -490,6 +571,10 @@ def _parse_pdf_layout_text(text: str) -> List[dict]:
                 # or a monetary amount + balance).
                 if _LINE_STARTS_WITH_DATE.match(cont):
                     continue
+                # Skip header/footer boilerplate — never merge into
+                # description.
+                if _should_skip_line(cont):
+                    continue
                 if _AMOUNT_RE.search(cont):
                     # Continuation lines can carry a running balance but
                     # usually they're reference codes. Only skip if the
@@ -500,6 +585,7 @@ def _parse_pdf_layout_text(text: str) -> List[dict]:
                     cont_text = non_amt
                 else:
                     cont_text = cont.strip()
+                cont_text = _strip_txn_type_codes(cont_text)
                 if cont_text:
                     extra_bits.append(cont_text)
             if extra_bits:
