@@ -276,12 +276,17 @@ def _chunk_text(text: str, target_size: int = 15_000) -> List[str]:
 
 
 async def _classify_chunk(chunk_text: str, chunk_idx: int, total_chunks: int,
-                          supplier_hint: str, api_key: str, provider: str) -> dict:
+                          supplier_hint: str, api_key: str, provider: str,
+                          depth: int = 0) -> dict:
     """Send a single chunk to Claude and return the parsed transactions
     (+ optional meta fields). Isolated in its own coroutine so multiple
     chunks can run in parallel via asyncio.gather().
+
+    If Claude truncates the response at the max_tokens boundary (very
+    dense chunks), the chunk is split in half and each half retried
+    recursively (max depth 3). Results are merged transparently so the
+    caller sees a single dict.
     """
-    import asyncio  # noqa: F401 — imported for context
     part_note = (
         f"NOTE: This is chunk {chunk_idx} of {total_chunks} from a larger bank "
         f"statement. Return transactions ONLY from THIS chunk. If period_start "
@@ -318,16 +323,56 @@ async def _classify_chunk(chunk_text: str, chunk_idx: int, total_chunks: int,
         raise HTTPException(500, f"AI provider error ({provider}, {resp.status_code}) on chunk {chunk_idx}: {err[:240]}")
 
     data = resp.json()
+    stop_reason = data.get("stop_reason")
     out = "".join(
         block.get("text", "") for block in (data.get("content") or [])
         if block.get("type") == "text"
     ).strip()
     if not out:
         raise HTTPException(500, f"AI returned an empty response for chunk {chunk_idx}")
-    try:
-        return json.loads(_scrub_json(out))
-    except json.JSONDecodeError as e:
-        raise HTTPException(500, f"AI returned non-JSON on chunk {chunk_idx}: {e}")
+
+    # If Claude hit the output-token cap, JSON is guaranteed to be
+    # unterminated. Split the chunk in half and retry each half —
+    # recursion depth capped at 3 (i.e. up to 8× subdivision) which is
+    # more than enough for the densest real-world statements.
+    truncated = stop_reason == "max_tokens"
+    parsed = None
+    if not truncated:
+        try:
+            parsed = json.loads(_scrub_json(out))
+        except json.JSONDecodeError:
+            # Model produced non-JSON despite `stop_reason=end_turn`.
+            # Almost always still a hidden truncation; treat as such
+            # and split, unless we're already very small.
+            truncated = True
+
+    if truncated:
+        if depth >= 3 or len(chunk_text) < 1500:
+            snippet = out[-160:].replace("\n", " ")
+            raise HTTPException(
+                500,
+                f"Chunk {chunk_idx} truncated by AI even after {depth} sub-splits "
+                f"(chunk size {len(chunk_text)} chars). Last output fragment: {snippet!r}",
+            )
+        _log.info("classify: chunk %d truncated (depth %d), sub-splitting %d chars",
+                  chunk_idx, depth, len(chunk_text))
+        half = len(chunk_text) // 2
+        # Prefer to break at a newline so page/row context is preserved.
+        break_at = chunk_text.rfind("\n", int(half * 0.6), int(half * 1.4))
+        if break_at < 0:
+            break_at = half
+        left, right = chunk_text[:break_at], chunk_text[break_at:]
+        a = await _classify_chunk(left, chunk_idx, total_chunks, supplier_hint, api_key, provider, depth + 1)
+        b = await _classify_chunk(right, chunk_idx, total_chunks, supplier_hint, api_key, provider, depth + 1)
+        merged: dict = {"period_start": "", "period_end": "", "account_ref": "", "currency": "", "transactions": []}
+        for p in (a, b):
+            for k in ("period_start", "period_end", "account_ref", "currency"):
+                if not merged[k] and (p.get(k) or "").strip():
+                    merged[k] = (p.get(k) or "").strip()
+            merged["transactions"].extend(p.get("transactions") or [])
+        return merged
+
+    return parsed
 
 
 async def _classify(text: str, location_id: str) -> dict:
@@ -361,7 +406,7 @@ async def _classify(text: str, location_id: str) -> dict:
             + "\n\n"
         )
 
-    chunks = _chunk_text(text, target_size=15_000)
+    chunks = _chunk_text(text, target_size=9_000)
     total = len(chunks)
     _log.info(
         "classify: text=%d chars, suppliers=%d, chunks=%d",
