@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Users, ShieldCheck, BarChart3, TrendingUp, TrendingDown, UtensilsCrossed, Snowflake, LineChart, Trash2, ChefHat, LayoutGrid, FileSpreadsheet, ListChecks } from 'lucide-react';
+import { Settings, Users, ShieldCheck, BarChart3, TrendingUp, TrendingDown, UtensilsCrossed, Snowflake, LineChart, Trash2, ChefHat, LayoutGrid, FileSpreadsheet } from 'lucide-react';
 import { Tile, SectionLabel } from './Tile';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -23,9 +23,6 @@ const Manager = () => {
         <Tile testId="tile-expenses" to="/jkhive/expenses" icon={TrendingDown} color="#FF3B30" title="Expenses" subtitle="Outgoings & receipts" />
         {isAdmin && (
           <Tile testId="tile-bank-statements" to="/jkhive/bank-statements" icon={FileSpreadsheet} color="#5856D6" title="Bank Statement" subtitle="AI split → XLSX" />
-        )}
-        {isAdmin && (
-          <Tile testId="tile-bank-rules" to="/jkhive/bank-rules" icon={ListChecks} color="#5856D6" title="Bank Rules" subtitle="Configure category rules" />
         )}
       </div>
 

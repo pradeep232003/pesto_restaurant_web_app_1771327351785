@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Upload, FileSpreadsheet, Download, Trash2, Loader2,
   TrendingUp, TrendingDown, Wallet, CheckCircle2, AlertTriangle, FileText, Sparkles,
-  ListFilter, Search, MapPin, Layers, Check, RefreshCw, Plus, Bug, X,
+  ListFilter, Search, MapPin, Layers, Check, RefreshCw, Bug, X,
 } from 'lucide-react';
 import api, { API_BASE_URL } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -703,6 +703,8 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'income' | 'expense'
+  const [dateFrom, setDateFrom] = useState(''); // YYYY-MM-DD (inclusive)
+  const [dateTo, setDateTo] = useState('');     // YYYY-MM-DD (inclusive)
   const [downloading, setDownloading] = useState(false);
 
   const allSites = locations || [];
@@ -770,13 +772,20 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
+    // Dates on transactions are stored as ISO `YYYY-MM-DD` (or blank) —
+    // a plain string comparison is exact + timezone-safe.
+    const from = dateFrom || '';
+    const to = dateTo || '';
     return rows.filter((r) => {
       if (typeFilter !== 'all' && r.type !== typeFilter) return false;
       if (q && ![r.description, r.category, r.matched_supplier, r.date, r.statement_filename]
         .some((v) => (v || '').toLowerCase().includes(q))) return false;
+      const d = (r.date || '').slice(0, 10);
+      if (from && (!d || d < from)) return false;
+      if (to && (!d || d > to)) return false;
       return true;
     });
-  }, [rows, search, typeFilter]);
+  }, [rows, search, typeFilter, dateFrom, dateTo]);
 
   const download = async () => {
     setDownloading(true); setErr('');
@@ -945,15 +954,15 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
         </div>
       </div>
 
-      {/* Search bar */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', background: '#FFFFFF', borderRadius: 12, padding: '4px 12px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+      {/* Search + date range */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', background: '#FFFFFF', borderRadius: 12, padding: '4px 12px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)', flexWrap: 'wrap' }}>
         <Search size={14} color="#86868B" />
         <input
           data-testid="bs-detail-search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search description, category, supplier…"
-          style={{ flex: 1, border: 0, background: 'transparent', padding: '10px 0', fontSize: 13, color: '#1D1D1F', outline: 'none', ...FONT }}
+          style={{ flex: '1 1 220px', minWidth: 180, border: 0, background: 'transparent', padding: '10px 0', fontSize: 13, color: '#1D1D1F', outline: 'none', ...FONT }}
         />
         {search && (
           <button
@@ -961,6 +970,31 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
             onClick={() => setSearch('')}
             style={{ background: 'none', border: 0, color: '#86868B', cursor: 'pointer', fontSize: 12 }}
           >Clear</button>
+        )}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#86868B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Date</span>
+        <input
+          data-testid="bs-detail-date-from"
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          aria-label="From date"
+          style={{ border: '1px solid #ECECEF', background: '#F5F5F7', borderRadius: 8, padding: '6px 8px', fontSize: 12, color: '#1D1D1F', outline: 'none', ...FONT }}
+        />
+        <span style={{ fontSize: 12, color: '#86868B' }}>→</span>
+        <input
+          data-testid="bs-detail-date-to"
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          aria-label="To date"
+          style={{ border: '1px solid #ECECEF', background: '#F5F5F7', borderRadius: 8, padding: '6px 8px', fontSize: 12, color: '#1D1D1F', outline: 'none', ...FONT }}
+        />
+        {(dateFrom || dateTo) && (
+          <button
+            data-testid="bs-detail-date-clear"
+            onClick={() => { setDateFrom(''); setDateTo(''); }}
+            style={{ background: 'none', border: 0, color: '#86868B', cursor: 'pointer', fontSize: 12 }}
+          >Reset</button>
         )}
         <ListFilter size={14} color="#86868B" />
         <span style={{ fontSize: 11, color: '#86868B' }}>{filteredRows.length} of {rows.length}</span>
@@ -1002,7 +1036,6 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
                   <th style={{ ...thStyle, textAlign: 'right' }}>Amount</th>
                   <th style={{ ...thStyle, textAlign: 'right', minWidth: 80 }}>VAT</th>
                   <th style={thStyle}>Site · Statement</th>
-                  <th style={{ ...thStyle, textAlign: 'center' }}> </th>
                 </tr>
               </thead>
               <tbody>
@@ -1059,24 +1092,6 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
                     </td>
                     <td style={{ ...tdStyle, color: '#86868B', fontSize: 11 }}>
                       {locName(r.location_id)} · <span title={r.statement_filename}>{(r.statement_filename || '').slice(0, 20)}{(r.statement_filename || '').length > 20 ? '…' : ''}</span>
-                    </td>
-                    <td style={{ ...tdStyle, textAlign: 'center' }}>
-                      {unmatched && (
-                        <a
-                          data-testid={`bs-add-rule-${idx}`}
-                          href={`/jkhive/bank-rules?desc=${encodeURIComponent(r.description || '')}&type=${encodeURIComponent(r.type || 'expense')}`}
-                          title="Add a category rule for this merchant"
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 3,
-                            padding: '3px 9px', borderRadius: 999,
-                            background: '#5856D6', color: '#FFFFFF',
-                            fontSize: 10, fontWeight: 700, textDecoration: 'none',
-                            letterSpacing: '0.02em', textTransform: 'uppercase',
-                          }}
-                        >
-                          <Plus size={10} /> Rule
-                        </a>
-                      )}
                     </td>
                   </tr>
                   );
