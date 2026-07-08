@@ -1105,6 +1105,15 @@ class ApiService {
     return this.fetch(`/api/admin/bank-statements/${id}/reclassify?${qs}`, { method: 'POST' });
   }
 
+  async bankStatementDebugMatches(id) {
+    return this.fetch(`/api/admin/bank-statements/${id}/debug/matches`);
+  }
+
+  async bankStatementDebugInvoices(location_id) {
+    const qs = new URLSearchParams({ location_id }).toString();
+    return this.fetch(`/api/admin/bank-statements/debug/invoices?${qs}`);
+  }
+
   // ============== INSPECTION PACK (EHO-ready audit bundle) ==============
   async adminInspectionPack({ location_id, start_date, end_date } = {}) {
     const qs = new URLSearchParams(

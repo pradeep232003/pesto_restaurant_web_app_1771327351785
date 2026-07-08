@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Upload, FileSpreadsheet, Download, Trash2, Loader2,
   TrendingUp, TrendingDown, Wallet, CheckCircle2, AlertTriangle, FileText, Sparkles,
-  ListFilter, Search, MapPin, Layers, Check, RefreshCw, Plus,
+  ListFilter, Search, MapPin, Layers, Check, RefreshCw, Plus, Bug, X,
 } from 'lucide-react';
 import api, { API_BASE_URL } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -219,6 +219,24 @@ const BankStatements = () => {
   // on just that button instead of a global busy-lock (reclassify can
   // take 30-60s for large PDFs).
   const [reclassifyingId, setReclassifyingId] = useState(null);
+
+  // Diagnostic modal — surfaces the raw invoice-match audit for a
+  // single statement so managers can see phantom matches instantly.
+  const [debugRec, setDebugRec] = useState(null); // { statement, data }
+  const [debugLoading, setDebugLoading] = useState(false);
+
+  const openDebug = async (rec) => {
+    setDebugRec({ statement: rec, data: null });
+    setDebugLoading(true);
+    try {
+      const data = await api.bankStatementDebugMatches(rec.id);
+      setDebugRec({ statement: rec, data });
+    } catch (e) {
+      setDebugRec({ statement: rec, data: { error: e.message || 'Failed' } });
+    } finally {
+      setDebugLoading(false);
+    }
+  };
 
   const reclassifyOne = async (rec) => {
     const ok = window.confirm(
@@ -509,6 +527,16 @@ const BankStatements = () => {
                     : <RefreshCw size={15} />}
                 </button>
                 <button
+                  data-testid={`bs-debug-${rec.id}`}
+                  onClick={() => openDebug(rec)}
+                  disabled={busy}
+                  aria-label="Debug invoice matches"
+                  title="Show raw invoice-match audit — spots phantom / orphaned matches"
+                  style={{ width: 36, height: 36, borderRadius: 999, background: 'rgba(255,149,0,0.12)', color: '#A35E00', border: 0, cursor: busy ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.6 : 1 }}
+                >
+                  <Bug size={15} />
+                </button>
+                <button
                   data-testid={`bs-delete-${rec.id}`}
                   onClick={() => deleteOne(rec)}
                   disabled={busy}
@@ -524,6 +552,135 @@ const BankStatements = () => {
         </div>
       )}
       </>}
+
+      {debugRec && (
+        <DebugMatchesModal
+          rec={debugRec.statement}
+          data={debugRec.data}
+          loading={debugLoading}
+          onClose={() => setDebugRec(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+/* Diagnostic modal — surfaces the raw invoice-match audit for a single
+ * statement. Every expense row that carries a match hint (invoice id,
+ * ref, or supplier) is listed alongside the CURRENT invoice record it
+ * points at — so orphaned / phantom matches are obvious at a glance.
+ */
+const DebugMatchesModal = ({ rec, data, loading, onClose }) => {
+  const rows = (data && data.rows) || [];
+  const copy = () => {
+    if (!data) return;
+    navigator.clipboard?.writeText(JSON.stringify(data, null, 2));
+  };
+  return (
+    <div
+      data-testid="bs-debug-modal"
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 200, padding: 20, ...FONT,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#FFFFFF', borderRadius: 16, maxWidth: 960, width: '100%',
+          maxHeight: '86vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+        }}
+      >
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid #ECECEF', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Bug size={16} color="#A35E00" />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1D1D1F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              Invoice-match audit · {rec.filename}
+            </p>
+            {data && !data.error && (
+              <p style={{ margin: '2px 0 0', fontSize: 11, color: '#86868B' }}>
+                {data.total_invoices_loaded} invoices loaded for this location · {data.expense_rows_with_hint} rows with a match hint · <strong style={{ color: data.orphaned_count ? '#C0392B' : '#1D5A2F' }}>{data.orphaned_count} orphaned</strong>
+              </p>
+            )}
+          </div>
+          <button
+            data-testid="bs-debug-copy"
+            onClick={copy}
+            disabled={!data || !!data.error}
+            style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #ECECEF', background: '#F5F5F7', color: '#1D1D1F', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+          >
+            Copy JSON
+          </button>
+          <button
+            data-testid="bs-debug-close"
+            onClick={onClose}
+            aria-label="Close"
+            style={{ width: 32, height: 32, borderRadius: 999, border: 0, background: '#F5F5F7', color: '#1D1D1F', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+        <div style={{ padding: 16, overflowY: 'auto', flex: 1 }}>
+          {loading && (
+            <p style={{ textAlign: 'center', color: '#86868B', padding: 24 }}>
+              <Loader2 size={16} className="animate-spin" style={{ verticalAlign: 'middle', marginRight: 6 }} />
+              Loading match audit…
+            </p>
+          )}
+          {!loading && data && data.error && (
+            <div style={{ background: 'rgba(255,59,48,0.10)', color: '#C0392B', padding: 12, borderRadius: 10, fontSize: 13 }}>
+              <AlertTriangle size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} /> {data.error}
+            </div>
+          )}
+          {!loading && data && !data.error && rows.length === 0 && (
+            <p style={{ textAlign: 'center', color: '#86868B', padding: 24, fontSize: 13 }}>
+              No expense rows carry a match hint on this statement.
+            </p>
+          )}
+          {!loading && data && !data.error && rows.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {rows.map((r, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: 12, borderRadius: 10,
+                    background: !r.matched_invoice_id ? 'rgba(142,142,147,0.08)' : (r.invoice_still_exists ? 'rgba(52,199,89,0.08)' : 'rgba(255,59,48,0.12)'),
+                    border: r.matched_invoice_id && !r.invoice_still_exists ? '1px solid #FF3B30' : '1px solid transparent',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1D1D1F', overflowWrap: 'anywhere' }}>{r.description}</p>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#8A2822', whiteSpace: 'nowrap' }}>{fmtGBP(r.amount)}</p>
+                  </div>
+                  <p style={{ margin: '4px 0 0', fontSize: 11, color: '#86868B' }}>
+                    {r.date || 'no date'} · id:{' '}
+                    <code style={{ background: '#F5F5F7', padding: '1px 6px', borderRadius: 4, fontSize: 10 }}>
+                      {r.matched_invoice_id || '(none — supplier fuzzy match only)'}
+                    </code>
+                    {' · ref: '}<code style={{ background: '#F5F5F7', padding: '1px 6px', borderRadius: 4, fontSize: 10 }}>{r.matched_invoice_ref || '—'}</code>
+                    {' · supplier: '}<code style={{ background: '#F5F5F7', padding: '1px 6px', borderRadius: 4, fontSize: 10 }}>{r.matched_supplier || '—'}</code>
+                  </p>
+                  {r.matched_invoice_id && !r.invoice_still_exists && (
+                    <p style={{ margin: '6px 0 0', fontSize: 12, color: '#C0392B', fontWeight: 700 }}>
+                      ⚠ ORPHANED — invoice id no longer exists in the invoices collection for this location.
+                    </p>
+                  )}
+                  {r.invoice_still_exists && r.current_invoice_record && (
+                    <p style={{ margin: '4px 0 0', fontSize: 11, color: '#1D5A2F' }}>
+                      Live invoice → supplier: <strong>{r.current_invoice_record.supplier}</strong>{' · '}
+                      #{r.current_invoice_record.invoice_number || 'no number'}{' · '}
+                      {fmtGBP(r.current_invoice_record.amount)} on {r.current_invoice_record.invoice_date || 'no date'}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

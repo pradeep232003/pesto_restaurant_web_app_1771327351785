@@ -449,7 +449,12 @@ def _enrich_with_invoices(txns: List[dict], location_id: str) -> int:
     """
     invoices = _load_invoices(location_id)
     valid_ids = {inv.get("id") for inv in invoices if inv.get("id")}
+    _log.info(
+        "enrich: location=%s loaded %d invoice candidates (unique ids=%d)",
+        location_id, len(invoices), len(valid_ids),
+    )
     matches = 0
+    stale_dropped = 0
     for t in txns:
         if t.get("type") != "expense":
             continue
@@ -458,8 +463,16 @@ def _enrich_with_invoices(txns: List[dict], location_id: str) -> int:
         # orphaned reference.
         stale_id = t.get("matched_invoice_id")
         if stale_id and stale_id not in valid_ids:
+            _log.info(
+                "enrich: dropping STALE ref on txn desc=%r amt=%s date=%s -> id=%s ref=%r (no longer in invoices)",
+                (t.get("description") or "")[:80], t.get("amount"), t.get("date"),
+                stale_id, t.get("matched_invoice_ref"),
+            )
             t.pop("matched_invoice_id", None)
             t.pop("matched_invoice_ref", None)
+            t.pop("matched_invoice_amount", None)
+            t.pop("matched_invoice_date", None)
+            stale_dropped += 1
         if not invoices:
             continue
         inv = _match_invoice(
@@ -473,12 +486,30 @@ def _enrich_with_invoices(txns: List[dict], location_id: str) -> int:
             # alone but ensure the invoice-specific fields are clean.
             t.pop("matched_invoice_id", None)
             t.pop("matched_invoice_ref", None)
+            t.pop("matched_invoice_amount", None)
+            t.pop("matched_invoice_date", None)
             continue
         t["matched_invoice_id"] = inv.get("id", "")
         t["matched_invoice_ref"] = _format_invoice_ref(inv)
+        # Store the matched invoice's amount and date on the txn too so
+        # we can surface them in the UI tooltip / debug tools — helps
+        # managers instantly see WHY the system thought this was a
+        # match (and spot any mismatches vs the bank row).
+        t["matched_invoice_amount"] = inv.get("amount")
+        t["matched_invoice_date"] = inv.get("invoice_date", "")
         if not t.get("matched_supplier"):
             t["matched_supplier"] = inv.get("supplier", "")
+        _log.info(
+            "enrich: MATCH txn desc=%r amt=%s date=%s -> inv id=%s ref=%r inv_amt=%s inv_date=%s",
+            (t.get("description") or "")[:80], t.get("amount"), t.get("date"),
+            inv.get("id"), t["matched_invoice_ref"], inv.get("amount"), inv.get("invoice_date"),
+        )
         matches += 1
+    _log.info(
+        "enrich: done location=%s matches=%d stale_dropped=%d expense_txns=%d",
+        location_id, matches, stale_dropped,
+        sum(1 for t in txns if t.get("type") == "expense"),
+    )
     return matches
 
 
@@ -914,6 +945,70 @@ async def delete_rule(rid: str, user: dict = Depends(get_admin_user)):
         raise HTTPException(404, "Rule not found")
     _log.info("rule deleted: id=%s by=%s", rid, user.get("email"))
     return {"deleted": True}
+
+
+@router.get("/debug/invoices")
+async def debug_invoices_for_matcher(
+    location_id: str,
+    user: dict = Depends(get_admin_user),
+):
+    """Diagnostic — returns exactly what `_load_invoices()` sees for a
+    location. Use this to compare against what the /jkhive/invoices
+    table shows: if an invoice appears here that ISN'T in the table,
+    it's a soft-delete or location-mismatch problem; if a txn cites an
+    id NOT in this list, `matched_invoice_id` is orphaned.
+    """
+    invoices = _load_invoices(location_id)
+    return {
+        "location_id": location_id,
+        "count": len(invoices),
+        "invoices": invoices,
+    }
+
+
+@router.get("/{sid}/debug/matches")
+async def debug_matches(
+    sid: str,
+    user: dict = Depends(get_admin_user),
+):
+    """Diagnostic — for one statement, list every expense row that has
+    a `matched_invoice_id` alongside the CURRENT invoice record it
+    points at (or None if orphaned). Instantly shows any phantom
+    matches so managers know what to Re-classify or delete.
+    """
+    rec = statements.find_one({"id": sid})
+    if not rec:
+        raise HTTPException(404, "Not found")
+    location_id = rec.get("location_id", "")
+    invoices = {i["id"]: i for i in _load_invoices(location_id)}
+    diagnostics = []
+    for t in (rec.get("transactions") or []):
+        if t.get("type") != "expense":
+            continue
+        mid = t.get("matched_invoice_id")
+        ref = t.get("matched_invoice_ref")
+        sup = t.get("matched_supplier")
+        if not (mid or ref or sup):
+            continue
+        live = invoices.get(mid) if mid else None
+        diagnostics.append({
+            "description": t.get("description"),
+            "amount": t.get("amount"),
+            "date": t.get("date"),
+            "matched_invoice_id": mid,
+            "matched_invoice_ref": ref,
+            "matched_supplier": sup,
+            "invoice_still_exists": bool(live),
+            "current_invoice_record": live,
+        })
+    return {
+        "statement_id": sid,
+        "location_id": location_id,
+        "total_invoices_loaded": len(invoices),
+        "expense_rows_with_hint": len(diagnostics),
+        "orphaned_count": sum(1 for d in diagnostics if d["matched_invoice_id"] and not d["invoice_still_exists"]),
+        "rows": diagnostics,
+    }
 
 
 @router.get("")
