@@ -874,9 +874,21 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
                       )}
                     </td>
                     <td style={tdStyle}>
-                      {r.type === 'expense'
-                        ? (r.matched_invoice_ref || r.matched_supplier || '—')
-                        : (r.matched_supplier || '—')}
+                      {r.type === 'expense' ? (
+                        r.matched_invoice_ref && r.matched_invoice_id ? (
+                          <span title={`Invoice #${r.matched_invoice_ref}`} style={{ color: '#1D1D1F' }}>
+                            {r.matched_invoice_ref}
+                          </span>
+                        ) : r.matched_supplier ? (
+                          <span title="Supplier name matched by fuzzy rule — no invoice on file for this amount/date" style={{ color: '#86868B', fontStyle: 'italic' }}>
+                            {r.matched_supplier} <span style={{ fontSize: 9, background: 'rgba(255,149,0,0.16)', color: '#A35E00', padding: '1px 5px', borderRadius: 999, fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase' }}>no invoice</span>
+                          </span>
+                        ) : (
+                          '—'
+                        )
+                      ) : (
+                        r.matched_supplier || '—'
+                      )}
                     </td>
                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, color: r.type === 'income' ? '#1D5A2F' : '#8A2822' }}>
                       {fmtGBP(r.amount)}

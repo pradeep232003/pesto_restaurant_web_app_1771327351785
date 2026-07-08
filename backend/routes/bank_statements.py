@@ -441,13 +441,26 @@ def _enrich_with_invoices(txns: List[dict], location_id: str) -> int:
 
     Returns the number of matches made — logged upstream so managers
     can see how many statement rows the system found paperwork for.
+
+    IMPORTANT: any stale invoice reference stored on the txn (from a
+    previous classification, where the invoice may since have been
+    deleted or edited) is cleared BEFORE re-matching, so re-classify
+    always reflects the current state of the invoices collection.
     """
     invoices = _load_invoices(location_id)
-    if not invoices:
-        return 0
+    valid_ids = {inv.get("id") for inv in invoices if inv.get("id")}
     matches = 0
     for t in txns:
         if t.get("type") != "expense":
+            continue
+        # Drop any stale invoice reference that points at a deleted
+        # invoice, so the "Matched Invoice" column never shows an
+        # orphaned reference.
+        stale_id = t.get("matched_invoice_id")
+        if stale_id and stale_id not in valid_ids:
+            t.pop("matched_invoice_id", None)
+            t.pop("matched_invoice_ref", None)
+        if not invoices:
             continue
         inv = _match_invoice(
             description=t.get("description", ""),
@@ -456,6 +469,10 @@ def _enrich_with_invoices(txns: List[dict], location_id: str) -> int:
             invoices=invoices,
         )
         if not inv:
+            # No new match — leave any pre-existing supplier fuzzy-match
+            # alone but ensure the invoice-specific fields are clean.
+            t.pop("matched_invoice_id", None)
+            t.pop("matched_invoice_ref", None)
             continue
         t["matched_invoice_id"] = inv.get("id", "")
         t["matched_invoice_ref"] = _format_invoice_ref(inv)
@@ -1377,9 +1394,14 @@ def _build_split_xlsx(income_txns: list, expense_txns: list, summary_rows: list)
                 col += 1
             # Expenses show the matched invoice ref (Supplier #INVNUM) so
             # managers can trace which paperwork corresponds to each row.
-            # Income rows still show the (unused) supplier field.
+            # Only render the ref when there IS a linked invoice id —
+            # otherwise the supplier fuzzy-match sits in the Supplier
+            # pivot but must NOT be presented as a real invoice link.
             if is_expenses:
-                ws.cell(row=r, column=col, value=_s(t.get("matched_invoice_ref", "") or t.get("matched_supplier", "")))
+                ws.cell(
+                    row=r, column=col,
+                    value=_s(t.get("matched_invoice_ref", "") if t.get("matched_invoice_id") else ""),
+                )
             else:
                 ws.cell(row=r, column=col, value=_s(t.get("matched_supplier", "")))
             col += 1
