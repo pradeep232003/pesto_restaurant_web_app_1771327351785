@@ -135,6 +135,7 @@ async def admin_create_location(data: LocationCreate, user: dict = Depends(get_a
         "latitude": data.latitude,
         "longitude": data.longitude,
         "geofence_radius_m": data.geofence_radius_m or 200,
+        "color": (data.color or "").strip(),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     locations_collection.insert_one(location_doc)
@@ -195,6 +196,8 @@ async def admin_update_location(location_id: str, data: LocationUpdate, user: di
         update_fields["longitude"] = data.longitude
     if data.geofence_radius_m is not None:
         update_fields["geofence_radius_m"] = data.geofence_radius_m
+    if data.color is not None:
+        update_fields["color"] = (data.color or "").strip()
 
     if not update_fields:
         raise HTTPException(status_code=400, detail="No fields to update")

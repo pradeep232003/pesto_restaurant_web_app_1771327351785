@@ -56,14 +56,29 @@ def _clean(doc: dict) -> dict:
 
 @router.get("")
 async def list_items(
-    location_id: str = Query(...),
+    location_id: Optional[str] = Query(None, description="Site id — omit or pass 'all' for cross-site (admin only)"),
     status: Literal["open", "done", "all"] = "open",
     user: dict = Depends(get_staff_or_above),
 ):
-    q: dict = {"location_id": location_id}
+    """Return the restock list.
+
+    Rules:
+      - Staff: MUST pass a `location_id`; they only see their own site.
+      - Admin/super_admin: may pass `location_id` OR the literal string
+        `'all'` (or omit it entirely) to fetch every site — the response
+        rows keep their `location_id` so the UI can colour-code them.
+    """
+    q: dict = {}
+    is_admin = user.get("role") in ("admin", "super_admin")
+    if location_id and location_id != "all":
+        q["location_id"] = location_id
+    else:
+        if not is_admin:
+            raise HTTPException(400, "location_id is required for non-admin users")
+        # Admin cross-site query — no location filter.
     if status != "all":
         q["status"] = status
-    rows = list(restock.find(q).sort([("status", 1), ("added_at", -1)]).limit(500))
+    rows = list(restock.find(q).sort([("status", 1), ("added_at", -1)]).limit(1000))
     return {"items": [_clean(r) for r in rows]}
 
 

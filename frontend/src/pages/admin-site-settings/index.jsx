@@ -119,6 +119,21 @@ const AdminSiteSettings = () => {
     }
   };
 
+  // Colour code lives on the location record itself — used by JKHive
+  // Restock (and any other cross-site view) to visually distinguish
+  // rows from different sites. Debounced via native <input type=color>
+  // onBlur so we don't spam the API on every colour-picker drag.
+  const handleColorChange = async (locationId, newColor) => {
+    setError('');
+    try {
+      await api.adminUpdateLocation(locationId, { color: newColor });
+      showSuccess('Location colour updated');
+      await refreshLocations();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const handleAddLocation = async (e) => {
     e.preventDefault();
     if (!newLocationName.trim()) return;
@@ -280,15 +295,45 @@ const AdminSiteSettings = () => {
                 {settings.map(setting => {
                   const loc = locationData(setting.location_id);
                   return (
-                    <div key={setting.location_id} data-testid={`site-card-${setting.location_id}`} className="bg-card rounded-xl shadow-warm overflow-hidden">
+                    <div key={setting.location_id} data-testid={`site-card-${setting.location_id}`} className="bg-card rounded-xl shadow-warm overflow-hidden" style={{ borderLeft: `6px solid ${loc?.color || '#C7C7CC'}` }}>
                       <div className="p-4 sm:p-6">
                         {/* Header */}
                         <div className="flex items-start justify-between gap-3 mb-4">
-                          <div className="min-w-0">
-                            <h3 className="font-heading font-bold text-base sm:text-lg text-foreground truncate">{locationName(setting.location_id)}</h3>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {setting.manual_override ? 'Manual override active' : 'Following auto-schedule'}
-                            </p>
+                          <div className="min-w-0 flex items-center gap-3">
+                            <label
+                              data-testid={`color-picker-wrap-${setting.location_id}`}
+                              title="Location colour — used across JKHive"
+                              style={{
+                                position: 'relative', display: 'inline-flex',
+                                width: 32, height: 32, borderRadius: 999,
+                                background: loc?.color || '#C7C7CC',
+                                boxShadow: 'inset 0 0 0 2px #FFFFFF, 0 0 0 1px #ECECEF',
+                                cursor: 'pointer', flexShrink: 0,
+                              }}
+                            >
+                              <input
+                                data-testid={`color-picker-${setting.location_id}`}
+                                type="color"
+                                value={(loc?.color || '#C7C7CC').toUpperCase()}
+                                onChange={(e) => {
+                                  // Optimistic local update on drag — the API
+                                  // call fires on `onBlur` below so we don't
+                                  // hammer the server.
+                                  const v = e.target.value;
+                                  const idx = locations.findIndex((l) => l.id === setting.location_id);
+                                  if (idx >= 0) locations[idx].color = v;
+                                }}
+                                onBlur={(e) => handleColorChange(setting.location_id, e.target.value)}
+                                style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+                                aria-label={`Colour for ${locationName(setting.location_id)}`}
+                              />
+                            </label>
+                            <div className="min-w-0">
+                              <h3 className="font-heading font-bold text-base sm:text-lg text-foreground truncate">{locationName(setting.location_id)}</h3>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {setting.manual_override ? 'Manual override active' : 'Following auto-schedule'}
+                              </p>
+                            </div>
                           </div>
                           <button
                             data-testid={`delete-location-${setting.location_id}`}

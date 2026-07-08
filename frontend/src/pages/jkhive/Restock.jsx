@@ -31,11 +31,21 @@ const Restock = () => {
   const allSites = locations || [];
   const [siteId, setSiteId] = useState('');
   // Kick off on the currently-selected admin location, else the first site.
+  // Admins default to "all" so they see cross-site restock lists at a glance.
   useEffect(() => {
     if (siteId) return;
+    if (isAdmin) { setSiteId('all'); return; }
     if (adminLocationId) { setSiteId(adminLocationId); return; }
     if (allSites.length) setSiteId(allSites[0].id);
-  }, [adminLocationId, allSites, siteId]);
+  }, [adminLocationId, allSites, siteId, isAdmin]);
+
+  // Colour lookup keyed by location id — falls back to a neutral grey
+  // for any site the admin hasn't assigned a colour to yet.
+  const colourFor = (locId) => {
+    const c = (allSites.find((l) => l.id === locId)?.color || '').trim();
+    return c || '#C7C7CC';
+  };
+  const nameFor = (locId) => allSites.find((l) => l.id === locId)?.name || locId;
 
   const [items, setItems] = useState([]);
   const [statusFilter, setStatusFilter] = useState('open'); // 'open' | 'done' | 'all'
@@ -155,13 +165,16 @@ const Restock = () => {
           onChange={(e) => setSiteId(e.target.value)}
           style={{ marginTop: 6, width: '100%', border: '1px solid #ECECEF', background: '#F5F5F7', borderRadius: 10, padding: '10px 12px', fontSize: 14, color: '#1D1D1F', outline: 'none', ...FONT }}
         >
+          {isAdmin && <option value="all">All sites (admin)</option>}
           {allSites.map((l) => (
             <option key={l.id} value={l.id}>{l.name}</option>
           ))}
         </select>
       </div>
 
-      {/* Add form */}
+      {/* Add form — hidden when admin is browsing "All sites" because
+          there's no target location to attach the new item to. */}
+      {siteId !== 'all' && (
       <div style={{ background: '#FFFFFF', borderRadius: 14, padding: 14, marginBottom: 10, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
         <p style={{ margin: '0 0 8px', fontSize: 12, color: '#86868B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           Add item
@@ -213,6 +226,12 @@ const Restock = () => {
           {adding ? <><Loader2 size={14} className="animate-spin" /> Adding…</> : <><Plus size={14} /> Add to list</>}
         </button>
       </div>
+      )}
+      {siteId === 'all' && (
+        <div style={{ background: '#FFFFFF', borderRadius: 14, padding: 12, marginBottom: 10, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', fontSize: 12, color: '#86868B', textAlign: 'center' }}>
+          Cross-site view — pick a single site above to add items.
+        </div>
+      )}
 
       {/* Status segmented control */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, padding: 4, background: '#FFFFFF', borderRadius: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
@@ -260,7 +279,9 @@ const Restock = () => {
 
       {!loading && items.length > 0 && (
         <div data-testid="restock-list" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {items.map((row) => (
+          {items.map((row) => {
+            const rowColour = colourFor(row.location_id);
+            return (
             <div
               key={row.id}
               data-testid={`restock-row-${row.id}`}
@@ -269,6 +290,7 @@ const Restock = () => {
                 padding: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
                 display: 'flex', alignItems: 'flex-start', gap: 10,
                 opacity: row.status === 'done' ? 0.6 : 1,
+                borderLeft: `4px solid ${rowColour}`,
               }}
             >
               <button
@@ -291,6 +313,22 @@ const Restock = () => {
               </button>
 
               <div style={{ flex: 1, minWidth: 0 }}>
+                {siteId === 'all' && (
+                  <span
+                    data-testid={`restock-site-chip-${row.id}`}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                      color: '#1D1D1F',
+                      background: `${rowColour}22`,
+                      border: `1px solid ${rowColour}`,
+                      padding: '2px 8px', borderRadius: 999, marginBottom: 4,
+                    }}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: 999, background: rowColour, display: 'inline-block' }} />
+                    {nameFor(row.location_id)}
+                  </span>
+                )}
                 <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 6 }}>
                   <p style={{
                     margin: 0, fontSize: 15, fontWeight: 700, color: '#1D1D1F',
@@ -346,7 +384,8 @@ const Restock = () => {
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

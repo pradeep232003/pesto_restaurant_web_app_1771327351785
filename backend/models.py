@@ -16,6 +16,9 @@ class Location(BaseModel):
     phone: str = ""
     google_place_id: str = ""
     google_api_key: str = ""
+    # Colour code used across the app (Restock chips, dashboard site
+    # pickers, etc.). Free-form 7-char hex string like "#FF9500".
+    color: str = ""
 
 class LocationCreate(BaseModel):
     name: str
@@ -29,6 +32,7 @@ class LocationCreate(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     geofence_radius_m: Optional[int] = 200
+    color: Optional[str] = ""
 
 class LocationUpdate(BaseModel):
     name: Optional[str] = None
@@ -44,6 +48,7 @@ class LocationUpdate(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     geofence_radius_m: Optional[int] = None
+    color: Optional[str] = None
 
 
 # ============== MENU MODELS ==============
