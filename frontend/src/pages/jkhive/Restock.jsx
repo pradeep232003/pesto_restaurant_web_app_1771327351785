@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ShoppingCart, Plus, Check, RotateCcw, Trash2, MapPin, Loader2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Plus, Check, RotateCcw, Trash2, Loader2, AlertTriangle, Layers } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
 import { api } from '../../lib/api';
@@ -29,15 +29,12 @@ const Restock = () => {
   const inputRef = useRef(null);
 
   const allSites = locations || [];
-  const [siteId, setSiteId] = useState('');
-  // Kick off on the currently-selected admin location, else the first site.
-  // Admins default to "all" so they see cross-site restock lists at a glance.
-  useEffect(() => {
-    if (siteId) return;
-    if (isAdmin) { setSiteId('all'); return; }
-    if (adminLocationId) { setSiteId(adminLocationId); return; }
-    if (allSites.length) setSiteId(allSites[0].id);
-  }, [adminLocationId, allSites, siteId, isAdmin]);
+  // Cross-site view is admin-only, toggled via the pill at the top of
+  // the page. When OFF we use `adminLocationId` (controlled by the app
+  // header's location switcher). When ON we ignore it and pull every
+  // site in one feed.
+  const [showAll, setShowAll] = useState(false);
+  const effectiveSiteId = isAdmin && showAll ? 'all' : (adminLocationId || (allSites[0]?.id || ''));
 
   // Colour lookup keyed by location id — falls back to a neutral grey
   // for any site the admin hasn't assigned a colour to yet.
@@ -60,10 +57,10 @@ const Restock = () => {
   const [busyId, setBusyId] = useState(null);
 
   const load = async () => {
-    if (!siteId) return;
+    if (!effectiveSiteId) return;
     setLoading(true); setErr('');
     try {
-      const res = await api.restockList({ location_id: siteId, status: statusFilter });
+      const res = await api.restockList({ location_id: effectiveSiteId, status: statusFilter });
       setItems(res.items || []);
     } catch (e) {
       setErr(e.message || 'Failed to load');
@@ -72,15 +69,17 @@ const Restock = () => {
       setLoading(false);
     }
   };
-  useEffect(() => { load(); }, [siteId, statusFilter]);
+  useEffect(() => { load(); }, [effectiveSiteId, statusFilter]);
 
   const addItem = async () => {
     const item = newItem.trim();
-    if (!item || !siteId) return;
+    // Adding is only meaningful when a single site is targeted — the
+    // Add form is hidden in All-sites mode.
+    if (!item || !adminLocationId) return;
     setAdding(true); setErr('');
     try {
       await api.restockCreate({
-        location_id: siteId,
+        location_id: adminLocationId,
         item,
         quantity: newQty.trim(),
         note: newNote.trim(),
@@ -135,7 +134,7 @@ const Restock = () => {
     [items],
   );
 
-  const siteName = allSites.find((l) => l.id === siteId)?.name || siteId || '—';
+  const currentSiteName = allSites.find((l) => l.id === adminLocationId)?.name || 'this site';
 
   return (
     <div data-testid="restock-page" style={{ paddingBottom: 32, ...FONT }}>
@@ -147,37 +146,49 @@ const Restock = () => {
         <ArrowLeft size={14} /> Intelligence
       </button>
 
-      <h1 style={{ margin: 0, fontSize: 34, lineHeight: 1.05, fontWeight: 800, color: '#1D1D1F', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <ShoppingCart size={30} color="#FF9500" /> Restock
-      </h1>
-      <p style={{ margin: '6px 0 16px', fontSize: 14, color: '#86868B' }}>
-        Shopping list for items running short. Anyone can add · admins can delete.
-      </p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ margin: 0, fontSize: 34, lineHeight: 1.05, fontWeight: 800, color: '#1D1D1F', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <ShoppingCart size={30} color="#FF9500" /> Restock
+          </h1>
+          <p style={{ margin: '6px 0 16px', fontSize: 14, color: '#86868B' }}>
+            {isAdmin && showAll
+              ? 'Cross-site view — every location in one feed. Use the site switcher up top to add to a specific site.'
+              : <>Shopping list for <strong style={{ color: '#1D1D1F' }}>{currentSiteName}</strong>. Anyone can add · admins can delete.</>}
+          </p>
+        </div>
 
-      {/* Site picker */}
-      <div style={{ background: '#FFFFFF', borderRadius: 14, padding: 12, marginBottom: 10, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#86868B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          <MapPin size={12} color="#FF9500" /> Site
-        </label>
-        <select
-          data-testid="restock-site"
-          value={siteId}
-          onChange={(e) => setSiteId(e.target.value)}
-          style={{ marginTop: 6, width: '100%', border: '1px solid #ECECEF', background: '#F5F5F7', borderRadius: 10, padding: '10px 12px', fontSize: 14, color: '#1D1D1F', outline: 'none', ...FONT }}
-        >
-          {isAdmin && <option value="all">All sites (admin)</option>}
-          {allSites.map((l) => (
-            <option key={l.id} value={l.id}>{l.name}</option>
-          ))}
-        </select>
+        {/* All-sites toggle — admin only. When ON, `effectiveSiteId`
+            becomes 'all' and the backend returns every location; when
+            OFF the app-header location switcher decides the site. */}
+        {isAdmin && (
+          <button
+            data-testid="restock-all-sites-toggle"
+            onClick={() => setShowAll((v) => !v)}
+            aria-pressed={showAll}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '10px 16px', borderRadius: 999,
+              background: showAll ? '#FF9500' : '#FFFFFF',
+              color: showAll ? '#FFFFFF' : '#1D1D1F',
+              border: showAll ? '1px solid #FF9500' : '1px solid #ECECEF',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+              ...FONT,
+            }}
+          >
+            <Layers size={14} />
+            {showAll ? 'Viewing all sites' : 'Show all sites'}
+          </button>
+        )}
       </div>
 
-      {/* Add form — hidden when admin is browsing "All sites" because
+      {/* Add form — hidden in cross-site "All sites" mode because
           there's no target location to attach the new item to. */}
-      {siteId !== 'all' && (
+      {!(isAdmin && showAll) && (
       <div style={{ background: '#FFFFFF', borderRadius: 14, padding: 14, marginBottom: 10, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
         <p style={{ margin: '0 0 8px', fontSize: 12, color: '#86868B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Add item
+          Add item · {currentSiteName}
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 8 }}>
           <input
@@ -212,13 +223,13 @@ const Restock = () => {
         <button
           data-testid="restock-add-btn"
           onClick={addItem}
-          disabled={!newItem.trim() || !siteId || adding}
+          disabled={!newItem.trim() || !adminLocationId || adding}
           style={{
             marginTop: 10, width: '100%',
             padding: '11px 16px', borderRadius: 10, border: 0,
-            background: (!newItem.trim() || !siteId || adding) ? '#C7C7CC' : '#FF9500',
+            background: (!newItem.trim() || !adminLocationId || adding) ? '#C7C7CC' : '#FF9500',
             color: '#FFFFFF', fontSize: 14, fontWeight: 700,
-            cursor: (!newItem.trim() || !siteId || adding) ? 'not-allowed' : 'pointer',
+            cursor: (!newItem.trim() || !adminLocationId || adding) ? 'not-allowed' : 'pointer',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             ...FONT,
           }}
@@ -227,9 +238,9 @@ const Restock = () => {
         </button>
       </div>
       )}
-      {siteId === 'all' && (
+      {isAdmin && showAll && (
         <div style={{ background: '#FFFFFF', borderRadius: 14, padding: 12, marginBottom: 10, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', fontSize: 12, color: '#86868B', textAlign: 'center' }}>
-          Cross-site view — pick a single site above to add items.
+          Cross-site view — turn off &ldquo;Viewing all sites&rdquo; to add items.
         </div>
       )}
 
@@ -272,8 +283,8 @@ const Restock = () => {
       {!loading && items.length === 0 && (
         <div data-testid="restock-empty" style={{ background: '#FFFFFF', borderRadius: 14, padding: 28, textAlign: 'center', color: '#86868B', fontSize: 13, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
           {statusFilter === 'open'
-            ? `Nothing on the ${siteName} shopping list — add something above.`
-            : `No ${statusFilter} items yet for ${siteName}.`}
+            ? `Nothing on the ${isAdmin && showAll ? 'combined' : currentSiteName} shopping list — add something above.`
+            : `No ${statusFilter} items yet for ${isAdmin && showAll ? 'any site' : currentSiteName}.`}
         </div>
       )}
 
@@ -313,7 +324,7 @@ const Restock = () => {
               </button>
 
               <div style={{ flex: 1, minWidth: 0 }}>
-                {siteId === 'all' && (
+                {(isAdmin && showAll) && (
                   <span
                     data-testid={`restock-site-chip-${row.id}`}
                     style={{
