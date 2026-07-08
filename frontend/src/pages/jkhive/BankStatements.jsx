@@ -1000,6 +1000,7 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
                   <th style={thStyle}>Category</th>
                   <th style={thStyle}>Matched Invoice</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Amount</th>
+                  <th style={{ ...thStyle, textAlign: 'right', minWidth: 80 }}>VAT</th>
                   <th style={thStyle}>Site · Statement</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}> </th>
                 </tr>
@@ -1049,6 +1050,12 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
                     </td>
                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, color: r.type === 'income' ? '#1D5A2F' : '#8A2822' }}>
                       {fmtGBP(r.amount)}
+                    </td>
+                    <td
+                      style={{ ...tdStyle, textAlign: 'right', color: r.matched_invoice_id && r.matched_invoice_vat > 0 ? '#1D1D1F' : '#C7C7CC', fontVariantNumeric: 'tabular-nums' }}
+                      title={r.matched_invoice_id ? `VAT from matched invoice ${r.matched_invoice_ref || ''}` : 'No invoice linked — VAT unknown'}
+                    >
+                      {r.matched_invoice_id ? fmtGBP(r.matched_invoice_vat || 0) : '—'}
                     </td>
                     <td style={{ ...tdStyle, color: '#86868B', fontSize: 11 }}>
                       {locName(r.location_id)} · <span title={r.statement_filename}>{(r.statement_filename || '').slice(0, 20)}{(r.statement_filename || '').length > 20 ? '…' : ''}</span>
