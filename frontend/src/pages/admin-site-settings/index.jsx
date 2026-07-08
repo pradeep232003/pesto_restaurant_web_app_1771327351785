@@ -119,17 +119,34 @@ const AdminSiteSettings = () => {
     }
   };
 
-  // Colour code lives on the location record itself — used by JKHive
-  // Restock (and any other cross-site view) to visually distinguish
-  // rows from different sites. Debounced via native <input type=color>
-  // onBlur so we don't spam the API on every colour-picker drag.
+  // Local override of location colour while the user is picking — the
+  // native <input type="color"> fires `onChange` when the picker
+  // closes with the final colour, at which point we save to the API
+  // and refresh the location list. Keeping a per-site override lets the
+  // swatch reflect the picked colour immediately (before the refresh
+  // roundtrip completes).
+  const [pendingColors, setPendingColors] = useState({});
+  const getColor = (locId, fallback) => pendingColors[locId] ?? fallback ?? '#C7C7CC';
+
   const handleColorChange = async (locationId, newColor) => {
+    // Show the new colour immediately (optimistic).
+    setPendingColors((p) => ({ ...p, [locationId]: newColor }));
     setError('');
     try {
       await api.adminUpdateLocation(locationId, { color: newColor });
       showSuccess('Location colour updated');
       await refreshLocations();
+      // Clear the local override once the fresh data is in.
+      setPendingColors((p) => {
+        const { [locationId]: _drop, ...rest } = p;
+        return rest;
+      });
     } catch (err) {
+      // Roll back the optimistic colour on failure.
+      setPendingColors((p) => {
+        const { [locationId]: _drop, ...rest } = p;
+        return rest;
+      });
       setError(err.message);
     }
   };
@@ -295,7 +312,7 @@ const AdminSiteSettings = () => {
                 {settings.map(setting => {
                   const loc = locationData(setting.location_id);
                   return (
-                    <div key={setting.location_id} data-testid={`site-card-${setting.location_id}`} className="bg-card rounded-xl shadow-warm overflow-hidden" style={{ borderLeft: `6px solid ${loc?.color || '#C7C7CC'}` }}>
+                    <div key={setting.location_id} data-testid={`site-card-${setting.location_id}`} className="bg-card rounded-xl shadow-warm overflow-hidden" style={{ borderLeft: `6px solid ${getColor(setting.location_id, loc?.color)}` }}>
                       <div className="p-4 sm:p-6">
                         {/* Header */}
                         <div className="flex items-start justify-between gap-3 mb-4">
@@ -306,7 +323,7 @@ const AdminSiteSettings = () => {
                               style={{
                                 position: 'relative', display: 'inline-flex',
                                 width: 32, height: 32, borderRadius: 999,
-                                background: loc?.color || '#C7C7CC',
+                                background: getColor(setting.location_id, loc?.color),
                                 boxShadow: 'inset 0 0 0 2px #FFFFFF, 0 0 0 1px #ECECEF',
                                 cursor: 'pointer', flexShrink: 0,
                               }}
@@ -314,17 +331,15 @@ const AdminSiteSettings = () => {
                               <input
                                 data-testid={`color-picker-${setting.location_id}`}
                                 type="color"
-                                value={(loc?.color || '#C7C7CC').toUpperCase()}
-                                onChange={(e) => {
-                                  // Optimistic local update on drag — the API
-                                  // call fires on `onBlur` below so we don't
-                                  // hammer the server.
+                                value={getColor(setting.location_id, loc?.color)}
+                                onInput={(e) => {
+                                  // Live-preview: keep the swatch in sync
+                                  // with the user's drag before they commit.
                                   const v = e.target.value;
-                                  const idx = locations.findIndex((l) => l.id === setting.location_id);
-                                  if (idx >= 0) locations[idx].color = v;
+                                  setPendingColors((p) => ({ ...p, [setting.location_id]: v }));
                                 }}
-                                onBlur={(e) => handleColorChange(setting.location_id, e.target.value)}
-                                style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+                                onChange={(e) => handleColorChange(setting.location_id, e.target.value)}
+                                style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }}
                                 aria-label={`Colour for ${locationName(setting.location_id)}`}
                               />
                             </label>
