@@ -1447,6 +1447,26 @@ class ApiService {
     if (locationId) qs.push(`location_id=${encodeURIComponent(locationId)}`);
     return this.fetch(`/api/clock/admin/events?${qs.join('&')}`);
   }
+
+  // ---- Restock (per-location shopping list) ----
+  async restockList({ location_id, status = 'open' } = {}) {
+    const qs = new URLSearchParams();
+    if (location_id) qs.set('location_id', location_id);
+    if (status) qs.set('status', status);
+    return this.fetch(`/api/restock?${qs.toString()}`);
+  }
+  async restockCreate(payload) {
+    return this.fetch('/api/restock', { method: 'POST', body: JSON.stringify(payload) });
+  }
+  async restockUpdate(id, payload) {
+    return this.fetch(`/api/restock/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+  }
+  async restockDelete(id) {
+    return this.fetch(`/api/restock/${id}`, { method: 'DELETE' });
+  }
+  async restockReopen(id) {
+    return this.fetch(`/api/restock/${id}/reopen`, { method: 'POST' });
+  }
 }
 
 export const api = new ApiService();
