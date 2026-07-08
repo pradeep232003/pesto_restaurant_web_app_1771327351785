@@ -351,21 +351,33 @@ def _load_invoices(location_id: str) -> List[dict]:
 
 
 def _match_invoice(description: str, txn_amount: float, txn_date: str,
-                   invoices: List[dict]) -> Optional[dict]:
+                   invoices: List[dict],
+                   used_invoice_ids: Optional[set] = None,
+                   amount_tolerance: float = 0.05) -> tuple:
     """Find the single best invoice match for a bank-statement expense.
 
-    Strategy (all fuzzy):
-      1. Normalise description AND supplier names, then find every
-         invoice whose supplier tokens all appear in the description.
-      2. Among those, prefer the invoice whose amount matches to within
-         ±£0.05, then whose date is closest to the txn date.
-      3. If no candidates by supplier, fall back to amount+date only
-         within a tighter tolerance (rare — for descriptions where the
-         supplier text is missing entirely).
-    Returns the matching invoice dict, or None.
+    Strategy:
+      Pass 1  — supplier-token match: normalise description AND every
+                supplier name; find invoices whose supplier tokens all
+                appear in the description. Then REQUIRE the amount to
+                match within ±£`amount_tolerance` — an invoice from the
+                same supplier with a completely different amount is a
+                DIFFERENT invoice, not a match. Rank the amount-matched
+                subset by date proximity + specificity, pick the top.
+      Pass 2  — amount + date fallback: no supplier tokens in the
+                description, so try invoices whose amount matches
+                (±`amount_tolerance`) AND whose date is within 7 days.
+      Any invoice id already in `used_invoice_ids` is skipped so one
+      invoice can never be linked to two different bank rows.
+
+    Returns a tuple `(invoice_or_None, supplier_hint_or_empty)`.
+    `supplier_hint` is populated when the supplier-token pass found
+    candidates but NONE matched the amount — we still record who the
+    counter-party looks like (for the pivot) but do NOT set an invoice
+    link, because we have no paperwork for this exact amount yet.
     """
     if not invoices:
-        return None
+        return None, ""
 
     def _parse_date(s: str) -> Optional[datetime]:
         for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
@@ -375,12 +387,13 @@ def _match_invoice(description: str, txn_amount: float, txn_date: str,
                 continue
         return None
 
+    used = used_invoice_ids or set()
     txn_dt = _parse_date(txn_date) if txn_date else None
     norm_desc = _normalise_supplier(description)
     desc_tokens = set(norm_desc.split())
 
-    # Pass 1: supplier-token match
-    supplier_candidates = []
+    # ---------- Pass 1: supplier-token candidates ----------
+    supplier_candidates: list = []
     for inv in invoices:
         norm_sup = _normalise_supplier(inv["supplier"])
         if not norm_sup:
@@ -389,37 +402,55 @@ def _match_invoice(description: str, txn_amount: float, txn_date: str,
         if all(t in desc_tokens for t in sup_tokens):
             supplier_candidates.append(inv)
 
+    # Supplier hint is derived from ANY token-matched invoice (before
+    # amount filtering) so the pivot still tells the manager "this
+    # bank row LOOKS like Costco even though we couldn't find an
+    # invoice for this exact amount yet".
+    supplier_hint = ""
+    if supplier_candidates:
+        # Prefer the longest normalised supplier name — most specific.
+        supplier_hint = max(
+            (c.get("supplier") or "" for c in supplier_candidates),
+            key=lambda s: len(_normalise_supplier(s or "")),
+        )
+
+    # Filter Pass 1 candidates by amount tolerance AND skip already-used.
+    amount_matched = [
+        inv for inv in supplier_candidates
+        if inv.get("id") not in used
+        and abs((inv.get("amount") or 0) - txn_amount) <= amount_tolerance
+    ]
+
     def _rank(candidate: dict) -> tuple:
-        amt_diff = abs(candidate["amount"] - txn_amount)
-        # Prefer exact amount matches (within 5p)
-        amt_score = 0 if amt_diff < 0.05 else amt_diff
-        # Date proximity in days (large penalty if we can't parse)
-        inv_dt = _parse_date(candidate["invoice_date"])
+        amt_diff = abs((candidate.get("amount") or 0) - txn_amount)
+        inv_dt = _parse_date(candidate.get("invoice_date") or "")
         if inv_dt and txn_dt:
             date_score = abs((inv_dt - txn_dt).days)
         else:
             date_score = 999
-        # Also prefer longer supplier names (more specific match)
-        specificity = -len(_normalise_supplier(candidate["supplier"]))
-        return (amt_score, date_score, specificity)
+        specificity = -len(_normalise_supplier(candidate.get("supplier") or ""))
+        return (amt_diff, date_score, specificity)
 
-    if supplier_candidates:
-        return sorted(supplier_candidates, key=_rank)[0]
+    if amount_matched:
+        return sorted(amount_matched, key=_rank)[0], supplier_hint
 
-    # Pass 2: amount + date fallback (rare)
+    # ---------- Pass 2: amount + date only (no supplier tokens) ----------
     if txn_dt and txn_amount > 0:
         loose = []
         for inv in invoices:
-            if abs(inv["amount"] - txn_amount) > 0.05:
+            if inv.get("id") in used:
                 continue
-            inv_dt = _parse_date(inv["invoice_date"])
+            if abs((inv.get("amount") or 0) - txn_amount) > amount_tolerance:
+                continue
+            inv_dt = _parse_date(inv.get("invoice_date") or "")
             if not inv_dt:
                 continue
             if abs((inv_dt - txn_dt).days) <= 7:
                 loose.append(inv)
         if loose:
-            return sorted(loose, key=_rank)[0]
-    return None
+            return sorted(loose, key=_rank)[0], supplier_hint
+
+    return None, supplier_hint
 
 
 def _format_invoice_ref(inv: dict) -> str:
@@ -446,6 +477,9 @@ def _enrich_with_invoices(txns: List[dict], location_id: str) -> int:
     previous classification, where the invoice may since have been
     deleted or edited) is cleared BEFORE re-matching, so re-classify
     always reflects the current state of the invoices collection.
+    One invoice can only be linked to ONE bank row per statement —
+    the `used_invoice_ids` set prevents phantom double-matches (e.g.
+    two Costco payments both pointing at the same Costco invoice).
     """
     invoices = _load_invoices(location_id)
     valid_ids = {inv.get("id") for inv in invoices if inv.get("id")}
@@ -455,9 +489,24 @@ def _enrich_with_invoices(txns: List[dict], location_id: str) -> int:
     )
     matches = 0
     stale_dropped = 0
-    for t in txns:
-        if t.get("type") != "expense":
-            continue
+    used_invoice_ids: set = set()
+
+    # Sort expense txns so those with the CLEANEST amount-match get
+    # first pick of invoices — otherwise a low-confidence early row
+    # could hog an invoice that a later row matches perfectly.
+    def _preview_conf(t: dict) -> float:
+        # Rough confidence proxy: 0 if any exact-amount invoice exists
+        # for the txn's amount, else 1. Sorts exact-amount rows to the
+        # front (lower is better).
+        amt = float(t.get("amount") or 0)
+        if any(abs((inv.get("amount") or 0) - amt) <= 0.05 for inv in invoices):
+            return 0.0
+        return 1.0
+
+    expense_txns = [t for t in txns if t.get("type") == "expense"]
+    expense_txns.sort(key=_preview_conf)
+
+    for t in expense_txns:
         # Drop any stale invoice reference that points at a deleted
         # invoice, so the "Matched Invoice" column never shows an
         # orphaned reference.
@@ -468,47 +517,55 @@ def _enrich_with_invoices(txns: List[dict], location_id: str) -> int:
                 (t.get("description") or "")[:80], t.get("amount"), t.get("date"),
                 stale_id, t.get("matched_invoice_ref"),
             )
-            t.pop("matched_invoice_id", None)
-            t.pop("matched_invoice_ref", None)
-            t.pop("matched_invoice_amount", None)
-            t.pop("matched_invoice_date", None)
+            for k in ("matched_invoice_id", "matched_invoice_ref",
+                      "matched_invoice_amount", "matched_invoice_date"):
+                t.pop(k, None)
             stale_dropped += 1
+
+        # Clear any prior supplier hint too — we'll re-derive it below.
+        t.pop("matched_supplier", None)
+
         if not invoices:
             continue
-        inv = _match_invoice(
+
+        inv, supplier_hint = _match_invoice(
             description=t.get("description", ""),
             txn_amount=float(t.get("amount") or 0),
             txn_date=t.get("date", ""),
             invoices=invoices,
+            used_invoice_ids=used_invoice_ids,
         )
+
+        # Populate supplier hint from the token match even when no
+        # invoice link was found — feeds the Supplier pivot without
+        # implying we have paperwork on file.
+        if supplier_hint:
+            t["matched_supplier"] = supplier_hint
+
         if not inv:
-            # No new match — leave any pre-existing supplier fuzzy-match
-            # alone but ensure the invoice-specific fields are clean.
-            t.pop("matched_invoice_id", None)
-            t.pop("matched_invoice_ref", None)
-            t.pop("matched_invoice_amount", None)
-            t.pop("matched_invoice_date", None)
+            # No invoice link — ensure invoice-specific fields stay clean.
+            for k in ("matched_invoice_id", "matched_invoice_ref",
+                      "matched_invoice_amount", "matched_invoice_date"):
+                t.pop(k, None)
             continue
+
         t["matched_invoice_id"] = inv.get("id", "")
         t["matched_invoice_ref"] = _format_invoice_ref(inv)
-        # Store the matched invoice's amount and date on the txn too so
-        # we can surface them in the UI tooltip / debug tools — helps
-        # managers instantly see WHY the system thought this was a
-        # match (and spot any mismatches vs the bank row).
         t["matched_invoice_amount"] = inv.get("amount")
         t["matched_invoice_date"] = inv.get("invoice_date", "")
         if not t.get("matched_supplier"):
             t["matched_supplier"] = inv.get("supplier", "")
+        used_invoice_ids.add(inv.get("id"))
         _log.info(
             "enrich: MATCH txn desc=%r amt=%s date=%s -> inv id=%s ref=%r inv_amt=%s inv_date=%s",
             (t.get("description") or "")[:80], t.get("amount"), t.get("date"),
             inv.get("id"), t["matched_invoice_ref"], inv.get("amount"), inv.get("invoice_date"),
         )
         matches += 1
+
     _log.info(
-        "enrich: done location=%s matches=%d stale_dropped=%d expense_txns=%d",
-        location_id, matches, stale_dropped,
-        sum(1 for t in txns if t.get("type") == "expense"),
+        "enrich: done location=%s matches=%d stale_dropped=%d expense_txns=%d used_ids=%d",
+        location_id, matches, stale_dropped, len(expense_txns), len(used_invoice_ids),
     )
     return matches
 
