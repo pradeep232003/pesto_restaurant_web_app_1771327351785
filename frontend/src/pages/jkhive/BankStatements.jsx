@@ -705,6 +705,7 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'income' | 'expense'
   const [dateFrom, setDateFrom] = useState(''); // YYYY-MM-DD (inclusive)
   const [dateTo, setDateTo] = useState('');     // YYYY-MM-DD (inclusive)
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [downloading, setDownloading] = useState(false);
 
   const allSites = locations || [];
@@ -770,14 +771,30 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
   const selectAllSites = () => setSelectedLocations(allSites.map((l) => l.id));
   const clearSites = () => setSelectedLocations([]);
 
+  const categoryOptions = useMemo(() => {
+    // Distinct categories present in the current dataset, sorted by
+    // frequency DESC so the busiest buckets bubble to the top of the
+    // dropdown. Any row missing a category is bucketed under 'other'.
+    const counts = new Map();
+    rows.forEach((r) => {
+      const key = (r.category || 'other').toLowerCase();
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([cat, count]) => ({ cat, count }));
+  }, [rows]);
+
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     // Dates on transactions are stored as ISO `YYYY-MM-DD` (or blank) —
     // a plain string comparison is exact + timezone-safe.
     const from = dateFrom || '';
     const to = dateTo || '';
+    const cat = (categoryFilter || 'all').toLowerCase();
     return rows.filter((r) => {
       if (typeFilter !== 'all' && r.type !== typeFilter) return false;
+      if (cat !== 'all' && (r.category || 'other').toLowerCase() !== cat) return false;
       if (q && ![r.description, r.category, r.matched_supplier, r.date, r.statement_filename]
         .some((v) => (v || '').toLowerCase().includes(q))) return false;
       const d = (r.date || '').slice(0, 10);
@@ -785,7 +802,7 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
       if (to && (!d || d > to)) return false;
       return true;
     });
-  }, [rows, search, typeFilter, dateFrom, dateTo]);
+  }, [rows, search, typeFilter, dateFrom, dateTo, categoryFilter]);
 
   const download = async () => {
     setDownloading(true); setErr('');
@@ -971,6 +988,19 @@ const BankStatementsDetails = ({ adminLocationId, locations }) => {
             style={{ background: 'none', border: 0, color: '#86868B', cursor: 'pointer', fontSize: 12 }}
           >Clear</button>
         )}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#86868B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Category</span>
+        <select
+          data-testid="bs-detail-category-filter"
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          aria-label="Filter by category"
+          style={{ border: '1px solid #ECECEF', background: '#F5F5F7', borderRadius: 8, padding: '6px 8px', fontSize: 12, color: '#1D1D1F', outline: 'none', minWidth: 140, ...FONT }}
+        >
+          <option value="all">All ({rows.length})</option>
+          {categoryOptions.map(({ cat, count }) => (
+            <option key={cat} value={cat}>{cat} ({count})</option>
+          ))}
+        </select>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#86868B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Date</span>
         <input
           data-testid="bs-detail-date-from"
