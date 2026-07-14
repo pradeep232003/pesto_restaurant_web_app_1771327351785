@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Salad, Loader2, AlertTriangle, X, Check, Search, Filter } from 'lucide-react';
+import { ArrowLeft, Salad, Loader2, AlertTriangle, X, Check, Search, Filter, Pencil, Eye } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
 import { api } from '../../lib/api';
@@ -58,6 +58,12 @@ const Allergens = () => {
   const [q, setQ] = useState('');
   const [drawer, setDrawer] = useState(null); // { itemId }
   const [savingIds, setSavingIds] = useState(new Set());
+  // Edit-mode toggle — prevents accidental cell taps on the shared
+  // manager iPad. Only admin / super_admin ever see the toggle; for
+  // everyone else `editMode` stays permanently false and the matrix
+  // is read-only.
+  const [editMode, setEditMode] = useState(false);
+  const editable = isAdmin && editMode;
 
   const locName = useMemo(
     () => (locations || []).find((l) => l.id === adminLocationId)?.name || '—',
@@ -119,7 +125,7 @@ const Allergens = () => {
   };
 
   const toggleCategory = async (item, catId) => {
-    if (!isAdmin) return;
+    if (!editable) return;
     const current = { ...(item.allergens || {}) };
     if (current[catId]) {
       delete current[catId];
@@ -133,7 +139,7 @@ const Allergens = () => {
     await saveItem(item.id, current);
   };
 
-  const cellClickable = isAdmin;
+  const cellClickable = editable;
 
   return (
     <div data-testid="allergens-page" style={{ paddingBottom: 32, ...FONT }}>
@@ -145,13 +151,46 @@ const Allergens = () => {
         <ArrowLeft size={14} /> Intelligence
       </button>
 
-      <h1 style={{ margin: 0, fontSize: 34, lineHeight: 1.05, fontWeight: 800, color: '#1D1D1F', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Salad size={30} color="#30B0C7" /> Allergens
-      </h1>
-      <p style={{ margin: '6px 0 16px', fontSize: 14, color: '#86868B' }}>
-        14 FSA allergens per menu item · <strong style={{ color: '#1D1D1F' }}>{locName}</strong>.
-        {isAdmin ? ' Tap a cell to toggle · tap the item name for sub-items.' : ' Read-only view — ask a manager to edit.'}
-      </p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ margin: 0, fontSize: 34, lineHeight: 1.05, fontWeight: 800, color: '#1D1D1F', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Salad size={30} color="#30B0C7" /> Allergens
+          </h1>
+          <p style={{ margin: '6px 0 16px', fontSize: 14, color: '#86868B' }}>
+            14 FSA allergens per menu item · <strong style={{ color: '#1D1D1F' }}>{locName}</strong>.
+            {editable
+              ? ' Edit mode ON — tap a cell to toggle · tap the item name for sub-items.'
+              : (isAdmin
+                ? ' Read-only — turn on Edit mode to change allergens.'
+                : ' Read-only view — ask a manager to edit.')}
+          </p>
+        </div>
+
+        {/* Admin-only Edit-mode toggle — off by default so tapping
+            around the matrix on a shared iPad can't silently mutate
+            allergen data. */}
+        {isAdmin && (
+          <button
+            data-testid="allergens-edit-toggle"
+            onClick={() => setEditMode((v) => !v)}
+            aria-pressed={editMode}
+            title={editMode ? 'Turn edit mode off' : 'Turn edit mode on'}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '10px 16px', borderRadius: 999,
+              background: editMode ? '#30B0C7' : '#FFFFFF',
+              color: editMode ? '#FFFFFF' : '#1D1D1F',
+              border: editMode ? '1px solid #30B0C7' : '1px solid #ECECEF',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+              ...FONT,
+            }}
+          >
+            {editMode ? <Pencil size={14} /> : <Eye size={14} />}
+            {editMode ? 'Editing' : 'Read-only'}
+          </button>
+        )}
+      </div>
 
       {/* Search */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', background: '#FFFFFF', borderRadius: 12, padding: '4px 12px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
@@ -299,7 +338,7 @@ const Allergens = () => {
             await saveItem(drawer.itemId, nextAllergens);
             setDrawer(null);
           }}
-          isAdmin={isAdmin}
+          editable={editable}
         />
       )}
     </div>
@@ -311,7 +350,7 @@ const Allergens = () => {
  * all 14 allergen categories. Managers use this to be precise about
  * what's actually present (e.g. wheat vs. spelt).
  */
-const SubItemDrawer = ({ item, catalog, onClose, onSave, isAdmin }) => {
+const SubItemDrawer = ({ item, catalog, onClose, onSave, editable }) => {
   const [draft, setDraft] = useState(() => ({ ...(item?.allergens || {}) }));
   const [saving, setSaving] = useState(false);
 
@@ -334,7 +373,7 @@ const SubItemDrawer = ({ item, catalog, onClose, onSave, isAdmin }) => {
   });
 
   const save = async () => {
-    if (!isAdmin) { onClose(); return; }
+    if (!editable) { onClose(); return; }
     setSaving(true);
     try { await onSave(draft); } finally { setSaving(false); }
   };
@@ -377,7 +416,7 @@ const SubItemDrawer = ({ item, catalog, onClose, onSave, isAdmin }) => {
               <section key={c.id} style={{ marginBottom: 16, padding: 12, background: '#F5F5F7', borderRadius: 12, borderLeft: `4px solid ${HUES[c.id] || '#8E8E93'}` }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                   <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1D1D1F' }}>{c.label}</p>
-                  {isAdmin && (
+                  {editable && (
                     <div style={{ display: 'inline-flex', gap: 6 }}>
                       <button
                         data-testid={`allergens-drawer-all-${c.id}`}
@@ -399,14 +438,14 @@ const SubItemDrawer = ({ item, catalog, onClose, onSave, isAdmin }) => {
                       <button
                         key={sub}
                         data-testid={`allergens-drawer-sub-${c.id}-${sub}`}
-                        disabled={!isAdmin}
+                        disabled={!editable}
                         onClick={() => setSub(c.id, sub, !on)}
                         style={{
                           padding: '5px 10px', borderRadius: 999,
                           background: on ? (HUES[c.id] || '#8E8E93') : '#FFFFFF',
                           color: on ? '#FFFFFF' : '#1D1D1F',
                           border: on ? 0 : '1px solid #ECECEF',
-                          fontSize: 11, fontWeight: 700, cursor: isAdmin ? 'pointer' : 'not-allowed',
+                          fontSize: 11, fontWeight: 700, cursor: editable ? 'pointer' : 'not-allowed',
                           ...FONT,
                         }}
                       >
@@ -420,7 +459,7 @@ const SubItemDrawer = ({ item, catalog, onClose, onSave, isAdmin }) => {
           })}
         </div>
 
-        {isAdmin && (
+        {editable && (
           <div style={{ padding: 12, borderTop: '1px solid #ECECEF', display: 'flex', gap: 8 }}>
             <button
               data-testid="allergens-drawer-cancel"

@@ -106,7 +106,13 @@ async def admin_toggle_availability(item_id: str, user: dict = Depends(get_admin
 
 @router.delete("/api/admin/menu-items/{item_id}")
 async def admin_delete_menu_item(item_id: str, user: dict = Depends(get_admin_user)):
-    """Admin: Delete a menu item"""
+    """Admin: Delete a menu item.
+
+    Allergen data lives directly on the menu-item document
+    (`menu_items.allergens`), so `delete_one` here also removes the
+    allergen selections in the same round-trip — nothing extra to clean
+    up elsewhere.
+    """
     existing = menu_items_collection.find_one({"id": item_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Menu item not found")
