@@ -161,8 +161,8 @@ const Allergens = () => {
             {editable
               ? ' Edit mode ON — tap a cell to toggle · tap the item name for sub-items.'
               : (isAdmin
-                ? ' Read-only — turn on Edit mode to change allergens.'
-                : ' Read-only view — ask a manager to edit.')}
+                ? ' Read-only — tap the item name to view sub-items. Turn on Edit mode to change allergens.'
+                : ' Read-only view — tap the item name to see the sub-items declared.')}
           </p>
         </div>
 
@@ -268,9 +268,10 @@ const Allergens = () => {
                         style={{
                           ...tdStyle, position: 'sticky', left: 0,
                           background: rowSaving ? '#FFFAE6' : '#FFFFFF',
-                          zIndex: 1, cursor: cellClickable ? 'pointer' : 'default',
+                          zIndex: 1, cursor: 'pointer',
                         }}
-                        onClick={() => cellClickable && setDrawer({ itemId: it.id })}
+                        onClick={() => setDrawer({ itemId: it.id })}
+                        title={editable ? 'Tap to edit sub-items' : 'Tap to view sub-items'}
                       >
                         <div style={{ fontWeight: 700, color: '#1D1D1F' }}>
                           {it.name}
@@ -459,7 +460,7 @@ const SubItemDrawer = ({ item, catalog, onClose, onSave, editable }) => {
           })}
         </div>
 
-        {editable && (
+        {editable ? (
           <div style={{ padding: 12, borderTop: '1px solid #ECECEF', display: 'flex', gap: 8 }}>
             <button
               data-testid="allergens-drawer-cancel"
@@ -474,6 +475,14 @@ const SubItemDrawer = ({ item, catalog, onClose, onSave, editable }) => {
             >
               {saving ? <><Loader2 size={13} className="animate-spin" /> Saving…</> : 'Save allergens'}
             </button>
+          </div>
+        ) : (
+          <div style={{ padding: 12, borderTop: '1px solid #ECECEF', display: 'flex' }}>
+            <button
+              data-testid="allergens-drawer-close-footer"
+              onClick={onClose}
+              style={{ flex: 1, padding: '11px 16px', borderRadius: 10, border: '1px solid #ECECEF', background: '#F5F5F7', color: '#1D1D1F', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...FONT }}
+            >Close</button>
           </div>
         )}
       </div>
