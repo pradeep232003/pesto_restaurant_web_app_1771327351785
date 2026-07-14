@@ -1467,6 +1467,21 @@ class ApiService {
   async restockReopen(id) {
     return this.fetch(`/api/restock/${id}/reopen`, { method: 'POST' });
   }
+
+  // ---- Allergens ----
+  async allergensCatalog() {
+    return this.fetch('/api/allergens/catalog');
+  }
+  async allergensMatrix(location_id) {
+    const qs = new URLSearchParams({ location_id }).toString();
+    return this.fetch(`/api/allergens/matrix?${qs}`);
+  }
+  async allergensSetItem(item_id, allergens) {
+    return this.fetch(`/api/allergens/matrix/${item_id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ allergens: allergens || {} }),
+    });
+  }
 }
 
 export const api = new ApiService();

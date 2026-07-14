@@ -85,7 +85,7 @@ const Intelligence = () => {
       <SectionLabel>Compliance & docs</SectionLabel>
       <div className="grid grid-cols-2 gap-3">
         <Tile testId="tile-hygiene-compliance" to="/jkhive/compliance" icon={Shield}    color="#34C759" title="Hygiene Compliance" subtitle="EHO-ready compliance matrix" />
-        <Tile testId="tile-allergens"          comingSoon icon={Salad} color="#30B0C7" title="Allergens"          subtitle="14-allergen matrix" />
+        <Tile testId="tile-allergens" to="/jkhive/allergens" icon={Salad} color="#30B0C7" title="Allergens" subtitle="14-allergen matrix" />
         <Tile testId="tile-haccp"              comingSoon icon={FileCheck}      color="#34C759" title="HACCP Plan"     subtitle="Plans & digital signatures" />
         <Tile testId="tile-inspection"         to="/jkhive/inspection" icon={ClipboardCheck} color="#FF9500" title="Inspection Mode" subtitle="EHO-ready audit pack" />
         <Tile testId="tile-documents"          to="/jkhive/documents" icon={FolderOpen}     color="#5856D6" title="Documents"      subtitle="Policies & manuals" />
