@@ -336,8 +336,10 @@ const Allergens = () => {
           catalog={catalog}
           onClose={() => setDrawer(null)}
           onSave={async (nextAllergens) => {
+            // Auto-save from the drawer — persist without closing so
+            // the user can keep toggling sub-items. Close is via the
+            // header X or the footer Close button.
             await saveItem(drawer.itemId, nextAllergens);
-            setDrawer(null);
           }}
           editable={editable}
         />
@@ -352,31 +354,56 @@ const Allergens = () => {
  * what's actually present (e.g. wheat vs. spelt).
  */
 const SubItemDrawer = ({ item, catalog, onClose, onSave, editable }) => {
+  // We keep an in-flight save promise + a dirty flag so overlapping
+  // edits don't clobber each other. The drawer auto-saves on every
+  // sub-item toggle / Select all / Clear so there's no separate Save
+  // button to forget — matches the auto-save behaviour of the matrix
+  // cell taps on the main page.
   const [draft, setDraft] = useState(() => ({ ...(item?.allergens || {}) }));
-  const [saving, setSaving] = useState(false);
+  const [savingCount, setSavingCount] = useState(0);
 
   if (!item) return null;
 
+  const commit = async (next) => {
+    if (!editable) return;
+    setSavingCount((c) => c + 1);
+    try {
+      await onSave(next);
+    } finally {
+      setSavingCount((c) => c - 1);
+    }
+  };
+
   const setSub = (catId, subId, on) => {
+    if (!editable) return;
     setDraft((prev) => {
       const cur = new Set(prev[catId] || []);
       if (on) cur.add(subId); else cur.delete(subId);
       const next = { ...prev };
       if (cur.size === 0) delete next[catId];
       else next[catId] = [...cur];
+      // Fire-and-forget commit; the parent's optimistic UI reflects
+      // it instantly. Runs after React schedules the state update.
+      commit(next);
       return next;
     });
   };
 
-  const selectAll = (cat) => setDraft((p) => ({ ...p, [cat.id]: [...cat.items] }));
-  const clearAll = (cat) => setDraft((p) => {
-    const n = { ...p }; delete n[cat.id]; return n;
-  });
-
-  const save = async () => {
-    if (!editable) { onClose(); return; }
-    setSaving(true);
-    try { await onSave(draft); } finally { setSaving(false); }
+  const selectAll = (cat) => {
+    if (!editable) return;
+    setDraft((p) => {
+      const next = { ...p, [cat.id]: [...cat.items] };
+      commit(next);
+      return next;
+    });
+  };
+  const clearAll = (cat) => {
+    if (!editable) return;
+    setDraft((p) => {
+      const next = { ...p }; delete next[cat.id];
+      commit(next);
+      return next;
+    });
   };
 
   return (
@@ -400,7 +427,15 @@ const SubItemDrawer = ({ item, catalog, onClose, onSave, editable }) => {
         <div style={{ padding: '14px 18px', borderBottom: '1px solid #ECECEF', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#1D1D1F' }}>{item.name}</p>
-            <p style={{ margin: '2px 0 0', fontSize: 11, color: '#86868B' }}>{item.category}</p>
+            <p style={{ margin: '2px 0 0', fontSize: 11, color: '#86868B' }}>
+              {item.category}
+              {editable && (
+                <> · {savingCount > 0
+                  ? <span style={{ color: '#30B0C7', fontWeight: 700 }}>Saving…</span>
+                  : <span style={{ color: '#1D5A2F', fontWeight: 700 }}>Auto-saves on every change</span>}
+                </>
+              )}
+            </p>
           </div>
           <button
             data-testid="allergens-drawer-close"
@@ -460,31 +495,25 @@ const SubItemDrawer = ({ item, catalog, onClose, onSave, editable }) => {
           })}
         </div>
 
-        {editable ? (
-          <div style={{ padding: 12, borderTop: '1px solid #ECECEF', display: 'flex', gap: 8 }}>
-            <button
-              data-testid="allergens-drawer-cancel"
-              onClick={onClose}
-              style={{ flex: 1, padding: '11px 16px', borderRadius: 10, border: '1px solid #ECECEF', background: '#F5F5F7', color: '#1D1D1F', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...FONT }}
-            >Cancel</button>
-            <button
-              data-testid="allergens-drawer-save"
-              onClick={save}
-              disabled={saving}
-              style={{ flex: 2, padding: '11px 16px', borderRadius: 10, border: 0, background: saving ? '#C7C7CC' : '#30B0C7', color: '#FFFFFF', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, ...FONT }}
-            >
-              {saving ? <><Loader2 size={13} className="animate-spin" /> Saving…</> : 'Save allergens'}
-            </button>
-          </div>
-        ) : (
-          <div style={{ padding: 12, borderTop: '1px solid #ECECEF', display: 'flex' }}>
-            <button
-              data-testid="allergens-drawer-close-footer"
-              onClick={onClose}
-              style={{ flex: 1, padding: '11px 16px', borderRadius: 10, border: '1px solid #ECECEF', background: '#F5F5F7', color: '#1D1D1F', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...FONT }}
-            >Close</button>
-          </div>
-        )}
+        <div style={{ padding: 12, borderTop: '1px solid #ECECEF', display: 'flex' }}>
+          <button
+            data-testid="allergens-drawer-done"
+            onClick={onClose}
+            disabled={savingCount > 0}
+            style={{
+              flex: 1, padding: '11px 16px', borderRadius: 10, border: 0,
+              background: savingCount > 0 ? '#C7C7CC' : '#30B0C7',
+              color: '#FFFFFF', fontSize: 13, fontWeight: 700,
+              cursor: savingCount > 0 ? 'not-allowed' : 'pointer',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              ...FONT,
+            }}
+          >
+            {savingCount > 0
+              ? <><Loader2 size={13} className="animate-spin" /> Saving…</>
+              : (editable ? 'Done' : 'Close')}
+          </button>
+        </div>
       </div>
     </div>
   );
