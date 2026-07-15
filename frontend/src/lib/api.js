@@ -1482,6 +1482,20 @@ class ApiService {
       body: JSON.stringify({ allergens: allergens || {} }),
     });
   }
+  async allergensPrintUrl(location_id) {
+    // Returns a blob URL for the landscape .docx download — auth
+    // header included via the fetch layer.
+    const tok = localStorage.getItem('access_token');
+    const url = `${API_BASE_URL}/api/allergens/matrix/print?location_id=${encodeURIComponent(location_id)}`;
+    const res = await fetch(url, { headers: tok ? { Authorization: `Bearer ${tok}` } : {} });
+    if (!res.ok) {
+      const raw = await res.text().catch(() => '');
+      throw new Error(`Print failed (HTTP ${res.status}): ${raw.slice(0, 200) || res.statusText}`);
+    }
+    const blob = await res.blob();
+    if (!blob || blob.size === 0) throw new Error('Print failed: empty document');
+    return URL.createObjectURL(blob);
+  }
 }
 
 export const api = new ApiService();

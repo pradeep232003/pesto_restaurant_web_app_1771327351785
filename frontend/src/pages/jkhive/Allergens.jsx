@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Salad, Loader2, AlertTriangle, X, Check, Search, Filter, Pencil, Eye } from 'lucide-react';
+import { ArrowLeft, Salad, Loader2, AlertTriangle, X, Check, Search, Filter, Pencil, Eye, Printer } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
 import { api } from '../../lib/api';
@@ -64,6 +64,30 @@ const Allergens = () => {
   // is read-only.
   const [editMode, setEditMode] = useState(false);
   const editable = isAdmin && editMode;
+  const [printing, setPrinting] = useState(false);
+
+  const handlePrint = async () => {
+    if (!adminLocationId) return;
+    setPrinting(true); setErr('');
+    try {
+      const url = await api.allergensPrintUrl(adminLocationId);
+      // Trigger download.
+      const a = document.createElement('a');
+      a.href = url;
+      const stamp = new Date().toISOString().slice(0, 10);
+      a.download = `allergen_matrix_${adminLocationId}_${stamp}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // Free the blob URL after a tick — most browsers keep the
+      // download stream alive without the URL still being reachable.
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (e) {
+      setErr(e.message || 'Print failed');
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   const locName = useMemo(
     () => (locations || []).find((l) => l.id === adminLocationId)?.name || '—',
@@ -108,12 +132,17 @@ const Allergens = () => {
 
   const saveItem = async (itemId, newAllergens) => {
     setSavingIds((prev) => new Set(prev).add(itemId));
-    // Optimistic update
-    setItems((prev) => prev.map((r) => (r.id === itemId ? { ...r, allergens: newAllergens } : r)));
+    // Optimistic update — the flag pip must reflect the new state
+    // immediately.
+    setItems((prev) => prev.map((r) => (r.id === itemId
+      ? { ...r, allergens: newAllergens, has_allergens: Object.keys(newAllergens || {}).length > 0 }
+      : r)));
     try {
       const res = await api.allergensSetItem(itemId, newAllergens);
-      // Overlay the server-sanitised result (in case anything was dropped)
-      setItems((prev) => prev.map((r) => (r.id === itemId ? { ...r, allergens: res.allergens || {} } : r)));
+      const cleaned = res.allergens || {};
+      setItems((prev) => prev.map((r) => (r.id === itemId
+        ? { ...r, allergens: cleaned, has_allergens: Object.keys(cleaned).length > 0 }
+        : r)));
     } catch (e) {
       setErr(e.message || 'Save failed');
       await load(); // Roll back to server state
@@ -169,27 +198,48 @@ const Allergens = () => {
         {/* Admin-only Edit-mode toggle — off by default so tapping
             around the matrix on a shared iPad can't silently mutate
             allergen data. */}
-        {isAdmin && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button
-            data-testid="allergens-edit-toggle"
-            onClick={() => setEditMode((v) => !v)}
-            aria-pressed={editMode}
-            title={editMode ? 'Turn edit mode off' : 'Turn edit mode on'}
+            data-testid="allergens-print"
+            onClick={handlePrint}
+            disabled={printing || !adminLocationId}
+            title="Download the matrix as a landscape Word document"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
               padding: '10px 16px', borderRadius: 999,
-              background: editMode ? '#30B0C7' : '#FFFFFF',
-              color: editMode ? '#FFFFFF' : '#1D1D1F',
-              border: editMode ? '1px solid #30B0C7' : '1px solid #ECECEF',
-              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              background: printing ? '#C7C7CC' : '#FFFFFF',
+              color: '#1D1D1F',
+              border: '1px solid #ECECEF',
+              fontSize: 13, fontWeight: 700, cursor: printing ? 'not-allowed' : 'pointer',
               boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
               ...FONT,
             }}
           >
-            {editMode ? <Pencil size={14} /> : <Eye size={14} />}
-            {editMode ? 'Editing' : 'Read-only'}
+            {printing ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />}
+            {printing ? 'Preparing…' : 'Print (.docx)'}
           </button>
-        )}
+          {isAdmin && (
+            <button
+              data-testid="allergens-edit-toggle"
+              onClick={() => setEditMode((v) => !v)}
+              aria-pressed={editMode}
+              title={editMode ? 'Turn edit mode off' : 'Turn edit mode on'}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '10px 16px', borderRadius: 999,
+                background: editMode ? '#30B0C7' : '#FFFFFF',
+                color: editMode ? '#FFFFFF' : '#1D1D1F',
+                border: editMode ? '1px solid #30B0C7' : '1px solid #ECECEF',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                ...FONT,
+              }}
+            >
+              {editMode ? <Pencil size={14} /> : <Eye size={14} />}
+              {editMode ? 'Editing' : 'Read-only'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search */}
@@ -273,11 +323,29 @@ const Allergens = () => {
                         onClick={() => setDrawer({ itemId: it.id })}
                         title={editable ? 'Tap to edit sub-items' : 'Tap to view sub-items'}
                       >
-                        <div style={{ fontWeight: 700, color: '#1D1D1F' }}>
-                          {it.name}
-                          {rowSaving && <Loader2 size={11} className="animate-spin" style={{ verticalAlign: 'middle', marginLeft: 6 }} />}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {/* Declared-flag pip — green when the item
+                              has any allergen recorded, grey when it's
+                              still blank. Server sets `has_allergens`
+                              for us; older items without the field
+                              fall back to a dict-truthiness check. */}
+                          <span
+                            aria-label={it.has_allergens ?? Object.keys(it.allergens || {}).length > 0 ? 'Declared' : 'Not yet declared'}
+                            title={it.has_allergens ?? Object.keys(it.allergens || {}).length > 0 ? 'Allergens declared' : 'No allergens declared yet'}
+                            style={{
+                              width: 8, height: 8, borderRadius: 999,
+                              background: (it.has_allergens ?? Object.keys(it.allergens || {}).length > 0) ? '#34C759' : '#E5E5EA',
+                              flexShrink: 0,
+                            }}
+                          />
+                          <div>
+                            <div style={{ fontWeight: 700, color: '#1D1D1F' }}>
+                              {it.name}
+                              {rowSaving && <Loader2 size={11} className="animate-spin" style={{ verticalAlign: 'middle', marginLeft: 6 }} />}
+                            </div>
+                            <div style={{ fontSize: 11, color: '#86868B' }}>{it.category}</div>
+                          </div>
                         </div>
-                        <div style={{ fontSize: 11, color: '#86868B' }}>{it.category}</div>
                       </td>
                       {catalog.map((c) => {
                         const selected = it.allergens?.[c.id] || null;

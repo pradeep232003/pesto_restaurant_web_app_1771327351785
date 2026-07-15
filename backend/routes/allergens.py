@@ -157,11 +157,156 @@ async def get_matrix(
     items = []
     for r in rows:
         r.pop("_id", None)
+        clean = _sanitise(r.get("allergens") or {})
         items.append({
             "id": r.get("id"),
             "name": r.get("name", ""),
             "category": r.get("category", ""),
             "is_available": bool(r.get("is_available", True)),
-            "allergens": _sanitise(r.get("allergens") or {}),
+            "allergens": clean,
+            # Convenience flag consumed by the UI to render the
+            # "declared" pip on each row — saves clients from
+            # counting the dict server-side on every render.
+            "has_allergens": bool(clean),
         })
     return {"location_id": location_id, "items": items}
+
+
+def _humanise(s: str) -> str:
+    return (s or "").replace("_", " ").title()
+
+
+@router.get("/matrix/print")
+async def print_matrix(
+    location_id: str = Query(...),
+    user: dict = Depends(get_staff_or_above),
+):
+    """Generate a landscape .docx of the allergen matrix — one row per
+    menu item with the declared sub-items spelt out in full so the
+    document is meaningful on paper (Word/print) without needing the
+    web colours + tooltips."""
+    import io
+    from docx import Document
+    from docx.shared import Cm, Pt, RGBColor
+    from docx.enum.section import WD_ORIENT
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from fastapi.responses import StreamingResponse
+    from datetime import datetime, timezone
+
+    # Pull items via the same projection used by the matrix endpoint.
+    rows = list(menu_items_collection.find(
+        {"location_id": location_id},
+        {"id": 1, "name": 1, "category": 1, "allergens": 1},
+    ).sort([("category", 1), ("name", 1)]).limit(2000))
+
+    doc = Document()
+    # Landscape A4 with tight margins for max horizontal space.
+    section = doc.sections[0]
+    section.orientation = WD_ORIENT.LANDSCAPE
+    section.page_width, section.page_height = section.page_height, section.page_width
+    section.left_margin = Cm(1.2)
+    section.right_margin = Cm(1.2)
+    section.top_margin = Cm(1.2)
+    section.bottom_margin = Cm(1.2)
+
+    # Title + generation stamp.
+    title = doc.add_paragraph()
+    title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    run = title.add_run(f"Allergen Matrix — {location_id}")
+    run.bold = True
+    run.font.size = Pt(18)
+
+    stamp = doc.add_paragraph()
+    stamp_run = stamp.add_run(
+        f"Generated {datetime.now(timezone.utc).strftime('%d %b %Y %H:%M UTC')} · "
+        f"{len(rows)} item(s) · 14 FSA allergens"
+    )
+    stamp_run.font.size = Pt(9)
+    stamp_run.font.color.rgb = RGBColor(0x86, 0x86, 0x8B)
+
+    # Matrix table: rows = items, columns = Item | Category | 14 allergen category cells.
+    header = ["Item", "Category"] + [c["label"].split(" (")[0] for c in CATALOG]
+    table = doc.add_table(rows=1, cols=len(header))
+    table.style = "Light Grid Accent 1"
+
+    for i, h in enumerate(header):
+        cell = table.rows[0].cells[i]
+        cell.text = ""
+        p = cell.paragraphs[0]
+        r = p.add_run(h)
+        r.bold = True
+        r.font.size = Pt(8)
+
+    # One row per menu item with the actual sub-items listed in
+    # each cell (or blank if the category isn't declared).
+    for item in rows:
+        item.pop("_id", None)
+        allergens = _sanitise(item.get("allergens") or {})
+        row = table.add_row().cells
+        row[0].text = ""
+        row[0].paragraphs[0].add_run(item.get("name", "")).bold = True
+        row[1].text = item.get("category", "")
+        for i, cat in enumerate(CATALOG, start=2):
+            subs = allergens.get(cat["id"])
+            if subs:
+                # All sub-items? Show ✓ instead of a long list.
+                if len(subs) == len(cat["items"]):
+                    row[i].text = "All"
+                else:
+                    row[i].text = ", ".join(_humanise(s) for s in subs)
+            else:
+                row[i].text = ""
+
+    for tbl_row in table.rows[1:]:
+        for cell in tbl_row.cells:
+            for para in cell.paragraphs:
+                for run in para.runs:
+                    run.font.size = Pt(7)
+
+    doc.add_paragraph()
+
+    # A per-item narrative block — makes the printout usable for
+    # allergy queries at the counter without deciphering the grid.
+    heading = doc.add_paragraph()
+    hr = heading.add_run("Detailed sub-item declarations")
+    hr.bold = True
+    hr.font.size = Pt(12)
+
+    for item in rows:
+        allergens = _sanitise(item.get("allergens") or {})
+        if not allergens:
+            continue
+        para = doc.add_paragraph()
+        para.paragraph_format.space_after = Pt(2)
+        name_run = para.add_run(f"{item.get('name', '')}")
+        name_run.bold = True
+        name_run.font.size = Pt(10)
+        para.add_run(f"   ({item.get('category', '')})").font.size = Pt(8)
+        for cat in CATALOG:
+            subs = allergens.get(cat["id"])
+            if not subs:
+                continue
+            sub_para = doc.add_paragraph(style="List Bullet")
+            sub_para.paragraph_format.space_after = Pt(0)
+            r1 = sub_para.add_run(f"{cat['label']}: ")
+            r1.bold = True
+            r1.font.size = Pt(9)
+            names = ", ".join(_humanise(s) for s in subs)
+            r2 = sub_para.add_run(
+                "All sub-items" if len(subs) == len(cat["items"]) else names
+            )
+            r2.font.size = Pt(9)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+
+    safe_loc = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in location_id)[:40]
+    stamp_txt = datetime.now(timezone.utc).strftime("%Y%m%d")
+    filename = f"allergen_matrix_{safe_loc}_{stamp_txt}.docx"
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
