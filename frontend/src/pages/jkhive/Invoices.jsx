@@ -61,6 +61,17 @@ const popSharedBlob = async () => {
   } catch { return null; }
 };
 
+// Blocking + persistent error surface — the scan/upload flows are
+// long-running and the inline banner alone was easy to miss on a
+// phone. `notifyFailure` fires a `window.alert` (so the user MUST
+// acknowledge) AND sets the inline banner so the message stays
+// visible after they tap OK.
+const notifyFailure = (setError, message) => {
+  const msg = message || 'Something went wrong. Please try again.';
+  setError(msg);
+  try { window.alert(msg); } catch { /* no-op if blocked */ }
+};
+
 /**
  * /jkhive/invoices
  *  - Staff: scan/upload a delivery invoice with the phone camera. Claude
@@ -250,7 +261,7 @@ const ScanButton = ({ adminLocationId, setBusy, busy, setError, onScanned }) => 
     e.target.value = '';
     if (!file) return;
     if (!adminLocationId) {
-      setError('Pick a location first');
+      notifyFailure(setError, 'Pick a location first — use the site switcher at the top of the page.');
       return;
     }
     setBusy(true);
@@ -259,10 +270,16 @@ const ScanButton = ({ adminLocationId, setBusy, busy, setError, onScanned }) => 
       const fd = new FormData();
       fd.append('file', file);
       fd.append('location_id', adminLocationId);
-      await api.invoiceScan(fd);
+      const res = await api.invoiceScan(fd);
+      // Defensive: the API is expected to return the created invoice
+      // record. If it comes back empty or missing an id, treat that
+      // as a save failure so the user isn't left wondering.
+      if (!res || (!res.id && !res.invoice_id && res.saved === false)) {
+        throw new Error("Scan finished but the invoice didn't save. Please try again.");
+      }
       await onScanned();
     } catch (err) {
-      setError(err.message || 'Scan failed');
+      notifyFailure(setError, err.message || 'Scan failed. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -304,7 +321,7 @@ const UploadReviewButton = ({ adminLocationId, setBusy, busy, setError, onReview
     e.target.value = '';
     if (!file) return;
     if (!adminLocationId) {
-      setError('Pick a location first');
+      notifyFailure(setError, 'Pick a location first — use the site switcher at the top of the page.');
       return;
     }
     setBusy(true);
@@ -315,6 +332,9 @@ const UploadReviewButton = ({ adminLocationId, setBusy, busy, setError, onReview
       fd.append('location_id', adminLocationId);
       const res = await api.invoiceScanAuto(fd);
       if (res.mode === 'batch') {
+        if (!Array.isArray(res.drafts) || res.drafts.length === 0) {
+          throw new Error("No invoices could be extracted from that file. Please try a clearer photo or scan pages one at a time.");
+        }
         onBatch({
           drafts: res.drafts,
           source_file_id: res.source_file_id,
@@ -324,9 +344,12 @@ const UploadReviewButton = ({ adminLocationId, setBusy, busy, setError, onReview
         });
       } else if (res.mode === 'single' && res.invoice) {
         onReview(res.invoice);
+      } else {
+        // Silent-fail case — API returned 200 but neither branch fired.
+        throw new Error("Upload finished but no invoice was detected. Please retake the photo or try a different file.");
       }
     } catch (err) {
-      setError(err.message || 'Upload failed');
+      notifyFailure(setError, err.message || 'Upload failed. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -368,7 +391,7 @@ const MultiPageScanButton = ({ adminLocationId, setBusy, busy, setError, onScann
     e.target.value = '';
     if (!picked.length) return;
     if (!adminLocationId) {
-      setError('Pick a location first');
+      notifyFailure(setError, 'Pick a location first — use the site switcher at the top of the page.');
       return;
     }
     const additions = picked.slice(0, 20 - queue.length).map(f => ({
@@ -399,11 +422,17 @@ const MultiPageScanButton = ({ adminLocationId, setBusy, busy, setError, onScann
       const fd = new FormData();
       queue.forEach(q => fd.append('files', q.file, q.file.name || 'page'));
       fd.append('location_id', adminLocationId);
-      await api.invoiceScanMulti(fd);
+      const res = await api.invoiceScanMulti(fd);
+      // Some backends return the created invoice record(s); guard
+      // against empty responses so the user is told loudly if the
+      // pages didn't actually merge into an invoice.
+      if (res && res.saved === false) {
+        throw new Error("Scan finished but nothing was saved. Please try again.");
+      }
       clearQueue();
       await onScanned();
     } catch (err) {
-      setError(err.message || 'Multi-page scan failed');
+      notifyFailure(setError, err.message || 'Multi-page scan failed. Please try again.');
     } finally {
       setSubmitting(false);
       setBusy(false);
