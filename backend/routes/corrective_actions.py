@@ -189,3 +189,63 @@ async def summary(
     ]
     out = {r["_id"]: r["open"] for r in col.aggregate(pipeline)}
     return {"by_location": out, "total_open": sum(out.values())}
+
+
+# ------------------------ Auto-log helper ------------------------
+# Called by routine handlers when they detect a failed check. Uses a
+# `source_key` (a compound like "fridge_temp:<loc>:<date>:opening:<unit>")
+# so re-submissions of the same routine don't duplicate rows. Only the
+# `failure_description` is updated on re-fire — if the manager has
+# already added a `corrective_action` or marked the row `resolved`,
+# their edits stay intact.
+
+def auto_log_failure(
+    *,
+    location_id: str,
+    category: str,
+    item: str,
+    failure_description: str,
+    source_key: str,
+    logged_by_email: str = "system",
+    logged_by_name: str = "System (auto)",
+) -> Optional[dict]:
+    if not (location_id and failure_description and source_key):
+        return None
+    now = datetime.now(timezone.utc).isoformat()
+    existing = col.find_one({"source_key": source_key})
+    if existing:
+        # Only refresh the failure text (data may have shifted) — never
+        # touch corrective_action / status / resolved_* metadata.
+        col.update_one(
+            {"id": existing["id"]},
+            {"$set": {
+                "failure_description": failure_description[:1000],
+                "item": (item or existing.get("item", ""))[:200],
+                "updated_at": now,
+            }},
+        )
+        _log.info("corrective_action: auto-refreshed id=%s key=%s", existing["id"], source_key)
+        return _clean(col.find_one({"id": existing["id"]}))
+
+    doc = {
+        "id": str(uuid.uuid4()),
+        "location_id": location_id,
+        "category": (category or "other").strip().lower(),
+        "item": (item or "")[:200],
+        "failure_description": failure_description[:1000],
+        "corrective_action": "",
+        "status": "open",
+        "source_key": source_key,
+        "auto_logged": True,
+        "logged_by": logged_by_email,
+        "logged_by_name": logged_by_name,
+        "logged_at": now,
+        "resolved_by": "",
+        "resolved_by_name": "",
+        "resolved_at": "",
+        "updated_at": now,
+    }
+    col.insert_one(doc)
+    _log.info("corrective_action: AUTO-logged id=%s key=%s cat=%s loc=%s",
+              doc["id"], source_key, doc["category"], location_id)
+    return _clean(doc)

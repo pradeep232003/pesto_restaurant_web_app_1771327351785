@@ -250,6 +250,34 @@ async def submit_run(tpl_id: str, body: RunBody, user: dict = Depends(get_staff_
         "submitted_by_name": user.get("name", ""),
     }
     runs.insert_one(dict(doc))
+
+    # ---- Auto-log corrective actions for unchecked items ----
+    # An unchecked item on a completed run represents a failed check
+    # (something the staff couldn't tick as done). We raise ONE
+    # corrective action per (run, item-index) so retries don't dupe.
+    if total > 0 and len(checked) < total:
+        try:
+            from routes.corrective_actions import auto_log_failure
+            checked_set = set(checked)
+            unchecked = [(i, visible_items[i]["text"]) for i in range(total) if i not in checked_set]
+            for idx, text in unchecked:
+                source_key = f"checklist:{doc['id']}:{idx}"
+                auto_log_failure(
+                    location_id=site,
+                    category="checklist",
+                    item=tpl["title"],
+                    failure_description=(
+                        f"{tpl['title']} — not completed: \"{text}\""
+                        + (f". Comment: {body.comment}" if body.comment else "")
+                    ),
+                    source_key=source_key,
+                    logged_by_email=user.get("email", "system"),
+                    logged_by_name=user.get("name") or "System (auto)",
+                )
+        except Exception as ex:  # pragma: no cover — never block the checklist save
+            import logging as _l
+            _l.getLogger("checklists").warning("auto-log corrective failed: %s", ex)
+
     return {k: v for k, v in doc.items() if k != "_id"}
 
 
