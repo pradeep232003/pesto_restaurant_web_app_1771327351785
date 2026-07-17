@@ -67,7 +67,7 @@ const JKHiveLayout = () => {
   // RotaCloud-style grid + the BI dashboard + the Sales Summary charts
   // all benefit from the room on laptops; mobile is unaffected because
   // the value is just a max — narrow screens still fill the width.
-  const WIDE_ROUTES = ['/jkhive/shifts', '/jkhive/bi', '/jkhive/sales-summary', '/jkhive/compliance', '/jkhive/inspection', '/jkhive/documents', '/jkhive/menu', '/jkhive/invoices', '/jkhive/menu-engineering', '/jkhive/sales-training', '/jkhive/slice-and-dice', '/jkhive/bank-statements', '/jkhive/allergens'];
+  const WIDE_ROUTES = ['/jkhive/shifts', '/jkhive/bi', '/jkhive/sales-summary', '/jkhive/compliance', '/jkhive/inspection', '/jkhive/documents', '/jkhive/menu', '/jkhive/invoices', '/jkhive/menu-engineering', '/jkhive/sales-training', '/jkhive/slice-and-dice', '/jkhive/bank-statements', '/jkhive/allergens', '/jkhive/corrective-actions'];
   const isWide = WIDE_ROUTES.some(r => location.pathname === r || location.pathname.startsWith(r + '/'));
   const contentMax = isWide ? '1280px' : '768px';
 

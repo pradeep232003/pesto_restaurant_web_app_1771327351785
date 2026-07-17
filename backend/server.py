@@ -100,6 +100,7 @@ from routes.deliveries import router as deliveries_router
 from routes.inventory import router as inventory_router
 from routes.restock import router as restock_router
 from routes.allergens import router as allergens_router
+from routes.corrective_actions import router as corrective_actions_router
 from routes.wastage import router as wastage_router
 from routes.probes import router as probes_router
 from routes.hot_cold import router as hot_cold_router
@@ -155,6 +156,7 @@ app.include_router(deliveries_router)
 app.include_router(inventory_router)
 app.include_router(restock_router)
 app.include_router(allergens_router)
+app.include_router(corrective_actions_router)
 app.include_router(wastage_router)
 app.include_router(probes_router)
 app.include_router(hot_cold_router)

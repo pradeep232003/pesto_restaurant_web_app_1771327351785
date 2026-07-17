@@ -1496,6 +1496,23 @@ class ApiService {
     if (!blob || blob.size === 0) throw new Error('Print failed: empty document');
     return URL.createObjectURL(blob);
   }
+
+  // ---- Corrective Actions Log ----
+  async correctiveActionsList({ location_id, status = 'all' } = {}) {
+    const qs = new URLSearchParams();
+    if (location_id) qs.set('location_id', location_id);
+    if (status) qs.set('status', status);
+    return this.fetch(`/api/corrective-actions?${qs.toString()}`);
+  }
+  async correctiveActionsCreate(payload) {
+    return this.fetch('/api/corrective-actions', { method: 'POST', body: JSON.stringify(payload) });
+  }
+  async correctiveActionsUpdate(id, payload) {
+    return this.fetch(`/api/corrective-actions/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+  }
+  async correctiveActionsDelete(id) {
+    return this.fetch(`/api/corrective-actions/${id}`, { method: 'DELETE' });
+  }
 }
 
 export const api = new ApiService();
