@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Printer, Calendar, MapPin, Phone, Shield, Gauge, Droplet,
-  Users, ClipboardList, CheckCircle, AlertTriangle, XCircle, MinusCircle,
+  Users, ClipboardList, CheckCircle, AlertTriangle, XCircle, MinusCircle, ClipboardX,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -258,6 +258,71 @@ const Inspection = () => {
               })}
             </div>
           </Section>
+
+          {/* Corrective Actions — every failed check in the range with
+              its remedial action. Massive EHO trust signal. */}
+          {pack.corrective_actions && (
+            <Section
+              title="Corrective Actions"
+              icon={ClipboardX}
+              count={`${pack.corrective_actions.total} in range · ${pack.corrective_actions.open} open · ${pack.corrective_actions.resolved} resolved`}
+            >
+              {pack.corrective_actions.total === 0 && (
+                <p style={{ fontSize: 13, color: '#86868B', margin: 0 }}>No corrective actions logged in this range — no failed checks recorded.</p>
+              )}
+              {pack.corrective_actions.total > 0 && (
+                <>
+                  <p style={{ fontSize: 12, color: '#86868B', margin: '0 0 10px' }}>
+                    Auto-logged: <strong style={{ color: '#1D1D1F' }}>{pack.corrective_actions.auto_logged}</strong>
+                    {' · By category: '}
+                    {Object.entries(pack.corrective_actions.by_category || {}).map(([k, v], i, arr) => (
+                      <span key={k}>{k.replace(/_/g, ' ')} ({v}){i < arr.length - 1 ? ', ' : ''}</span>
+                    ))}
+                  </p>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 6 }}>
+                    {pack.corrective_actions.rows.slice(0, 60).map((r) => (
+                      <li
+                        key={r.id}
+                        style={{
+                          padding: '10px 12px', borderRadius: 10,
+                          background: r.status === 'resolved' ? '#F0FAF3' : '#FFF3F2',
+                          borderLeft: `3px solid ${r.status === 'resolved' ? '#34C759' : '#FF3B30'}`,
+                          fontSize: 12,
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, color: '#1D1D1F' }}>
+                          {(r.category || 'other').replace(/_/g, ' ')} · {r.item || 'no item'}
+                          <span style={{
+                            marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: '0.04em',
+                            textTransform: 'uppercase', padding: '1px 6px', borderRadius: 999,
+                            background: r.status === 'resolved' ? '#34C75922' : '#FF3B3022',
+                            color: r.status === 'resolved' ? '#1D5A2F' : '#8A2822',
+                          }}>{r.status}</span>
+                        </div>
+                        <div style={{ margin: '3px 0 0', color: '#3A3A3C' }}>{r.failure_description}</div>
+                        {r.corrective_action && (
+                          <div style={{ margin: '3px 0 0', color: '#1D5A2F' }}>
+                            <strong>Action:</strong> {r.corrective_action}
+                          </div>
+                        )}
+                        <div style={{ margin: '3px 0 0', color: '#86868B', fontSize: 11 }}>
+                          Logged by {r.logged_by_name || 'unknown'} · {(r.logged_at || '').slice(0, 16).replace('T', ' ')}
+                          {r.status === 'resolved' && r.resolved_by_name && (
+                            <> · Resolved by {r.resolved_by_name} · {(r.resolved_at || '').slice(0, 16).replace('T', ' ')}</>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                  {pack.corrective_actions.rows.length > 60 && (
+                    <p style={{ margin: '8px 0 0', fontSize: 11, color: '#86868B', fontStyle: 'italic' }}>
+                      Showing first 60 of {pack.corrective_actions.rows.length} — download the .docx from the Corrective Actions page for the full log.
+                    </p>
+                  )}
+                </>
+              )}
+            </Section>
+          )}
 
           {/* Probes */}
           <Section title="Probe Calibration" icon={Gauge} count={`${pack.probes.length} probe${pack.probes.length === 1 ? '' : 's'}`}>

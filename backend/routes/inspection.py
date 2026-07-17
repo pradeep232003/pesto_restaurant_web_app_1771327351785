@@ -103,6 +103,33 @@ async def get_pack(
         "monthly": [{"id": t["id"], "title": t["title"], "items": len(t.get("items") or [])} for t in tpls if t.get("frequency") == "monthly"],
     }
 
+    # Corrective actions in the range — every failed check with its
+    # remedial action, so the EHO sees not just the failures but the
+    # audit trail of how they were resolved.
+    try:
+        from db import db as _db
+        ca_col = _db["corrective_actions"]
+        # start / end are ISO date strings — widen to UTC bounds so
+        # the query catches entries logged on the boundary dates.
+        ca_query = {
+            "location_id": location_id,
+            "logged_at": {"$gte": f"{start}T00:00:00", "$lte": f"{end}T23:59:59.999+00:00"},
+        }
+        ca_rows = list(ca_col.find(ca_query, {"_id": 0}).sort("logged_at", -1).limit(2000))
+    except Exception:
+        ca_rows = []
+    corrective_summary = {
+        "total": len(ca_rows),
+        "open": sum(1 for r in ca_rows if r.get("status") == "open"),
+        "resolved": sum(1 for r in ca_rows if r.get("status") == "resolved"),
+        "auto_logged": sum(1 for r in ca_rows if r.get("auto_logged")),
+        "by_category": {},
+        "rows": ca_rows,
+    }
+    for r in ca_rows:
+        cat = r.get("category") or "other"
+        corrective_summary["by_category"][cat] = corrective_summary["by_category"].get(cat, 0) + 1
+
     return {
         "location": {
             "id": loc.get("id", location_id),
@@ -115,6 +142,7 @@ async def get_pack(
             "overall_pct": compliance_pct,
             "checks": checks,
         },
+        "corrective_actions": corrective_summary,
         "probes": probes,
         "recent_calibrations": recent_calibrations,
         "legionella": legionella,

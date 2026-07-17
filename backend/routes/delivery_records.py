@@ -46,6 +46,32 @@ async def create_entry(body: EntryCreate, user: dict = Depends(get_staff_or_abov
     }
     collection.insert_one(doc)
     doc.pop("_id", None)
+
+    # Auto-log failed delivery temps to the corrective actions register.
+    if not passed:
+        try:
+            from routes.corrective_actions import auto_log_failure
+            bits = []
+            if body.food_frozen_temp is not None and body.food_frozen_temp > -15:
+                bits.append(f"frozen {body.food_frozen_temp:.1f}°C (>-15°C)")
+            if body.food_chilled_temp is not None and body.food_chilled_temp > 8:
+                bits.append(f"chilled {body.food_chilled_temp:.1f}°C (>8°C)")
+            auto_log_failure(
+                location_id=body.location_id,
+                category="delivery",
+                item=body.supplier.strip(),
+                failure_description=(
+                    f"Delivery from {body.supplier.strip()} on {body.date} — {', '.join(bits) or 'out of range'}."
+                    + (f" Notes: {body.quality_comments}" if body.quality_comments else "")
+                ),
+                source_key=f"delivery:{doc['id']}",
+                logged_by_email=user.get("email", "system"),
+                logged_by_name=user.get("name") or "System (auto)",
+            )
+        except Exception as ex:  # pragma: no cover
+            import logging as _l
+            _l.getLogger("delivery_records").warning("auto-log corrective failed: %s", ex)
+
     return doc
 
 

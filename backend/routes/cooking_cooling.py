@@ -268,6 +268,43 @@ async def complete_cooling(log_id: str, body: CompleteCoolingBody, user: dict = 
         "completed_by_name": user.get("name", ""),
     }
     logs_collection.update_one({"id": log_id}, {"$set": upd})
+
+    # Auto-log a corrective action if this cooling failed either the
+    # target temperature or the 90-minute FSA rule.
+    try:
+        from routes.corrective_actions import auto_log_failure
+        target = existing.get("target_temp_c", 8.0)
+        started_iso = existing.get("started_at") or ""
+        completed_iso = upd["completed_at"]
+        elapsed_min = None
+        try:
+            started_dt = datetime.fromisoformat(started_iso.replace("Z", "+00:00"))
+            completed_dt = datetime.fromisoformat(completed_iso.replace("Z", "+00:00"))
+            elapsed_min = (completed_dt - started_dt).total_seconds() / 60.0
+        except Exception:
+            elapsed_min = None
+        failures = []
+        if body.end_temp_c > target:
+            failures.append(f"end temp {body.end_temp_c:.1f}°C (target ≤ {target:.1f}°C)")
+        if elapsed_min is not None and elapsed_min > 90:
+            failures.append(f"cooled in {elapsed_min:.0f} min (FSA limit 90 min)")
+        if failures:
+            auto_log_failure(
+                location_id=existing["location_id"],
+                category="cooking_cooling",
+                item=existing.get("item_name", ""),
+                failure_description=(
+                    f"Cooling of \"{existing.get('item_name', '')}\": {', '.join(failures)}."
+                    + (f" Comment: {body.comment}" if body.comment else "")
+                ),
+                source_key=f"cooling:{log_id}",
+                logged_by_email=user.get("email", "system"),
+                logged_by_name=user.get("name") or "System (auto)",
+            )
+    except Exception as ex:  # pragma: no cover
+        import logging as _l
+        _l.getLogger("cooking_cooling").warning("auto-log corrective failed: %s", ex)
+
     return {**existing, **upd}
 
 

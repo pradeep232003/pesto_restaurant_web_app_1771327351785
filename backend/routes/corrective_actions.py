@@ -191,6 +191,123 @@ async def summary(
     return {"by_location": out, "total_open": sum(out.values())}
 
 
+@router.get("/print")
+async def print_actions(
+    location_id: str = Query(..., description="Site id — or 'all' for admin cross-site"),
+    status: Literal["open", "resolved", "all"] = "all",
+    days: int = Query(365, ge=1, le=3650, description="Only include entries logged in the last N days"),
+    user: dict = Depends(get_staff_or_above),
+):
+    """Landscape .docx export of the corrective actions log. Same
+    output format as the allergen matrix printer so managers know
+    what to expect. Defaults to the last 12 months for EHO packs."""
+    import io
+    from datetime import timedelta
+    from docx import Document
+    from docx.shared import Cm, Pt, RGBColor
+    from docx.enum.section import WD_ORIENT
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from fastapi.responses import StreamingResponse
+
+    is_admin = user.get("role") in ("admin", "super_admin")
+    q: dict = {}
+    if location_id and location_id != "all":
+        q["location_id"] = location_id
+    else:
+        if not is_admin:
+            raise HTTPException(400, "location_id is required for non-admin users")
+    if status != "all":
+        q["status"] = status
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    q["logged_at"] = {"$gte": cutoff}
+
+    rows = list(col.find(q).sort([("logged_at", -1)]).limit(5000))
+
+    doc = Document()
+    section = doc.sections[0]
+    section.orientation = WD_ORIENT.LANDSCAPE
+    section.page_width, section.page_height = section.page_height, section.page_width
+    section.left_margin = Cm(1.2)
+    section.right_margin = Cm(1.2)
+    section.top_margin = Cm(1.2)
+    section.bottom_margin = Cm(1.2)
+
+    title = doc.add_paragraph()
+    title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    run = title.add_run(f"Corrective Actions Log — {'All sites' if location_id == 'all' else location_id}")
+    run.bold = True
+    run.font.size = Pt(18)
+
+    stamp = doc.add_paragraph()
+    stamp_run = stamp.add_run(
+        f"Generated {datetime.now(timezone.utc).strftime('%d %b %Y %H:%M UTC')} · "
+        f"Last {days} day(s) · Status filter: {status} · {len(rows)} entry(ies)"
+    )
+    stamp_run.font.size = Pt(9)
+    stamp_run.font.color.rgb = RGBColor(0x86, 0x86, 0x8B)
+
+    headers = ["Logged", "Site", "Category", "Item", "What failed", "Corrective action", "Status", "Resolved by"]
+    table = doc.add_table(rows=1, cols=len(headers))
+    table.style = "Light Grid Accent 1"
+    widths = [Cm(2.4), Cm(2.6), Cm(2.4), Cm(3.0), Cm(6.5), Cm(6.5), Cm(1.6), Cm(2.6)]
+    for i, (h, w) in enumerate(zip(headers, widths)):
+        cell = table.rows[0].cells[i]
+        cell.width = w
+        cell.text = ""
+        r = cell.paragraphs[0].add_run(h)
+        r.bold = True
+        r.font.size = Pt(9)
+
+    for entry in rows:
+        row = table.add_row().cells
+        logged_at = entry.get("logged_at", "")
+        try:
+            dt = datetime.fromisoformat(logged_at.replace("Z", "+00:00"))
+            when = dt.strftime("%d %b %Y %H:%M")
+        except Exception:
+            when = logged_at[:16]
+        row[0].text = when
+        row[1].text = entry.get("location_id", "")
+        row[2].text = _humanise_snake(entry.get("category", ""))
+        row[3].text = entry.get("item", "")
+        row[4].text = entry.get("failure_description", "")
+        row[5].text = entry.get("corrective_action", "")
+        row[6].text = (entry.get("status") or "").title()
+        resolved_by = entry.get("resolved_by_name") or entry.get("resolved_by") or ""
+        resolved_at = entry.get("resolved_at", "")
+        try:
+            if resolved_at:
+                rdt = datetime.fromisoformat(resolved_at.replace("Z", "+00:00"))
+                resolved_at = rdt.strftime("%d %b %Y")
+        except Exception:
+            resolved_at = resolved_at[:10]
+        row[7].text = f"{resolved_by}\n{resolved_at}" if resolved_by else ""
+        for cell, w in zip(row, widths):
+            cell.width = w
+            for para in cell.paragraphs:
+                for run in para.runs:
+                    run.font.size = Pt(8)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+
+    safe_loc = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in location_id)[:40]
+    stamp_txt = datetime.now(timezone.utc).strftime("%Y%m%d")
+    filename = f"corrective_actions_{safe_loc}_{stamp_txt}.docx"
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _humanise_snake(s: str) -> str:
+    return (s or "").replace("_", " ").title()
+
+
 # ------------------------ Auto-log helper ------------------------
 # Called by routine handlers when they detect a failed check. Uses a
 # `source_key` (a compound like "fridge_temp:<loc>:<date>:opening:<unit>")

@@ -12,18 +12,20 @@ const Routines = () => {
   const [coolingLogs, setCoolingLogs] = useState([]);
   const [completedTodayCount, setCompletedTodayCount] = useState(0);
   const [deliveriesTodayCount, setDeliveriesTodayCount] = useState(0);
+  const [openCorrectiveCount, setOpenCorrectiveCount] = useState(0);
   const [tick, setTick] = useState(0);
 
   // Refresh from server on mount + every 60s; recompute age every 30s.
   useEffect(() => {
-    if (!adminLocationId) { setCoolingLogs([]); setCompletedTodayCount(0); setDeliveriesTodayCount(0); return; }
+    if (!adminLocationId) { setCoolingLogs([]); setCompletedTodayCount(0); setDeliveriesTodayCount(0); setOpenCorrectiveCount(0); return; }
     let cancelled = false;
     const todayLocal = () => new Date().toISOString().slice(0, 10);
     const load = () => Promise.all([
       api.coolingList(adminLocationId, 'cooling'),
       api.coolingList(adminLocationId, 'complete'),
       api.deliveriesList(adminLocationId).catch(() => []),
-    ]).then(([active, complete, deliveries]) => {
+      api.correctiveActionsSummary({ location_ids: [adminLocationId] }).catch(() => ({ by_location: {}, total_open: 0 })),
+    ]).then(([active, complete, deliveries, corrective]) => {
       if (cancelled) return;
       setCoolingLogs(active || []);
       reconcile(active || []);
@@ -32,6 +34,8 @@ const Routines = () => {
       setCompletedTodayCount(n);
       const d = (deliveries || []).filter(r => (r.recorded_at || '').slice(0, 10) === t).length;
       setDeliveriesTodayCount(d);
+      const co = (corrective && corrective.by_location && corrective.by_location[adminLocationId]) || 0;
+      setOpenCorrectiveCount(co);
     }).catch(() => {});
     load();
     const refresh = setInterval(load, 60000);
@@ -71,7 +75,8 @@ const Routines = () => {
         <Tile testId="tile-reheating"           to="/jkhive/reheating"         icon={Flame}       color="#FF3B30" title="Reheating"          subtitle="≥ 75°C reheat log" />
         <Tile testId="tile-deliveries"          to="/jkhive/delivery-records"  icon={Truck}       color="#8E8E93" title="Deliveries"         subtitle="Goods-in records"
               badge={deliveriesTodayCount} badgeColor="#0A84C9" />
-        <Tile testId="tile-corrective-actions" to="/jkhive/corrective-actions" icon={ClipboardX} color="#FF3B30" title="Corrective Actions" subtitle="Log of failed checks" />
+        <Tile testId="tile-corrective-actions" to="/jkhive/corrective-actions" icon={ClipboardX} color="#FF3B30" title="Corrective Actions" subtitle="Log of failed checks"
+              badge={openCorrectiveCount || null} badgeColor="#FF3B30" />
         <Tile testId="tile-other-routines"      to="/jkhive/routines/more"     icon={MoreHorizontal} color="#3A3A3C" title="Other"           subtitle="Probe, holding, more…" />
       </div>
     </div>

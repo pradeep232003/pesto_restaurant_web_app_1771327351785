@@ -56,6 +56,28 @@ async def record(body: RecordBody, user: dict = Depends(get_staff_or_above)):
         "recorded_by_name": user.get("name", ""),
     }
     logs.insert_one(dict(doc))
+
+    # Auto-log any reheat that fell short of the 75°C target.
+    if not doc["passed"]:
+        try:
+            from routes.corrective_actions import auto_log_failure
+            auto_log_failure(
+                location_id=body.location_id,
+                category="reheating",
+                item=body.item_name or "",
+                failure_description=(
+                    f"Reheat of \"{body.item_name}\" reached {body.temp_c:.1f}°C "
+                    f"(target ≥ {TARGET_C:.1f}°C)."
+                    + (f" Comment: {body.comment}" if body.comment else "")
+                ),
+                source_key=f"reheating:{doc['id']}",
+                logged_by_email=user.get("email", "system"),
+                logged_by_name=user.get("name") or "System (auto)",
+            )
+        except Exception as ex:  # pragma: no cover
+            import logging as _l
+            _l.getLogger("reheating").warning("auto-log corrective failed: %s", ex)
+
     return {k: v for k, v in doc.items() if k != "_id"}
 
 

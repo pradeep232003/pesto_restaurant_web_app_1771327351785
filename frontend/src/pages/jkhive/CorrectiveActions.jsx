@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ClipboardX, Plus, Check, RotateCcw, Trash2, Loader2, AlertTriangle, X, Pencil, Filter } from 'lucide-react';
+import { ArrowLeft, ClipboardX, Plus, Check, RotateCcw, Trash2, Loader2, AlertTriangle, X, Pencil, Filter, Layers, Printer } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
 import { api } from '../../lib/api';
@@ -45,8 +45,19 @@ const CorrectiveActions = () => {
   const [catFilter, setCatFilter] = useState('all');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
-  const [editor, setEditor] = useState(null); // { row } or { new: true }
+  const [editor, setEditor] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  // Admin cross-site toggle — when ON, backend returns rows across
+  // every location and the site chip appears next to each row.
+  const [showAll, setShowAll] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const effectiveSiteId = isAdmin && showAll ? 'all' : adminLocationId;
+
+  const colourFor = (locId) => {
+    const c = (locations || []).find((l) => l.id === locId)?.color;
+    return (c && c.trim()) || '#8E8E93';
+  };
+  const nameFor = (locId) => (locations || []).find((l) => l.id === locId)?.name || locId;
 
   const locName = useMemo(
     () => (locations || []).find((l) => l.id === adminLocationId)?.name || '—',
@@ -54,10 +65,10 @@ const CorrectiveActions = () => {
   );
 
   const load = async () => {
-    if (!adminLocationId) return;
+    if (!effectiveSiteId) return;
     setLoading(true); setErr('');
     try {
-      const res = await api.correctiveActionsList({ location_id: adminLocationId, status: statusFilter });
+      const res = await api.correctiveActionsList({ location_id: effectiveSiteId, status: statusFilter });
       setItems(res.items || []);
       setCategories(res.categories || []);
     } catch (e) {
@@ -67,7 +78,27 @@ const CorrectiveActions = () => {
       setLoading(false);
     }
   };
-  useEffect(() => { load(); }, [adminLocationId, statusFilter]);
+  useEffect(() => { load(); }, [effectiveSiteId, statusFilter]);
+
+  const handlePrint = async () => {
+    if (!effectiveSiteId) return;
+    setPrinting(true); setErr('');
+    try {
+      const url = await api.correctiveActionsPrintUrl({
+        location_id: effectiveSiteId, status: statusFilter, days: 365,
+      });
+      const a = document.createElement('a');
+      a.href = url;
+      const stamp = new Date().toISOString().slice(0, 10);
+      a.download = `corrective_actions_${effectiveSiteId}_${stamp}.docx`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (e) {
+      setErr(e.message || 'Print failed');
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     if (catFilter === 'all') return items;
@@ -125,23 +156,60 @@ const CorrectiveActions = () => {
           </p>
         </div>
 
-        {isAdmin && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <button
-            data-testid="ca-add"
-            onClick={() => setEditor({ new: true })}
-            disabled={!adminLocationId}
+            data-testid="ca-print"
+            onClick={handlePrint}
+            disabled={printing || !effectiveSiteId}
+            title="Download the log as a landscape Word document (last 12 months)"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
               padding: '10px 16px', borderRadius: 999,
-              background: '#FF3B30', color: '#FFFFFF',
-              border: 0, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-              ...FONT,
+              background: printing ? '#C7C7CC' : '#FFFFFF', color: '#1D1D1F',
+              border: '1px solid #ECECEF', fontSize: 13, fontWeight: 700,
+              cursor: printing ? 'not-allowed' : 'pointer',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.04)', ...FONT,
             }}
           >
-            <Plus size={14} /> Log a failure
+            {printing ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />}
+            {printing ? 'Preparing…' : 'Print (.docx)'}
           </button>
-        )}
+          {isAdmin && (
+            <button
+              data-testid="ca-all-sites-toggle"
+              onClick={() => setShowAll((v) => !v)}
+              aria-pressed={showAll}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '10px 16px', borderRadius: 999,
+                background: showAll ? '#FF3B30' : '#FFFFFF',
+                color: showAll ? '#FFFFFF' : '#1D1D1F',
+                border: showAll ? '1px solid #FF3B30' : '1px solid #ECECEF',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.04)', ...FONT,
+              }}
+            >
+              <Layers size={14} />
+              {showAll ? 'Viewing all sites' : 'Show all sites'}
+            </button>
+          )}
+          {isAdmin && !showAll && (
+            <button
+              data-testid="ca-add"
+              onClick={() => setEditor({ new: true })}
+              disabled={!adminLocationId}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '10px 16px', borderRadius: 999,
+                background: '#FF3B30', color: '#FFFFFF',
+                border: 0, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.04)', ...FONT,
+              }}
+            >
+              <Plus size={14} /> Log a failure
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Status segmented control */}
@@ -222,6 +290,22 @@ const CorrectiveActions = () => {
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                    {isAdmin && showAll && (
+                      <span
+                        data-testid={`ca-site-chip-${row.id}`}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase',
+                          color: '#1D1D1F',
+                          background: `${colourFor(row.location_id)}22`,
+                          border: `1px solid ${colourFor(row.location_id)}`,
+                          padding: '2px 8px', borderRadius: 999,
+                        }}
+                      >
+                        <span style={{ width: 8, height: 8, borderRadius: 999, background: colourFor(row.location_id), display: 'inline-block' }} />
+                        {nameFor(row.location_id)}
+                      </span>
+                    )}
                     <span style={{
                       fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase',
                       padding: '2px 8px', borderRadius: 999,

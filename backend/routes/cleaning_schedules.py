@@ -193,11 +193,39 @@ def build_cleaning_router(prefix: str, items_coll, logs_coll, tag: str):
         }
         if existing:
             logs_coll.update_one({"id": existing["id"]}, {"$set": doc})
-            return {"message": "Log updated", "id": existing["id"], "passed": passed_cells, "total": total_cells}
-        doc["id"] = str(uuid.uuid4())[:12]
-        doc["created_at"] = datetime.now(timezone.utc).isoformat()
-        logs_coll.insert_one(doc)
-        return {"message": "Log saved", "id": doc["id"], "passed": passed_cells, "total": total_cells}
+            log_id = existing["id"]
+        else:
+            doc["id"] = str(uuid.uuid4())[:12]
+            doc["created_at"] = datetime.now(timezone.utc).isoformat()
+            logs_coll.insert_one(doc)
+            log_id = doc["id"]
+
+        # Auto-log a single "cleaning missed" corrective action per
+        # (location, week) if any cells are un-ticked. Idempotent via
+        # a stable source_key — updates the description as more/less
+        # cells get ticked.
+        missed = total_cells - passed_cells
+        if missed > 0:
+            try:
+                from routes.corrective_actions import auto_log_failure
+                auto_log_failure(
+                    location_id=body.location_id,
+                    category="cleaning",
+                    item=f"Week ending {body.week_ending}",
+                    failure_description=(
+                        f"Weekly cleaning — {missed} of {total_cells} cells not ticked "
+                        f"for week ending {body.week_ending}."
+                        + (f" Notes: {body.note}" if body.note else "")
+                    ),
+                    source_key=f"cleaning:{body.location_id}:{body.week_ending}",
+                    logged_by_email=user.get("email", "system"),
+                    logged_by_name=user.get("name") or "System (auto)",
+                )
+            except Exception as ex:  # pragma: no cover
+                import logging as _l
+                _l.getLogger("cleaning_schedules").warning("auto-log corrective failed: %s", ex)
+
+        return {"message": "Log saved", "id": log_id, "passed": passed_cells, "total": total_cells}
 
     @router.get("")
     async def get_log(

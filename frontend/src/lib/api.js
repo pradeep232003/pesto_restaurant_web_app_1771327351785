@@ -1513,6 +1513,24 @@ class ApiService {
   async correctiveActionsDelete(id) {
     return this.fetch(`/api/corrective-actions/${id}`, { method: 'DELETE' });
   }
+  async correctiveActionsSummary({ location_ids } = {}) {
+    const qs = new URLSearchParams();
+    if (Array.isArray(location_ids) && location_ids.length) qs.set('location_ids', location_ids.join(','));
+    return this.fetch(`/api/corrective-actions/summary${qs.toString() ? '?' + qs.toString() : ''}`);
+  }
+  async correctiveActionsPrintUrl({ location_id, status = 'all', days = 365 } = {}) {
+    const tok = localStorage.getItem('access_token');
+    const qs = new URLSearchParams({ location_id, status, days: String(days) }).toString();
+    const url = `${API_BASE_URL}/api/corrective-actions/print?${qs}`;
+    const res = await fetch(url, { headers: tok ? { Authorization: `Bearer ${tok}` } : {} });
+    if (!res.ok) {
+      const raw = await res.text().catch(() => '');
+      throw new Error(`Print failed (HTTP ${res.status}): ${raw.slice(0, 200) || res.statusText}`);
+    }
+    const blob = await res.blob();
+    if (!blob || blob.size === 0) throw new Error('Print failed: empty document');
+    return URL.createObjectURL(blob);
+  }
 }
 
 export const api = new ApiService();
