@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from db import db
 from auth import get_staff_or_above
-from routes.corrective_actions import auto_log_failure
+from routes.corrective_actions import auto_log_failure, auto_resolve_failure
 
 _log = logging.getLogger("routine_temps")
 
@@ -77,18 +77,34 @@ async def submit_routine_temp(body: RoutineTempSubmit, user: dict = Depends(get_
         if limit is None:
             continue
         failed = r.temp_c > limit
+        cat = "freezer_temp" if r.unit_type.lower() == "freezer" else "fridge_temp"
+        item_name = r.unit_name or r.unit_id
         if not failed:
+            # Reading is back in range — auto-resolve any Open rows for
+            # this unit at this location (regardless of date/period).
+            try:
+                auto_resolve_failure(
+                    location_id=body.location_id,
+                    category=cat,
+                    item=item_name,
+                    reason=(
+                        f"{body.period.title()} check on {body.date}: "
+                        f"{item_name} back in range at {r.temp_c:.1f}°C "
+                        f"(limit {limit:.1f}°C)."
+                    ),
+                )
+            except Exception as ex:  # pragma: no cover — never block the temp save
+                _log.warning("routine_temps: auto-resolve corrective failed: %s", ex)
             continue
         source_key = f"routine_temp:{body.location_id}:{body.date}:{body.period}:{r.unit_id}"
-        cat = "freezer_temp" if r.unit_type.lower() == "freezer" else "fridge_temp"
         try:
             auto_log_failure(
                 location_id=body.location_id,
                 category=cat,
-                item=r.unit_name or r.unit_id,
+                item=item_name,
                 failure_description=(
                     f"{body.period.title()} check on {body.date}: "
-                    f"{r.unit_name or r.unit_id} recorded {r.temp_c:.1f}°C "
+                    f"{item_name} recorded {r.temp_c:.1f}°C "
                     f"(limit {limit:.1f}°C)."
                 ),
                 source_key=source_key,

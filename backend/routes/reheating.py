@@ -57,7 +57,8 @@ async def record(body: RecordBody, user: dict = Depends(get_staff_or_above)):
     }
     logs.insert_one(dict(doc))
 
-    # Auto-log any reheat that fell short of the 75°C target.
+    # Auto-log any reheat that fell short of the 75°C target; if it
+    # passes, clear any prior Open row for the same item.
     if not doc["passed"]:
         try:
             from routes.corrective_actions import auto_log_failure
@@ -77,6 +78,21 @@ async def record(body: RecordBody, user: dict = Depends(get_staff_or_above)):
         except Exception as ex:  # pragma: no cover
             import logging as _l
             _l.getLogger("reheating").warning("auto-log corrective failed: %s", ex)
+    else:
+        try:
+            from routes.corrective_actions import auto_resolve_failure
+            auto_resolve_failure(
+                location_id=body.location_id,
+                category="reheating",
+                item=body.item_name or "",
+                reason=(
+                    f"Reheat of \"{body.item_name}\" now at {body.temp_c:.1f}°C "
+                    f"(target ≥ {TARGET_C:.1f}°C)."
+                ),
+            )
+        except Exception as ex:  # pragma: no cover
+            import logging as _l
+            _l.getLogger("reheating").warning("auto-resolve corrective failed: %s", ex)
 
     return {k: v for k, v in doc.items() if k != "_id"}
 

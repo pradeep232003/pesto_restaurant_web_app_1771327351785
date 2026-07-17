@@ -301,6 +301,20 @@ async def complete_cooling(log_id: str, body: CompleteCoolingBody, user: dict = 
                 logged_by_email=user.get("email", "system"),
                 logged_by_name=user.get("name") or "System (auto)",
             )
+        else:
+            # Cooling completed within limits — resolve any pre-existing
+            # Open row for this specific log (re-completion after fix).
+            from routes.corrective_actions import auto_resolve_failure
+            reason_bits = [f"end temp {body.end_temp_c:.1f}°C (target ≤ {target:.1f}°C)"]
+            if elapsed_min is not None:
+                reason_bits.append(f"cooled in {elapsed_min:.0f} min")
+            auto_resolve_failure(
+                source_key=f"cooling:{log_id}",
+                reason=(
+                    f"Cooling of \"{existing.get('item_name', '')}\" within limits: "
+                    + ", ".join(reason_bits) + "."
+                ),
+            )
     except Exception as ex:  # pragma: no cover
         import logging as _l
         _l.getLogger("cooking_cooling").warning("auto-log corrective failed: %s", ex)

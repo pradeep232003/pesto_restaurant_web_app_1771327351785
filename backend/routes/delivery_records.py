@@ -48,6 +48,7 @@ async def create_entry(body: EntryCreate, user: dict = Depends(get_staff_or_abov
     doc.pop("_id", None)
 
     # Auto-log failed delivery temps to the corrective actions register.
+    # A passing delivery from the same supplier clears any prior Open row.
     if not passed:
         try:
             from routes.corrective_actions import auto_log_failure
@@ -71,6 +72,26 @@ async def create_entry(body: EntryCreate, user: dict = Depends(get_staff_or_abov
         except Exception as ex:  # pragma: no cover
             import logging as _l
             _l.getLogger("delivery_records").warning("auto-log corrective failed: %s", ex)
+    else:
+        try:
+            from routes.corrective_actions import auto_resolve_failure
+            bits = []
+            if body.food_frozen_temp is not None:
+                bits.append(f"frozen {body.food_frozen_temp:.1f}°C")
+            if body.food_chilled_temp is not None:
+                bits.append(f"chilled {body.food_chilled_temp:.1f}°C")
+            auto_resolve_failure(
+                location_id=body.location_id,
+                category="delivery",
+                item=body.supplier.strip(),
+                reason=(
+                    f"Delivery from {body.supplier.strip()} on {body.date} back in range"
+                    + (f" ({', '.join(bits)})." if bits else ".")
+                ),
+            )
+        except Exception as ex:  # pragma: no cover
+            import logging as _l
+            _l.getLogger("delivery_records").warning("auto-resolve corrective failed: %s", ex)
 
     return doc
 

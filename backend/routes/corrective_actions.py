@@ -366,3 +366,70 @@ def auto_log_failure(
     _log.info("corrective_action: AUTO-logged id=%s key=%s cat=%s loc=%s",
               doc["id"], source_key, doc["category"], location_id)
     return _clean(doc)
+
+
+# ------------------------ Auto-resolve helper ------------------------
+# Called by routine handlers when a previously-failing check now
+# passes (fridge back in range, reheat now ≥ 75 °C, etc.). Closes any
+# still-Open auto-logged rows for that unit/item and stamps a system
+# resolve comment so the audit trail explains the closure.
+#
+# Match modes:
+#   • Provide `source_key` to resolve exactly ONE row (event-based
+#     checks such as cooking/cooling re-completion).
+#   • Provide `location_id + category + item` to resolve every Open
+#     row for the same unit (periodic checks such as fridge temps —
+#     yesterday's opening failure closes as soon as today's opening
+#     comes back in range).
+#
+# We only touch rows where `auto_logged=True` so admin-created rows
+# stay under manual control. If a manager already typed a
+# `corrective_action`, we prepend it and append the system note so
+# their commentary is never lost.
+
+def auto_resolve_failure(
+    *,
+    location_id: Optional[str] = None,
+    category: Optional[str] = None,
+    item: Optional[str] = None,
+    source_key: Optional[str] = None,
+    reason: str = "",
+    resolver_name: str = "System (auto-resolve)",
+) -> int:
+    q: dict = {"status": "open", "auto_logged": True}
+    if source_key:
+        q["source_key"] = source_key
+    else:
+        if not (location_id and item):
+            return 0
+        q["location_id"] = location_id
+        q["item"] = item[:200]
+        if category:
+            q["category"] = category.strip().lower()
+
+    matches = list(col.find(q))
+    if not matches:
+        return 0
+
+    now = datetime.now(timezone.utc).isoformat()
+    note = f"Auto-resolved: {reason}" if reason else "Auto-resolved: reading returned to normal"
+    for m in matches:
+        prev = (m.get("corrective_action") or "").strip()
+        final = f"{prev} | {note}" if prev else note
+        col.update_one(
+            {"id": m["id"]},
+            {"$set": {
+                "status": "resolved",
+                "corrective_action": final[:1000],
+                "resolved_by": "system",
+                "resolved_by_name": resolver_name,
+                "resolved_at": now,
+                "auto_resolved": True,
+                "updated_at": now,
+            }},
+        )
+    _log.info(
+        "corrective_action: AUTO-resolved %d row(s) key=%s loc=%s cat=%s item=%s",
+        len(matches), source_key or "-", location_id or "-", category or "-", item or "-",
+    )
+    return len(matches)
