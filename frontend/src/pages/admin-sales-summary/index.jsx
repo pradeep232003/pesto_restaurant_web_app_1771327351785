@@ -102,16 +102,16 @@ const AdminSalesSummary = () => {
           end_date: endDate,
           location_id: locationFilter || undefined,
         }),
-        // Sum expense transactions from bank statements for the same
-        // site + date window so Total Cash (bal) = Total Cash − Total Expense.
-        api.bankStatementsExpensesTotal({
+        // Pull the manual Expenses total so Total Cash (bal) matches the
+        // number shown on the Expenses tile (same source of truth).
+        api.adminGetExpenses({
           location_id: locationFilter || undefined,
           start_date: startDate,
           end_date: endDate,
-        }).catch(() => ({ total_expense: 0 })),
+        }).catch(() => ({ total: 0 })),
       ]);
       setData(d);
-      setTotalExpense(exp?.total_expense || 0);
+      setTotalExpense(exp?.total || 0);
     } catch (err) {
       console.error('Failed to load summary:', err);
     } finally {

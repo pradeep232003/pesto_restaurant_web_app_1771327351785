@@ -1010,14 +1010,6 @@ class ApiService {
     const qs = new URLSearchParams(params).toString();
     return this.fetch(`/api/admin/bank-statements/aggregate${qs ? '?' + qs : ''}`);
   }
-  async bankStatementsExpensesTotal({ location_id, start_date, end_date } = {}) {
-    const params = {};
-    if (location_id) params.location_id = location_id;
-    if (start_date) params.start_date = start_date;
-    if (end_date) params.end_date = end_date;
-    const qs = new URLSearchParams(params).toString();
-    return this.fetch(`/api/admin/bank-statements/expenses-total${qs ? '?' + qs : ''}`);
-  }
   async bankStatementsAggregateXlsxUrl({ location_ids, ids } = {}) {
     const params = new URLSearchParams();
     if (Array.isArray(location_ids) && location_ids.length) params.set('location_ids', location_ids.join(','));
