@@ -74,6 +74,7 @@ const AdminSalesSummary = () => {
   const isJkhive = routerLocation.pathname.startsWith('/jkhive');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
+  const [totalExpense, setTotalExpense] = useState(0);
   const [expandedStaff, setExpandedStaff] = useState(null);
 
   // Default to current month
@@ -95,12 +96,22 @@ const AdminSalesSummary = () => {
   const fetchSummary = useCallback(async () => {
     setLoading(true);
     try {
-      const d = await api.adminGetSalesSummary({
-        start_date: startDate,
-        end_date: endDate,
-        location_id: locationFilter || undefined,
-      });
+      const [d, exp] = await Promise.all([
+        api.adminGetSalesSummary({
+          start_date: startDate,
+          end_date: endDate,
+          location_id: locationFilter || undefined,
+        }),
+        // Sum expense transactions from bank statements for the same
+        // site + date window so Total Cash (bal) = Total Cash − Total Expense.
+        api.bankStatementsExpensesTotal({
+          location_id: locationFilter || undefined,
+          start_date: startDate,
+          end_date: endDate,
+        }).catch(() => ({ total_expense: 0 })),
+      ]);
       setData(d);
+      setTotalExpense(exp?.total_expense || 0);
     } catch (err) {
       console.error('Failed to load summary:', err);
     } finally {
@@ -138,6 +149,9 @@ const AdminSalesSummary = () => {
   // Friendly average per bucket — handy summary tile.
   const avgPerBucket = chartData.length ? (chartData.reduce((s, r) => s + r.sales, 0) / chartData.length) : 0;
   const peak = chartData.reduce((best, r) => (r.sales > (best?.sales || 0) ? r : best), null);
+  // Total Cash (bal) = Total Cash − Total Expense (from bank statements)
+  // within the same site + date window.
+  const cashBal = (data?.total_cash || 0) - totalExpense;
 
   if (authLoading) {
     return <div className="flex items-center justify-center h-64"><div className="w-6 h-6 border-2 border-gray-300 border-t-gray-800 rounded-full animate-spin" /></div>;
@@ -208,7 +222,7 @@ const AdminSalesSummary = () => {
       ) : (
         <div className="space-y-5">
           {/* Top cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <div className="p-4 sm:p-5" style={cardStyle}>
               <PoundSterling size={18} className="mb-2" style={{ color: '#34C759' }} />
               <p className="text-xl sm:text-2xl font-bold" style={{ color: '#1D1D1F', ...font }}>{fmtMoney(data.total_sales)}</p>
@@ -218,6 +232,12 @@ const AdminSalesSummary = () => {
               <PoundSterling size={18} className="mb-2" style={{ color: '#007AFF' }} />
               <p className="text-xl sm:text-2xl font-bold" style={{ color: '#1D1D1F', ...font }}>{fmtMoney(data.total_cash)}</p>
               <p className="text-xs mt-0.5" style={{ color: '#86868B' }}>Total Cash</p>
+            </div>
+            <div className="p-4 sm:p-5" style={cardStyle} data-testid="summary-cash-bal-card">
+              <PoundSterling size={18} className="mb-2" style={{ color: cashBal >= 0 ? '#1F8A3E' : '#C0392B' }} />
+              <p className="text-xl sm:text-2xl font-bold" style={{ color: '#1D1D1F', ...font }} data-testid="summary-cash-bal-value">{fmtMoney(cashBal)}</p>
+              <p className="text-xs mt-0.5" style={{ color: '#86868B' }}>Total Cash (bal)</p>
+              <p className="text-[10px] mt-0.5" style={{ color: '#86868B', ...font }}>Cash − {fmtMoney(totalExpense)} expenses</p>
             </div>
             <div className="p-4 sm:p-5" style={cardStyle}>
               <TrendingUp size={18} className="mb-2" style={{ color: '#FF9500' }} />

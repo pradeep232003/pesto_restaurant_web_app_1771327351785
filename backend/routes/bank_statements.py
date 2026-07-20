@@ -1097,6 +1097,41 @@ async def list_statements(
     return {"items": [_strip(r) for r in rows]}
 
 
+@router.get("/expenses-total")
+async def expenses_total(
+    location_id: Optional[str] = None,
+    start_date: Optional[str] = None,  # inclusive YYYY-MM-DD
+    end_date: Optional[str] = None,    # inclusive YYYY-MM-DD
+    user: dict = Depends(get_admin_user),
+):
+    """Return the total expense amount across all uploaded statements
+    for a site (or every site when `location_id` is omitted), optionally
+    windowed by transaction date. Used by the Sales Summary "Total Cash
+    (bal)" KPI to compute cash-in-hand net of outgoings.
+    """
+    q: dict = {}
+    if location_id:
+        q["location_id"] = location_id
+    rows = statements.find(q, {"transactions": 1, "_id": 0})
+    total = 0.0
+    count = 0
+    for r in rows:
+        for t in (r.get("transactions") or []):
+            if (t.get("type") or "").lower() != "expense":
+                continue
+            d = (t.get("date") or "").strip()
+            if start_date and d and d < start_date:
+                continue
+            if end_date and d and d > end_date:
+                continue
+            try:
+                total += float(t.get("amount") or 0)
+                count += 1
+            except (TypeError, ValueError):
+                continue
+    return {"total_expense": round(total, 2), "expense_count": count}
+
+
 @router.get("/aggregate")
 async def aggregate_statements(
     location_ids: Optional[str] = None,
