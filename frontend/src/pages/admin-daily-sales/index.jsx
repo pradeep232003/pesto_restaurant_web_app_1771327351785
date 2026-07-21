@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { DollarSign, Calendar, Clock, Plus, Trash2, ChevronDown, Filter, FileText, Share2, X, LogOut, Pencil, Check, Grid3X3, ArrowLeft, Download } from 'lucide-react';
+import { DollarSign, Calendar, Clock, Plus, Trash2, ChevronDown, ChevronRight, Filter, FileText, Share2, X, LogOut, Pencil, Check, Grid3X3, ArrowLeft, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCustomer } from '../../contexts/CustomerContext';
 import { useLocation2 } from '../../contexts/LocationContext';
+import { fetchDailyCheckStatus } from '../jkhive/_dailyCheckStatus';
 
 // Reusable typeahead picker — type to filter, click to select, value must
 // match a Staff Table entry. Filtering: names starting with the typed text
@@ -121,6 +122,11 @@ const AdminDailySales = () => {
   const [cashTaken, setCashTaken] = useState('');
   const [cashTakenBy, setCashTakenBy] = useState('');
   const [staffHours, setStaffHours] = useState([{ name: '', start_time: '', end_time: '' }]);
+  // Daily-check gate: Save button stays disabled until every applicable
+  // daily routine at the selected location + date is done. Mirrors the
+  // logic used by the JKHive DailyCheckTile.
+  const [checkStatus, setCheckStatus] = useState({ done: 0, total: 0, missing: [], loaded: false });
+  const [checkLoading, setCheckLoading] = useState(false);
 
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -149,6 +155,25 @@ const AdminDailySales = () => {
   useEffect(() => {
     if (selectedLocation && entryDate) loadExistingEntry();
   }, [selectedLocation, entryDate]);
+
+  // Refresh daily-check completion whenever the location or date changes so
+  // the Save button reflects the current site's routines. Empty
+  // applicable_routines = "all routines apply" (matches backend).
+  useEffect(() => {
+    if (!selectedLocation || !entryDate) {
+      setCheckStatus({ done: 0, total: 0, missing: [], loaded: false });
+      return;
+    }
+    let cancelled = false;
+    setCheckLoading(true);
+    const loc = (locations || []).find(l => l.id === selectedLocation);
+    const applicable = loc?.applicable_routines || [];
+    fetchDailyCheckStatus(selectedLocation, entryDate, applicable)
+      .then(s => { if (!cancelled) setCheckStatus(s); })
+      .catch(() => { if (!cancelled) setCheckStatus({ done: 0, total: 0, missing: [], loaded: true }); })
+      .finally(() => { if (!cancelled) setCheckLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedLocation, entryDate, locations]);
 
   useEffect(() => {
     if (activeTab === 'history' && isAdmin) fetchHistory();
@@ -195,6 +220,16 @@ const AdminDailySales = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedLocation || !entryDate) return;
+    // Guard: block save until every applicable daily check for this
+    // location + date is done. Matches the JKHive Daily Check hub logic.
+    if (checkStatus.loaded && checkStatus.total > 0 && checkStatus.done < checkStatus.total) {
+      alert(
+        `Daily checks not complete for this site.\n\n` +
+        `${checkStatus.done} of ${checkStatus.total} routines done. Please finish:\n` +
+        checkStatus.missing.map(m => `• ${m.label}`).join('\n')
+      );
+      return;
+    }
     setSaving(true); setSuccessMsg('');
     try {
       await api.adminCreateDailySales({
@@ -661,16 +696,76 @@ const AdminDailySales = () => {
             </div>
           </div>
 
+          {/* Daily-check gate — save is blocked until every applicable
+              routine for this site + date is complete. Empty state (no
+              location picked yet) hides the panel entirely. */}
+          {selectedLocation && checkStatus.loaded && checkStatus.total > 0 && (() => {
+            const allDone = checkStatus.done >= checkStatus.total;
+            return (
+              <div
+                data-testid="daily-check-gate"
+                className="p-3.5 rounded-2xl mb-1"
+                style={{
+                  background: allDone ? 'rgba(52,199,89,0.08)' : 'rgba(255,149,0,0.08)',
+                  border: `1px solid ${allDone ? 'rgba(52,199,89,0.25)' : 'rgba(255,149,0,0.25)'}`,
+                }}
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  {allDone ? (
+                    <Check size={16} strokeWidth={2.6} style={{ color: '#1B7A35' }} />
+                  ) : (
+                    <Clock size={16} strokeWidth={2.4} style={{ color: '#A35E00' }} />
+                  )}
+                  <span
+                    className="text-[13px] font-semibold"
+                    style={{ color: allDone ? '#1B7A35' : '#A35E00', ...font }}
+                    data-testid="daily-check-gate-summary"
+                  >
+                    {allDone
+                      ? `All ${checkStatus.total} daily checks done`
+                      : `Daily checks: ${checkStatus.done} of ${checkStatus.total} done`}
+                  </span>
+                </div>
+                {!allDone && (
+                  <>
+                    <p className="text-[11px] mb-2" style={{ color: '#86868B', ...font }}>
+                      Complete these routines before saving sales for this site & date:
+                    </p>
+                    <ul className="space-y-0.5 mb-2" data-testid="daily-check-gate-missing">
+                      {checkStatus.missing.map(m => (
+                        <li key={m.key} className="text-[12px] flex items-center gap-1.5" style={{ color: '#1D1D1F', ...font }}>
+                          <span style={{ color: '#FF9500' }}>•</span> {m.label}
+                        </li>
+                      ))}
+                    </ul>
+                    <Link
+                      to="/jkhive/daily-check"
+                      data-testid="daily-check-gate-link"
+                      className="inline-flex items-center gap-1 text-[12px] font-semibold"
+                      style={{ color: '#007AFF', ...font }}
+                    >
+                      Open Daily Check hub <ChevronRight size={13} strokeWidth={2.6} />
+                    </Link>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Submit + Summary buttons */}
           <div className="flex gap-3">
             <button
               data-testid="save-sales-btn"
               type="submit"
-              disabled={saving || !selectedLocation}
+              disabled={saving || !selectedLocation || checkLoading || (checkStatus.loaded && checkStatus.total > 0 && checkStatus.done < checkStatus.total)}
               className="flex-1 py-3.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 active:scale-[0.98]"
               style={{ background: '#1D1D1F', color: '#FFFFFF', ...font }}
             >
-              {saving ? 'Saving...' : 'Save Sales Data'}
+              {saving
+                ? 'Saving...'
+                : (checkStatus.loaded && checkStatus.total > 0 && checkStatus.done < checkStatus.total)
+                  ? `Finish daily checks (${checkStatus.done}/${checkStatus.total})`
+                  : 'Save Sales Data'}
             </button>
             {successMsg && (
               <button
