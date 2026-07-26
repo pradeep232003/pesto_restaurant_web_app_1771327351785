@@ -153,20 +153,17 @@ def _send_rota_email(
         return False
 
     ordered = sorted(shifts, key=lambda s: (s.get("date", ""), s.get("start_time", "")))
-    total_hours = round(sum(float(s.get("hours") or 0) for s in ordered), 2)
 
     rows_html = "".join(
         f"<tr>"
         f"<td style='padding:8px 12px;border-bottom:1px solid #EEE;font-size:14px'>{_fmt_date_long(s.get('date',''))}</td>"
         f"<td style='padding:8px 12px;border-bottom:1px solid #EEE;font-size:14px;font-variant-numeric:tabular-nums'>{s.get('start_time','')}–{s.get('end_time','')}</td>"
         f"<td style='padding:8px 12px;border-bottom:1px solid #EEE;font-size:14px;color:#86868B'>{s.get('role') or ''}</td>"
-        f"<td style='padding:8px 12px;border-bottom:1px solid #EEE;font-size:14px;text-align:right;font-variant-numeric:tabular-nums'>{float(s.get('hours') or 0):.2f}h</td>"
         f"</tr>"
         for s in ordered
     )
     rows_text = "\n".join(
         f"  • {_fmt_date_long(s.get('date',''))} {s.get('start_time','')}-{s.get('end_time','')}"
-        f" ({float(s.get('hours') or 0):.2f}h)"
         + (f" · {s.get('role')}" if s.get('role') else "")
         for s in ordered
     )
@@ -177,7 +174,6 @@ def _send_rota_email(
         f"Hi {staff_name or 'there'},\n\n"
         f"Your shifts have been published for the week of {start_date} to {end_date} at {location_name}.\n\n"
         f"{rows_text}\n\n"
-        f"Total: {total_hours:.2f} hours across {len(ordered)} shift{'s' if len(ordered)!=1 else ''}.\n\n"
         f"View your full rota: https://jollyskafe.com/jkhive/shifts\n\n"
         f"— Jolly's Kafe"
     )
@@ -197,12 +193,10 @@ def _send_rota_email(
           <th style="text-align:left;padding:8px 12px;font-size:11px;color:#86868B;text-transform:uppercase;letter-spacing:0.5px">Date</th>
           <th style="text-align:left;padding:8px 12px;font-size:11px;color:#86868B;text-transform:uppercase;letter-spacing:0.5px">Time</th>
           <th style="text-align:left;padding:8px 12px;font-size:11px;color:#86868B;text-transform:uppercase;letter-spacing:0.5px">Role</th>
-          <th style="text-align:right;padding:8px 12px;font-size:11px;color:#86868B;text-transform:uppercase;letter-spacing:0.5px">Hours</th>
         </tr>
       </thead>
       <tbody>{rows_html}</tbody>
     </table>
-    <p style="font-size:14px;margin:16px 0 0"><strong>Total:</strong> {total_hours:.2f} hours across {len(ordered)} shift{'s' if len(ordered)!=1 else ''}.</p>
     <p style="margin:24px 0 0">
       <a href="https://jollyskafe.com/jkhive/shifts"
          style="display:inline-block;background:#1D1D1F;color:#FFFFFF;padding:10px 18px;border-radius:999px;text-decoration:none;font-size:13px;font-weight:600">
@@ -408,6 +402,7 @@ async def print_rota(
     story.append(Paragraph(
         f"<font size=16><b>Rota — {loc_name}</b></font>", styles["Normal"],
     ))
+    story.append(Spacer(1, 6))
     story.append(Paragraph(
         f"<font size=10 color='#86868B'>"
         f"{d0.strftime('%a %d %b %Y')} — {d1.strftime('%a %d %b %Y')} · "
@@ -415,13 +410,12 @@ async def print_rota(
         f"</font>",
         styles["Normal"],
     ))
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 12))
 
-    # Header row: Staff / each day / Total
+    # Header row: Staff / each day (Total column removed per request)
     header = [Paragraph("Staff", hdr_left)]
     for d in days:
         header.append(Paragraph(d.strftime("%a<br/>%d %b"), hdr_style))
-    header.append(Paragraph("Total", hdr_style))
 
     table_rows = [header]
     for entry in ordered:
@@ -443,25 +437,20 @@ async def print_rota(
                     bit += "<br/><font size=6 color='#A35E00'>DRAFT</font>"
                 parts.append(bit)
             row.append(Paragraph("<br/>".join(parts), cell_style))
-        row.append(Paragraph(
-            f"<b>{entry['total_hours']:.1f}h</b>", cell_style,
-        ))
         table_rows.append(row)
 
     if not ordered:
         table_rows.append([
             Paragraph("<i>No shifts scheduled for this week.</i>", cell_style),
             *[Paragraph("", cell_style) for _ in days],
-            Paragraph("", cell_style),
         ])
 
-    # Column widths — staff col wider, day cols share the rest, total col fixed.
+    # Column widths — staff col wider, day cols share the rest (Total col removed).
     n_days = len(days)
     page_w = landscape(A4)[0] - 24*mm  # minus margins
     staff_w = 38*mm
-    total_w = 18*mm
-    day_w = max(20*mm, (page_w - staff_w - total_w) / n_days)
-    col_widths = [staff_w] + [day_w] * n_days + [total_w]
+    day_w = max(20*mm, (page_w - staff_w) / n_days)
+    col_widths = [staff_w] + [day_w] * n_days
 
     table = Table(table_rows, colWidths=col_widths, repeatRows=1)
     table.setStyle(TableStyle([
