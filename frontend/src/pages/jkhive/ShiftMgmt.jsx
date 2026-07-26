@@ -1281,22 +1281,24 @@ const EmailDebugModal = ({ state, onClose, onRerun }) => {
             <div style={{ background: '#F5F5F7', borderRadius: 12, padding: 12, marginBottom: 12 }}>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12 }}>
                 <div>
-                  <span style={{ color: '#86868B' }}>SMTP: </span>
-                  <strong style={{ color: data.smtp_configured ? '#1B7A35' : '#C0392B' }}>
-                    {data.smtp_configured ? 'configured' : 'NOT configured'}
+                  <span style={{ color: '#86868B' }}>Transport: </span>
+                  <strong style={{ color: data.transport === 'none' ? '#C0392B' : '#1B7A35' }}>
+                    {data.transport === 'resend' ? 'Resend (HTTPS)'
+                      : data.transport === 'smtp' ? `SMTP (${data.smtp_host}:${data.smtp_port})`
+                      : 'NONE — no transport configured'}
                   </strong>
                 </div>
-                {data.smtp_host && (
-                  <div><span style={{ color: '#86868B' }}>Host: </span><strong>{data.smtp_host}:{data.smtp_port}</strong></div>
+                {data.transport === 'resend' && data.resend_from && (
+                  <div><span style={{ color: '#86868B' }}>Sender: </span><strong>{data.resend_from}</strong></div>
                 )}
-                {data.smtp_email && (
+                {data.transport === 'smtp' && data.smtp_email && (
                   <div><span style={{ color: '#86868B' }}>Sender: </span><strong>{data.smtp_email}</strong></div>
                 )}
-                {data.smtp_reachable !== undefined && (
+                {data.smtp_reachable !== undefined && data.reach_host && (
                   <div>
-                    <span style={{ color: '#86868B' }}>Reachable: </span>
+                    <span style={{ color: '#86868B' }}>Reachable ({data.reach_host}:{data.reach_port}): </span>
                     <strong style={{ color: data.smtp_reachable ? '#1B7A35' : '#C0392B' }}>
-                      {data.smtp_reachable ? 'yes' : 'NO — port blocked/network unreachable'}
+                      {data.smtp_reachable ? 'yes' : 'NO — network unreachable'}
                     </strong>
                   </div>
                 )}
@@ -1304,9 +1306,6 @@ const EmailDebugModal = ({ state, onClose, onRerun }) => {
               {data.smtp_reach_error && (
                 <div style={{ marginTop: 8, fontSize: 11, color: '#C0392B', background: 'rgba(255,59,48,0.06)', padding: 8, borderRadius: 8 }}>
                   <strong>TCP error:</strong> {data.smtp_reach_error}
-                  <div style={{ marginTop: 4, color: '#3A3A3C' }}>
-                    Fix: change <code>SMTP_PORT</code> to <strong>465</strong> in your Railway env vars (Gmail supports both 587 STARTTLS and 465 SSL — 587 is often blocked on PaaS). If 465 also fails, switch to a HTTPS-based email API (Resend, SendGrid) which uses port 443.
-                  </div>
                 </div>
               )}
               <div style={{ marginTop: 6, fontSize: 12, color: '#3A3A3C' }}>

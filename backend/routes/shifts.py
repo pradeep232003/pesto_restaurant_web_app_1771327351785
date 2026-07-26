@@ -12,6 +12,7 @@ import json
 import os
 import logging
 import smtplib
+import socket
 import uuid
 from datetime import datetime, timezone, date as _date, timedelta as _td
 from email.mime.multipart import MIMEMultipart
@@ -19,6 +20,7 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from typing import Optional, List
 
+import resend
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
@@ -33,6 +35,12 @@ SMTP_HOST = os.environ.get("SMTP_HOST", "")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_EMAIL = os.environ.get("SMTP_EMAIL", "")
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+
+# Resend (primary transport — HTTPS on port 443, always open on PaaS).
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+RESEND_FROM = os.environ.get("RESEND_FROM", "Jolly's Kafe Rotas <onboarding@resend.dev>")
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
 
 shifts_collection = db["shifts"]
 staff_collection = db["staff_members"]
@@ -144,12 +152,13 @@ def _send_rota_email(
     start_date: str, end_date: str, shifts: List[dict],
 ) -> bool:
     """Send one staff member a summary of their published rota for the week.
-    Returns True on success, False if SMTP is unconfigured or sending fails
-    (logged, never raised)."""
-    if not all([SMTP_HOST, SMTP_EMAIL, SMTP_PASSWORD]):
-        _log.info("shifts.email: SMTP not configured; skipping email to %s", to_email)
-        return False
+
+    Prefers Resend (HTTPS, works everywhere) then falls back to SMTP.
+    Returns True on success, False on any failure (logged, never raised)."""
     if not to_email or not shifts:
+        return False
+    if not (RESEND_API_KEY or (SMTP_HOST and SMTP_EMAIL and SMTP_PASSWORD)):
+        _log.info("shifts.email: no transport configured; skipping email to %s", to_email)
         return False
 
     ordered = sorted(shifts, key=lambda s: (s.get("date", ""), s.get("start_time", "")))
@@ -207,16 +216,32 @@ def _send_rota_email(
   </div>
 </body></html>"""
 
+    # 1) Prefer Resend — HTTPS on 443, always open on PaaS.
+    if RESEND_API_KEY:
+        try:
+            res = resend.Emails.send({
+                "from": RESEND_FROM,
+                "to": [to_email],
+                "subject": subject,
+                "html": html_body,
+                "text": text_body,
+            })
+            _log.info("shifts.email: sent via Resend to %s (id=%s)",
+                      to_email, (res or {}).get("id"))
+            return True
+        except Exception as ex:
+            _log.warning("shifts.email: Resend send failed to %s: %s — falling back to SMTP",
+                         to_email, ex)
+
+    # 2) SMTP fallback. 465 → implicit SSL, else STARTTLS. 20s timeout.
+    if not (SMTP_HOST and SMTP_EMAIL and SMTP_PASSWORD):
+        return False
     msg = MIMEMultipart("alternative")
     msg["From"] = f"Jolly's Kafe Rotas <{SMTP_EMAIL}>"
     msg["To"] = to_email
     msg["Subject"] = subject
     msg.attach(MIMEText(text_body, "plain"))
     msg.attach(MIMEText(html_body, "html"))
-
-    # Port 465 → implicit SSL, port 587 → STARTTLS. Railway (and many
-    # PaaS providers) blocks 587 for spam abuse — 465 typically works.
-    # 20-second timeout so a blocked port fails fast instead of hanging.
     try:
         if SMTP_PORT == 465:
             with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20) as server:
@@ -227,10 +252,10 @@ def _send_rota_email(
                 server.starttls()
                 server.login(SMTP_EMAIL, SMTP_PASSWORD)
                 server.send_message(msg)
-        _log.info("shifts.email: sent rota to %s (%d shift(s))", to_email, len(ordered))
+        _log.info("shifts.email: sent via SMTP to %s (%d shift(s))", to_email, len(ordered))
         return True
     except Exception as ex:  # pragma: no cover — never break publish
-        _log.warning("shifts.email: send failed to %s (host=%s port=%s): %s",
+        _log.warning("shifts.email: SMTP send failed to %s (host=%s port=%s): %s",
                      to_email, SMTP_HOST, SMTP_PORT, ex)
         return False
 
@@ -333,15 +358,21 @@ async def debug_email(body: DebugEmailBody, user: dict = Depends(get_admin_user)
     Set `dry_run=true` for a look-only run; set `override_to` to route
     all attempts to a single mailbox for safe end-to-end testing."""
     smtp_ok = bool(SMTP_HOST and SMTP_EMAIL and SMTP_PASSWORD)
+    resend_ok = bool(RESEND_API_KEY)
+    transport = "resend" if resend_ok else ("smtp" if smtp_ok else "none")
 
-    # Live TCP reachability check so we can distinguish "Railway blocks
-    # this port" from "credentials wrong". 5s timeout — fails fast.
+    # Live TCP reachability check for the transport that WILL be used —
+    # api.resend.com:443 for Resend, SMTP host:port otherwise. 5s timeout.
     smtp_reachable = None
     smtp_reach_error: Optional[str] = None
-    if SMTP_HOST:
-        import socket
+    reach_host, reach_port = (None, None)
+    if resend_ok:
+        reach_host, reach_port = "api.resend.com", 443
+    elif SMTP_HOST:
+        reach_host, reach_port = SMTP_HOST, SMTP_PORT
+    if reach_host:
         try:
-            with socket.create_connection((SMTP_HOST, SMTP_PORT), timeout=5):
+            with socket.create_connection((reach_host, reach_port), timeout=5):
                 smtp_reachable = True
         except Exception as ex:
             smtp_reachable = False
@@ -386,8 +417,8 @@ async def debug_email(body: DebugEmailBody, user: dict = Depends(get_admin_user)
         }
         if not recipient:
             entry["reason"] = "no email address on staff record"
-        elif not smtp_ok:
-            entry["reason"] = "SMTP not configured (SMTP_HOST/SMTP_EMAIL/SMTP_PASSWORD)"
+        elif transport == "none":
+            entry["reason"] = "no email transport configured (RESEND_API_KEY or SMTP_*)"
         elif body.dry_run:
             entry["reason"] = "dry_run"
         else:
@@ -410,6 +441,11 @@ async def debug_email(body: DebugEmailBody, user: dict = Depends(get_admin_user)
         "smtp_host": SMTP_HOST or None,
         "smtp_port": SMTP_PORT,
         "smtp_email": SMTP_EMAIL or None,
+        "resend_configured": resend_ok,
+        "resend_from": RESEND_FROM if resend_ok else None,
+        "transport": transport,
+        "reach_host": reach_host,
+        "reach_port": reach_port,
         "smtp_reachable": smtp_reachable,
         "smtp_reach_error": smtp_reach_error,
         "location_name": loc_name,
