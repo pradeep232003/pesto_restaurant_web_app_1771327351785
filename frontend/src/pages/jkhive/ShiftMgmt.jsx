@@ -911,6 +911,14 @@ const ShiftMgmt = () => {
           onApply={aiApply}
         />
       )}
+
+      {emailDebug?.open && (
+        <EmailDebugModal
+          state={emailDebug}
+          onClose={() => setEmailDebug(null)}
+          onRerun={runEmailDebug}
+        />
+      )}
     </div>
   );
 };
@@ -1204,14 +1212,6 @@ const ShiftGrid = ({ weekStart, staffList, shifts, staffFilter, locationId, onCh
           busy={busy}
           onClose={closePopover}
           onCreate={quickCreate}
-        />
-      )}
-
-      {emailDebug?.open && (
-        <EmailDebugModal
-          state={emailDebug}
-          onClose={() => setEmailDebug(null)}
-          onRerun={runEmailDebug}
         />
       )}
     </div>
