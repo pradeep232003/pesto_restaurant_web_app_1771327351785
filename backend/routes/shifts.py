@@ -189,7 +189,6 @@ def _send_rota_email(
         f"Hi {staff_name or 'there'},\n\n"
         f"Your shifts have been published for the week of {start_date} to {end_date} at {location_name}.\n\n"
         f"{rows_text}\n\n"
-        f"View your full rota: https://jollyskafe.com/jkhive/shifts\n\n"
         f"— Jolly's Kafe"
     )
 
@@ -212,12 +211,6 @@ def _send_rota_email(
       </thead>
       <tbody>{rows_html}</tbody>
     </table>
-    <p style="margin:24px 0 0">
-      <a href="https://jollyskafe.com/jkhive/shifts"
-         style="display:inline-block;background:#1D1D1F;color:#FFFFFF;padding:10px 18px;border-radius:999px;text-decoration:none;font-size:13px;font-weight:600">
-        View full rota
-      </a>
-    </p>
     <p style="font-size:11px;color:#86868B;margin:24px 0 0">— Jolly's Kafe</p>
   </div>
 </body></html>"""
