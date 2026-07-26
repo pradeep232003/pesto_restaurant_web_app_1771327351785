@@ -214,15 +214,24 @@ def _send_rota_email(
     msg.attach(MIMEText(text_body, "plain"))
     msg.attach(MIMEText(html_body, "html"))
 
+    # Port 465 → implicit SSL, port 587 → STARTTLS. Railway (and many
+    # PaaS providers) blocks 587 for spam abuse — 465 typically works.
+    # 20-second timeout so a blocked port fails fast instead of hanging.
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_EMAIL, SMTP_PASSWORD)
-            server.send_message(msg)
+        if SMTP_PORT == 465:
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20) as server:
+                server.login(SMTP_EMAIL, SMTP_PASSWORD)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as server:
+                server.starttls()
+                server.login(SMTP_EMAIL, SMTP_PASSWORD)
+                server.send_message(msg)
         _log.info("shifts.email: sent rota to %s (%d shift(s))", to_email, len(ordered))
         return True
     except Exception as ex:  # pragma: no cover — never break publish
-        _log.warning("shifts.email: send failed to %s: %s", to_email, ex)
+        _log.warning("shifts.email: send failed to %s (host=%s port=%s): %s",
+                     to_email, SMTP_HOST, SMTP_PORT, ex)
         return False
 
 
@@ -325,6 +334,19 @@ async def debug_email(body: DebugEmailBody, user: dict = Depends(get_admin_user)
     all attempts to a single mailbox for safe end-to-end testing."""
     smtp_ok = bool(SMTP_HOST and SMTP_EMAIL and SMTP_PASSWORD)
 
+    # Live TCP reachability check so we can distinguish "Railway blocks
+    # this port" from "credentials wrong". 5s timeout — fails fast.
+    smtp_reachable = None
+    smtp_reach_error: Optional[str] = None
+    if SMTP_HOST:
+        import socket
+        try:
+            with socket.create_connection((SMTP_HOST, SMTP_PORT), timeout=5):
+                smtp_reachable = True
+        except Exception as ex:
+            smtp_reachable = False
+            smtp_reach_error = f"{type(ex).__name__}: {ex}"
+
     loc_rec = locations_collection.find_one(
         {"id": body.location_id}, {"_id": 0, "name": 1},
     ) or {}
@@ -386,7 +408,10 @@ async def debug_email(body: DebugEmailBody, user: dict = Depends(get_admin_user)
     return {
         "smtp_configured": smtp_ok,
         "smtp_host": SMTP_HOST or None,
+        "smtp_port": SMTP_PORT,
         "smtp_email": SMTP_EMAIL or None,
+        "smtp_reachable": smtp_reachable,
+        "smtp_reach_error": smtp_reach_error,
         "location_name": loc_name,
         "shifts_in_window": len(rows),
         "staff_scheduled": len(per_staff),

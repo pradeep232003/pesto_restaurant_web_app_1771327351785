@@ -1287,12 +1287,28 @@ const EmailDebugModal = ({ state, onClose, onRerun }) => {
                   </strong>
                 </div>
                 {data.smtp_host && (
-                  <div><span style={{ color: '#86868B' }}>Host: </span><strong>{data.smtp_host}</strong></div>
+                  <div><span style={{ color: '#86868B' }}>Host: </span><strong>{data.smtp_host}:{data.smtp_port}</strong></div>
                 )}
                 {data.smtp_email && (
                   <div><span style={{ color: '#86868B' }}>Sender: </span><strong>{data.smtp_email}</strong></div>
                 )}
+                {data.smtp_reachable !== undefined && (
+                  <div>
+                    <span style={{ color: '#86868B' }}>Reachable: </span>
+                    <strong style={{ color: data.smtp_reachable ? '#1B7A35' : '#C0392B' }}>
+                      {data.smtp_reachable ? 'yes' : 'NO — port blocked/network unreachable'}
+                    </strong>
+                  </div>
+                )}
               </div>
+              {data.smtp_reach_error && (
+                <div style={{ marginTop: 8, fontSize: 11, color: '#C0392B', background: 'rgba(255,59,48,0.06)', padding: 8, borderRadius: 8 }}>
+                  <strong>TCP error:</strong> {data.smtp_reach_error}
+                  <div style={{ marginTop: 4, color: '#3A3A3C' }}>
+                    Fix: change <code>SMTP_PORT</code> to <strong>465</strong> in your Railway env vars (Gmail supports both 587 STARTTLS and 465 SSL — 587 is often blocked on PaaS). If 465 also fails, switch to a HTTPS-based email API (Resend, SendGrid) which uses port 443.
+                  </div>
+                </div>
+              )}
               <div style={{ marginTop: 6, fontSize: 12, color: '#3A3A3C' }}>
                 {data.location_name} · {data.shifts_in_window} shifts across {data.staff_scheduled} staff ·
                 {' '}{data.dry_run ? 'dry-run' : `sent ${data.sent}`}
