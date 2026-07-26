@@ -307,6 +307,96 @@ async def publish_week(body: PublishWeekBody, user: dict = Depends(get_admin_use
     return {"published": published_count, "notified": notified, "emailed": emailed}
 
 
+class DebugEmailBody(BaseModel):
+    location_id: str
+    start_date: str
+    end_date: str
+    dry_run: bool = False  # when True, don't actually send — just return the plan
+    override_to: Optional[str] = None  # if set, route every email to this address for testing
+
+
+@router.post("/debug-email")
+async def debug_email(body: DebugEmailBody, user: dict = Depends(get_admin_user)):
+    """Diagnose the shift-publish email path. Returns SMTP config status,
+    every staff member scheduled in the week, and per-recipient send
+    result so admins can see exactly why emails did or didn't go out.
+
+    Set `dry_run=true` for a look-only run; set `override_to` to route
+    all attempts to a single mailbox for safe end-to-end testing."""
+    smtp_ok = bool(SMTP_HOST and SMTP_EMAIL and SMTP_PASSWORD)
+
+    loc_rec = locations_collection.find_one(
+        {"id": body.location_id}, {"_id": 0, "name": 1},
+    ) or {}
+    loc_name = loc_rec.get("name") or body.location_id
+
+    rows = list(shifts_collection.find(
+        {
+            "location_id": body.location_id,
+            "date": {"$gte": body.start_date, "$lte": body.end_date},
+        },
+        {"_id": 0, "staff_id": 1, "date": 1, "start_time": 1, "end_time": 1,
+         "staff_name": 1, "role": 1, "hours": 1, "published": 1},
+    ))
+    per_staff: dict = {}
+    for r in rows:
+        per_staff.setdefault(r.get("staff_id", ""), []).append(r)
+
+    results: List[dict] = []
+    sent_count = 0
+    for staff_id, shifts in per_staff.items():
+        staff_rec = staff_collection.find_one(
+            {"id": staff_id},
+            {"_id": 0, "name": 1, "email": 1, "account_email": 1},
+        ) or {}
+        personal = (staff_rec.get("email") or "").strip()
+        account = (staff_rec.get("account_email") or "").strip()
+        recipient = body.override_to or personal or account
+        entry: dict = {
+            "staff_id": staff_id,
+            "staff_name": staff_rec.get("name") or (shifts[0].get("staff_name") if shifts else ""),
+            "personal_email": personal or None,
+            "account_email": account or None,
+            "resolved_recipient": recipient or None,
+            "shift_count": len(shifts),
+            "sent": False,
+            "reason": None,
+        }
+        if not recipient:
+            entry["reason"] = "no email address on staff record"
+        elif not smtp_ok:
+            entry["reason"] = "SMTP not configured (SMTP_HOST/SMTP_EMAIL/SMTP_PASSWORD)"
+        elif body.dry_run:
+            entry["reason"] = "dry_run"
+        else:
+            ok = _send_rota_email(
+                to_email=recipient,
+                staff_name=entry["staff_name"] or "",
+                location_name=loc_name,
+                start_date=body.start_date,
+                end_date=body.end_date,
+                shifts=shifts,
+            )
+            entry["sent"] = ok
+            entry["reason"] = "sent" if ok else "SMTP send failed (check backend logs)"
+            if ok:
+                sent_count += 1
+        results.append(entry)
+
+    return {
+        "smtp_configured": smtp_ok,
+        "smtp_host": SMTP_HOST or None,
+        "smtp_email": SMTP_EMAIL or None,
+        "location_name": loc_name,
+        "shifts_in_window": len(rows),
+        "staff_scheduled": len(per_staff),
+        "sent": sent_count,
+        "dry_run": body.dry_run,
+        "override_to": body.override_to,
+        "results": sorted(results, key=lambda r: (r.get("staff_name") or "").lower()),
+    }
+
+
 @router.get("/print")
 async def print_rota(
     location_id: str = Query(..., description="Site id"),

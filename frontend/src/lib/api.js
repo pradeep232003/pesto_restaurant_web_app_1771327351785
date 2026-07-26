@@ -836,6 +836,9 @@ class ApiService {
   async shiftPublishWeek(body) {
     return this.fetch('/api/admin/shifts/publish-week', { method: 'POST', body: JSON.stringify(body) });
   }
+  async shiftDebugEmail(body) {
+    return this.fetch('/api/admin/shifts/debug-email', { method: 'POST', body: JSON.stringify(body) });
+  }
   async shiftPrintDownload({ location_id, start_date, end_date, include_drafts = true }) {
     // Auth'd binary download — uses the same token pattern as this.fetch.
     const qs = new URLSearchParams({ location_id, start_date, end_date, include_drafts: String(include_drafts) }).toString();

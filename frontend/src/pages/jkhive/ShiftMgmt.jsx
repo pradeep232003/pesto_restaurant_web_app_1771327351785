@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Plus, ChevronLeft, ChevronRight, X, Trash2, Users, Clock, Copy, Send, FileEdit, Sparkles, TrendingUp, Wallet, Edit3, Check, RotateCcw, Printer,
+  ArrowLeft, Plus, ChevronLeft, ChevronRight, X, Trash2, Users, Clock, Copy, Send, FileEdit, Sparkles, TrendingUp, Wallet, Edit3, Check, RotateCcw, Printer, Bug,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -298,6 +298,7 @@ const ShiftMgmt = () => {
   const [publishBusy, setPublishBusy] = useState(false);
   const [publishMsg, setPublishMsg] = useState('');
   const [printBusy, setPrintBusy] = useState(false);
+  const [emailDebug, setEmailDebug] = useState(null); // { open, loading, data, error }
   // AI rota suggestion — preview before applying.
   const [aiBusy, setAiBusy] = useState(false);
   const [aiPreview, setAiPreview] = useState(null); // { reasoning, target_start, shifts }
@@ -501,6 +502,27 @@ const ShiftMgmt = () => {
     }
   };
 
+  // "Email debug" — inspects the shift-publish email path so admins can
+  // see exactly why emails did or didn't reach staff (SMTP status, per
+  // staff email lookup, actual send attempt). `override_to` reroutes
+  // every attempt to a single admin mailbox so we can safely test in
+  // production without spamming real staff. Dry-run is a look-only.
+  const runEmailDebug = async ({ dryRun = false, overrideTo = '' } = {}) => {
+    setEmailDebug({ open: true, loading: true, data: null, error: '' });
+    try {
+      const data = await api.shiftDebugEmail({
+        location_id: adminLocationId,
+        start_date: toIso(weekStart),
+        end_date: toIso(weekEnd),
+        dry_run: dryRun,
+        override_to: overrideTo || undefined,
+      });
+      setEmailDebug({ open: true, loading: false, data, error: '' });
+    } catch (err) {
+      setEmailDebug({ open: true, loading: false, data: null, error: err.message || 'Debug failed' });
+    }
+  };
+
   // Wage cost for the visible window — sums hours × hourly_rate from the
   // staff records. Falls back to 0 for staff without an hourly rate set.
   const rateById = useMemo(() => Object.fromEntries(
@@ -648,6 +670,18 @@ const ShiftMgmt = () => {
                 display: 'inline-flex', alignItems: 'center', gap: 4, ...FONT,
               }}>
               <Printer size={12} /> {printBusy ? 'Building PDF…' : 'Print'}
+            </button>
+            <button
+              data-testid="shifts-email-debug"
+              onClick={() => runEmailDebug({ dryRun: true })}
+              title="Inspect the rota-email path for this week (SMTP status + per-staff diagnosis, no emails sent)"
+              style={{
+                padding: '8px 12px', borderRadius: 999, border: 0,
+                background: '#FFF3E0', color: '#A35E00', fontSize: 12, fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: 4, ...FONT,
+              }}>
+              <Bug size={12} /> Email debug
             </button>
           </div>
           {publishMsg && (
@@ -1172,6 +1206,178 @@ const ShiftGrid = ({ weekStart, staffList, shifts, staffFilter, locationId, onCh
           onCreate={quickCreate}
         />
       )}
+
+      {emailDebug?.open && (
+        <EmailDebugModal
+          state={emailDebug}
+          onClose={() => setEmailDebug(null)}
+          onRerun={runEmailDebug}
+        />
+      )}
+    </div>
+  );
+};
+
+/**
+ * Modal that surfaces the shift-publish email diagnosis. Shows SMTP
+ * status, every staff member scheduled this week, their resolved
+ * email address, and the actual send result. Two action buttons:
+ *  • Dry run — recompute without sending anything
+ *  • Send test → me — reroutes every attempt to the admin's own email
+ *    so the admin can preview the exact HTML each staff will get.
+ */
+const EmailDebugModal = ({ state, onClose, onRerun }) => {
+  const { loading, data, error } = state;
+  const [overrideTo, setOverrideTo] = React.useState('');
+
+  return (
+    <div
+      data-testid="email-debug-modal"
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 200, padding: 16, ...FONT,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#FFFFFF', borderRadius: 20, maxWidth: 640, width: '100%',
+          maxHeight: '84vh', overflow: 'auto', padding: 20,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <Bug size={16} color="#A35E00" />
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#1D1D1F' }}>
+            Rota email debug
+          </h2>
+          <button
+            data-testid="email-debug-close"
+            onClick={onClose}
+            style={{ marginLeft: 'auto', background: 'transparent', border: 0, cursor: 'pointer', color: '#86868B' }}
+            aria-label="Close"
+          ><X size={18} /></button>
+        </div>
+        <p style={{ margin: '0 0 14px', fontSize: 12, color: '#86868B' }}>
+          Inspects the shift-publish email path for the current week. Use
+          &ldquo;Send test → me&rdquo; to receive a real preview at your own address without spamming staff.
+        </p>
+
+        {loading && (
+          <div style={{ padding: 24, textAlign: 'center', color: '#86868B', fontSize: 13 }}>
+            Diagnosing…
+          </div>
+        )}
+        {error && (
+          <div style={{ background: 'rgba(255,59,48,0.08)', color: '#C0392B', padding: 12, borderRadius: 10, fontSize: 13, marginBottom: 12 }}>
+            {error}
+          </div>
+        )}
+
+        {data && (
+          <>
+            <div style={{ background: '#F5F5F7', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12 }}>
+                <div>
+                  <span style={{ color: '#86868B' }}>SMTP: </span>
+                  <strong style={{ color: data.smtp_configured ? '#1B7A35' : '#C0392B' }}>
+                    {data.smtp_configured ? 'configured' : 'NOT configured'}
+                  </strong>
+                </div>
+                {data.smtp_host && (
+                  <div><span style={{ color: '#86868B' }}>Host: </span><strong>{data.smtp_host}</strong></div>
+                )}
+                {data.smtp_email && (
+                  <div><span style={{ color: '#86868B' }}>Sender: </span><strong>{data.smtp_email}</strong></div>
+                )}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 12, color: '#3A3A3C' }}>
+                {data.location_name} · {data.shifts_in_window} shifts across {data.staff_scheduled} staff ·
+                {' '}{data.dry_run ? 'dry-run' : `sent ${data.sent}`}
+                {data.override_to ? ` · rerouted to ${data.override_to}` : ''}
+              </div>
+            </div>
+
+            {(!data.results || data.results.length === 0) ? (
+              <p style={{ color: '#86868B', fontSize: 13, textAlign: 'center', padding: 20 }}>
+                No staff are scheduled for this week.
+              </p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: '#FBFBFD', color: '#86868B', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    <th style={{ textAlign: 'left', padding: '8px 8px', fontSize: 11 }}>Staff</th>
+                    <th style={{ textAlign: 'left', padding: '8px 8px', fontSize: 11 }}>Email used</th>
+                    <th style={{ textAlign: 'right', padding: '8px 8px', fontSize: 11 }}>Shifts</th>
+                    <th style={{ textAlign: 'left', padding: '8px 8px', fontSize: 11 }}>Result</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.results.map(r => (
+                    <tr key={r.staff_id} style={{ borderTop: '1px solid #EEE' }}>
+                      <td style={{ padding: '8px 8px', fontWeight: 600, color: '#1D1D1F' }}>{r.staff_name || '—'}</td>
+                      <td style={{ padding: '8px 8px', color: r.resolved_recipient ? '#1D1D1F' : '#C0392B', fontSize: 11 }}>
+                        {r.resolved_recipient || '(none)'}
+                        {r.personal_email && r.account_email && r.personal_email !== r.account_email && (
+                          <div style={{ color: '#86868B', fontSize: 10 }}>account: {r.account_email}</div>
+                        )}
+                      </td>
+                      <td style={{ padding: '8px 8px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.shift_count}</td>
+                      <td style={{ padding: '8px 8px', fontSize: 11 }}>
+                        <span style={{
+                          display: 'inline-block', padding: '2px 8px', borderRadius: 999, fontWeight: 700,
+                          background: r.sent ? 'rgba(52,199,89,0.12)' : (r.reason === 'dry_run' ? '#F5F5F7' : 'rgba(255,149,0,0.12)'),
+                          color: r.sent ? '#1B7A35' : (r.reason === 'dry_run' ? '#3A3A3C' : '#A35E00'),
+                        }}>{r.sent ? 'SENT' : (r.reason || 'skipped')}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+
+        <div style={{ borderTop: '1px solid #EEE', marginTop: 14, paddingTop: 12 }}>
+          <label style={{ display: 'block', fontSize: 11, color: '#86868B', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+            Send test → me (routes every email to this address)
+          </label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <input
+              data-testid="email-debug-override"
+              type="email"
+              placeholder="your.email@example.com"
+              value={overrideTo}
+              onChange={e => setOverrideTo(e.target.value)}
+              style={{ flex: '1 1 200px', padding: '8px 10px', borderRadius: 10, border: '1px solid #E5E5EA', fontSize: 13 }}
+            />
+            <button
+              data-testid="email-debug-send-test"
+              onClick={() => onRerun({ dryRun: false, overrideTo })}
+              disabled={!overrideTo || loading}
+              style={{
+                padding: '8px 14px', borderRadius: 999, border: 0,
+                background: overrideTo ? '#34C759' : '#F5F5F7',
+                color: overrideTo ? '#FFFFFF' : '#86868B', fontSize: 12, fontWeight: 700,
+                cursor: overrideTo ? 'pointer' : 'not-allowed',
+              }}>
+              Send test
+            </button>
+            <button
+              data-testid="email-debug-rerun"
+              onClick={() => onRerun({ dryRun: true })}
+              disabled={loading}
+              style={{
+                padding: '8px 14px', borderRadius: 999, border: 0,
+                background: '#F5F5F7', color: '#1D1D1F', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              }}>
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
