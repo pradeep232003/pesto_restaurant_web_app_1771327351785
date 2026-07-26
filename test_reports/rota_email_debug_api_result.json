@@ -1,0 +1,90 @@
+{
+  "api_base": "https://jovial-hamilton-4.preview.emergentagent.com",
+  "steps": [
+    {
+      "step": "login",
+      "status": 200
+    },
+    {
+      "step": "dry_run",
+      "status": 200,
+      "json": {
+        "smtp_configured": true,
+        "smtp_host": "smtp.gmail.com",
+        "smtp_port": 587,
+        "smtp_email": "jollyskafe@gmail.com",
+        "resend_configured": true,
+        "resend_from": "Jolly's Kafe Rotas <onboarding@resend.dev>",
+        "transport": "resend",
+        "reach_host": "api.resend.com",
+        "reach_port": 443,
+        "smtp_reachable": true,
+        "smtp_reach_error": null,
+        "location_name": "Timperley, Altrincham",
+        "shifts_in_window": 1,
+        "staff_scheduled": 1,
+        "sent": 0,
+        "dry_run": true,
+        "override_to": null,
+        "results": [
+          {
+            "staff_id": "3c43fc99-800",
+            "staff_name": "Alice Brown",
+            "personal_email": null,
+            "account_email": null,
+            "resolved_recipient": null,
+            "shift_count": 1,
+            "sent": false,
+            "reason": "no email address on staff record"
+          }
+        ]
+      }
+    },
+    {
+      "step": "live_send",
+      "status": 200,
+      "json": {
+        "smtp_configured": true,
+        "smtp_host": "smtp.gmail.com",
+        "smtp_port": 587,
+        "smtp_email": "jollyskafe@gmail.com",
+        "resend_configured": true,
+        "resend_from": "Jolly's Kafe Rotas <onboarding@resend.dev>",
+        "transport": "resend",
+        "reach_host": "api.resend.com",
+        "reach_port": 443,
+        "smtp_reachable": true,
+        "smtp_reach_error": null,
+        "location_name": "Timperley, Altrincham",
+        "shifts_in_window": 1,
+        "staff_scheduled": 1,
+        "sent": 1,
+        "dry_run": false,
+        "override_to": "jpmanchesteruk@gmail.com",
+        "results": [
+          {
+            "staff_id": "3c43fc99-800",
+            "staff_name": "Alice Brown",
+            "personal_email": null,
+            "account_email": null,
+            "resolved_recipient": "jpmanchesteruk@gmail.com",
+            "shift_count": 1,
+            "sent": true,
+            "reason": "sent"
+          }
+        ]
+      }
+    }
+  ],
+  "dry_assertions": {
+    "transport_resend": true,
+    "resend_configured_true": true,
+    "reach_host_api_resend": true,
+    "reach_port_443": true,
+    "smtp_reachable_true": true
+  },
+  "live_assertions": {
+    "has_sent_true_reason_sent": true,
+    "override_only_allowed_address": true
+  }
+}

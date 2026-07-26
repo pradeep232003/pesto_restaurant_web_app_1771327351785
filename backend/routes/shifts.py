@@ -431,9 +431,18 @@ async def debug_email(body: DebugEmailBody, user: dict = Depends(get_admin_user)
                 shifts=shifts,
             )
             entry["sent"] = ok
-            entry["reason"] = "sent" if ok else "SMTP send failed (check backend logs)"
             if ok:
+                entry["reason"] = "sent"
                 sent_count += 1
+            else:
+                # Transport-aware message so we never show "SMTP" wording
+                # when Resend is the active transport.
+                entry["reason"] = (
+                    "Resend send failed (check backend logs — likely testing-mode "
+                    "restriction or unverified domain)"
+                    if transport == "resend"
+                    else "SMTP send failed (check backend logs)"
+                )
         results.append(entry)
 
     return {

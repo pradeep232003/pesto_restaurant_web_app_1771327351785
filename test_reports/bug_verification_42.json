@@ -1,0 +1,35 @@
+{
+  "verdict": "fixed",
+  "user_reported_bug": "Rota email debug use resend still showing smtp",
+  "summary": "No relevant testing skill found. Focused UI and backend verification confirms the rota email debug flow now reports Resend as the active transport. UI modal showed 'Transport: Resend (HTTPS)', Resend sender, and 'Reachable (api.resend.com:443): yes' with no visible smtp.gmail.com/587/465/SMTP wording; backend dry-run and live-send assertions passed using only jpmanchesteruk@gmail.com for the Resend testing-mode send.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/test_rota_email_debug_api.py",
+    "/app/test_reports/rota_email_debug_api_result.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/test_reports/test_rota_email_debug_api.py",
+    "/app/test_reports/rota_email_debug_api_result.json",
+    "/app/test_reports/bug_verification_42.json",
+    "/app/test_reports/iteration_42.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "No seed data created.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Skill search for 'Rota email debug Resend SMTP shifts' returned no relevant testing skill. Tested preview URL https://jovial-hamilton-4.preview.emergentagent.com. Backend API login succeeded; dry-run POST /api/admin/shifts/debug-email for timperley-altrincham 2026-06-20..2026-06-26 returned transport=resend, resend_configured=true, reach_host=api.resend.com, reach_port=443, smtp_reachable=true. Live-send with override_to=jpmanchesteruk@gmail.com returned sent=1 and a result with sent=true/reason=sent. UI /jkhive/shifts rendered without 'Something went wrong'; [data-testid=shifts-print-rota] was present; [data-testid=email-debug-modal] showed Resend summary and hid SMTP wording.",
+  "rca_of_the_issue": "Verified the user-visible regression is resolved end-to-end: the backend chooses Resend as active transport when RESEND_API_KEY is configured and the frontend conditionally renders Resend summary fields instead of SMTP host/port when data.transport === 'resend'."
+}
