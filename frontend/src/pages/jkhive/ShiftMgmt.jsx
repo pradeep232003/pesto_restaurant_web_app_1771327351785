@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Plus, ChevronLeft, ChevronRight, X, Trash2, Users, Clock, Copy, Send, FileEdit, Sparkles, TrendingUp, Wallet, Edit3, Check, RotateCcw,
+  ArrowLeft, Plus, ChevronLeft, ChevronRight, X, Trash2, Users, Clock, Copy, Send, FileEdit, Sparkles, TrendingUp, Wallet, Edit3, Check, RotateCcw, Printer,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -297,6 +297,7 @@ const ShiftMgmt = () => {
   const [copyBusy, setCopyBusy] = useState(false);
   const [publishBusy, setPublishBusy] = useState(false);
   const [publishMsg, setPublishMsg] = useState('');
+  const [printBusy, setPrintBusy] = useState(false);
   // AI rota suggestion — preview before applying.
   const [aiBusy, setAiBusy] = useState(false);
   const [aiPreview, setAiPreview] = useState(null); // { reasoning, target_start, shifts }
@@ -464,12 +465,39 @@ const ShiftMgmt = () => {
         end_date: toIso(weekEnd),
         notify: true,
       });
-      setPublishMsg(`Published ${res.published} shift${res.published === 1 ? '' : 's'} · notified ${res.notified} staff member${res.notified === 1 ? '' : 's'}.`);
+      setPublishMsg(`Published ${res.published} shift${res.published === 1 ? '' : 's'} · notified ${res.notified} staff member${res.notified === 1 ? '' : 's'}${typeof res.emailed === 'number' ? ` · emailed ${res.emailed}` : ''}.`);
       await load();
     } catch (err) {
       setError(err.message || 'Could not publish week');
     } finally {
       setPublishBusy(false);
+    }
+  };
+
+  // "Print rota" — landscape A4 PDF for pinning up in the kitchen.
+  // Downloads via the browser's usual Save-As flow.
+  const printRota = async () => {
+    setPrintBusy(true);
+    setError('');
+    try {
+      const blob = await api.shiftPrintDownload({
+        location_id: adminLocationId,
+        start_date: toIso(weekStart),
+        end_date: toIso(weekEnd),
+        include_drafts: true,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `rota_${adminLocationId}_${toIso(weekStart)}_to_${toIso(weekEnd)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message || 'Could not print rota');
+    } finally {
+      setPrintBusy(false);
     }
   };
 
@@ -607,6 +635,19 @@ const ShiftMgmt = () => {
                 display: 'inline-flex', alignItems: 'center', gap: 4, ...FONT,
               }}>
               <Send size={12} /> {publishBusy ? 'Publishing…' : (draftCount > 0 ? `Publish (${draftCount})` : 'Published')}
+            </button>
+            <button
+              data-testid="shifts-print-rota"
+              onClick={printRota}
+              disabled={printBusy}
+              title="Download landscape A4 rota PDF for pinning up"
+              style={{
+                padding: '8px 12px', borderRadius: 999, border: 0,
+                background: '#F5F5F7', color: '#1D1D1F', fontSize: 12, fontWeight: 700,
+                cursor: printBusy ? 'wait' : 'pointer', opacity: printBusy ? 0.6 : 1,
+                display: 'inline-flex', alignItems: 'center', gap: 4, ...FONT,
+              }}>
+              <Printer size={12} /> {printBusy ? 'Building PDF…' : 'Print'}
             </button>
           </div>
           {publishMsg && (

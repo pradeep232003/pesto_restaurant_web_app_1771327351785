@@ -9,8 +9,14 @@ Admin gated (admin + super_admin) — staff can view their own shifts via
 their account, but creating/editing requires manager privileges.
 """
 import json
+import os
+import logging
+import smtplib
 import uuid
 from datetime import datetime, timezone, date as _date, timedelta as _td
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -21,11 +27,19 @@ from auth import get_admin_user, get_staff_or_above
 
 router = APIRouter(prefix="/api/admin/shifts", tags=["shifts"])
 
+_log = logging.getLogger("shifts")
+
+SMTP_HOST = os.environ.get("SMTP_HOST", "")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_EMAIL = os.environ.get("SMTP_EMAIL", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+
 shifts_collection = db["shifts"]
 staff_collection = db["staff_members"]
 daily_sales_collection = db["daily_sales"]
 site_settings_collection = db["site_settings"]
 shift_budgets_collection = db["shift_budgets"]
+locations_collection = db["locations"]
 
 
 # Default wage-to-revenue target. Keep in sync with the frontend label.
@@ -116,6 +130,108 @@ class PublishWeekBody(BaseModel):
     notify: bool = True
 
 
+def _fmt_date_long(iso: str) -> str:
+    """`2026-02-10` → `Tue 10 Feb`. Falls back to raw string on parse fail."""
+    try:
+        d = _date.fromisoformat(iso)
+        return d.strftime("%a %d %b")
+    except Exception:
+        return iso
+
+
+def _send_rota_email(
+    *, to_email: str, staff_name: str, location_name: str,
+    start_date: str, end_date: str, shifts: List[dict],
+) -> bool:
+    """Send one staff member a summary of their published rota for the week.
+    Returns True on success, False if SMTP is unconfigured or sending fails
+    (logged, never raised)."""
+    if not all([SMTP_HOST, SMTP_EMAIL, SMTP_PASSWORD]):
+        _log.info("shifts.email: SMTP not configured; skipping email to %s", to_email)
+        return False
+    if not to_email or not shifts:
+        return False
+
+    ordered = sorted(shifts, key=lambda s: (s.get("date", ""), s.get("start_time", "")))
+    total_hours = round(sum(float(s.get("hours") or 0) for s in ordered), 2)
+
+    rows_html = "".join(
+        f"<tr>"
+        f"<td style='padding:8px 12px;border-bottom:1px solid #EEE;font-size:14px'>{_fmt_date_long(s.get('date',''))}</td>"
+        f"<td style='padding:8px 12px;border-bottom:1px solid #EEE;font-size:14px;font-variant-numeric:tabular-nums'>{s.get('start_time','')}–{s.get('end_time','')}</td>"
+        f"<td style='padding:8px 12px;border-bottom:1px solid #EEE;font-size:14px;color:#86868B'>{s.get('role') or ''}</td>"
+        f"<td style='padding:8px 12px;border-bottom:1px solid #EEE;font-size:14px;text-align:right;font-variant-numeric:tabular-nums'>{float(s.get('hours') or 0):.2f}h</td>"
+        f"</tr>"
+        for s in ordered
+    )
+    rows_text = "\n".join(
+        f"  • {_fmt_date_long(s.get('date',''))} {s.get('start_time','')}-{s.get('end_time','')}"
+        f" ({float(s.get('hours') or 0):.2f}h)"
+        + (f" · {s.get('role')}" if s.get('role') else "")
+        for s in ordered
+    )
+
+    subject = f"Your rota {_fmt_date_long(start_date)} — {_fmt_date_long(end_date)} · {location_name}"
+
+    text_body = (
+        f"Hi {staff_name or 'there'},\n\n"
+        f"Your shifts have been published for the week of {start_date} to {end_date} at {location_name}.\n\n"
+        f"{rows_text}\n\n"
+        f"Total: {total_hours:.2f} hours across {len(ordered)} shift{'s' if len(ordered)!=1 else ''}.\n\n"
+        f"View your full rota: https://jollyskafe.com/jkhive/shifts\n\n"
+        f"— Jolly's Kafe"
+    )
+
+    html_body = f"""\
+<html><body style="font-family:'Outfit',-apple-system,sans-serif;background:#F5F5F7;padding:24px;color:#1D1D1F">
+  <div style="max-width:560px;margin:0 auto;background:#FFFFFF;border-radius:16px;padding:28px;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+    <p style="font-size:12px;color:#86868B;text-transform:uppercase;letter-spacing:0.6px;margin:0 0 4px">New rota published</p>
+    <h1 style="font-size:22px;margin:0 0 4px;font-weight:700">Hi {staff_name or 'there'},</h1>
+    <p style="font-size:14px;color:#3A3A3C;margin:0 0 20px">
+      Your shifts for <strong>{_fmt_date_long(start_date)} — {_fmt_date_long(end_date)}</strong>
+      at <strong>{location_name}</strong> are ready.
+    </p>
+    <table style="width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;background:#FBFBFD">
+      <thead>
+        <tr style="background:#F5F5F7">
+          <th style="text-align:left;padding:8px 12px;font-size:11px;color:#86868B;text-transform:uppercase;letter-spacing:0.5px">Date</th>
+          <th style="text-align:left;padding:8px 12px;font-size:11px;color:#86868B;text-transform:uppercase;letter-spacing:0.5px">Time</th>
+          <th style="text-align:left;padding:8px 12px;font-size:11px;color:#86868B;text-transform:uppercase;letter-spacing:0.5px">Role</th>
+          <th style="text-align:right;padding:8px 12px;font-size:11px;color:#86868B;text-transform:uppercase;letter-spacing:0.5px">Hours</th>
+        </tr>
+      </thead>
+      <tbody>{rows_html}</tbody>
+    </table>
+    <p style="font-size:14px;margin:16px 0 0"><strong>Total:</strong> {total_hours:.2f} hours across {len(ordered)} shift{'s' if len(ordered)!=1 else ''}.</p>
+    <p style="margin:24px 0 0">
+      <a href="https://jollyskafe.com/jkhive/shifts"
+         style="display:inline-block;background:#1D1D1F;color:#FFFFFF;padding:10px 18px;border-radius:999px;text-decoration:none;font-size:13px;font-weight:600">
+        View full rota
+      </a>
+    </p>
+    <p style="font-size:11px;color:#86868B;margin:24px 0 0">— Jolly's Kafe</p>
+  </div>
+</body></html>"""
+
+    msg = MIMEMultipart("alternative")
+    msg["From"] = f"Jolly's Kafe Rotas <{SMTP_EMAIL}>"
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.attach(MIMEText(text_body, "plain"))
+    msg.attach(MIMEText(html_body, "html"))
+
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_EMAIL, SMTP_PASSWORD)
+            server.send_message(msg)
+        _log.info("shifts.email: sent rota to %s (%d shift(s))", to_email, len(ordered))
+        return True
+    except Exception as ex:  # pragma: no cover — never break publish
+        _log.warning("shifts.email: send failed to %s: %s", to_email, ex)
+        return False
+
+
 @router.post("/publish-week")
 async def publish_week(body: PublishWeekBody, user: dict = Depends(get_admin_user)):
     """Mark every draft shift in the range as published, and (optionally)
@@ -137,27 +253,34 @@ async def publish_week(body: PublishWeekBody, user: dict = Depends(get_admin_use
     published_count = res.modified_count
 
     notified = 0
+    emailed = 0
     if body.notify and published_count:
         # Group newly-published shifts by staff_id so each person gets one
-        # push, not one per shift. We re-query the freshly-flagged rows.
+        # push + one email, not one per shift. We re-query the freshly-flagged rows.
         rows = list(shifts_collection.find(
             {
                 "location_id": body.location_id,
                 "date": {"$gte": body.start_date, "$lte": body.end_date},
                 "published_at": {"$exists": True},
             },
-            {"_id": 0, "staff_id": 1, "date": 1, "start_time": 1, "end_time": 1, "staff_name": 1},
+            {"_id": 0, "staff_id": 1, "date": 1, "start_time": 1, "end_time": 1,
+             "staff_name": 1, "role": 1, "notes": 1, "hours": 1},
         ))
         per_staff: dict = {}
         for r in rows:
             per_staff.setdefault(r.get("staff_id", ""), []).append(r)
 
+        loc_rec = locations_collection.find_one(
+            {"id": body.location_id}, {"_id": 0, "name": 1},
+        ) or {}
+        loc_name = loc_rec.get("name") or body.location_id
+
         from routes.push import send_push_to_user
         for staff_id, shifts in per_staff.items():
             staff_rec = staff_collection.find_one(
-                {"id": staff_id}, {"_id": 0, "account_email": 1, "name": 1},
+                {"id": staff_id}, {"_id": 0, "account_email": 1, "name": 1, "email": 1},
             )
-            if not staff_rec or not staff_rec.get("account_email"):
+            if not staff_rec:
                 continue
             count = len(shifts)
             first = min(shifts, key=lambda s: s.get("date", "9999"))
@@ -165,15 +288,215 @@ async def publish_week(body: PublishWeekBody, user: dict = Depends(get_admin_use
                 f"{count} shift{'s' if count != 1 else ''} published. "
                 f"First: {first.get('date')} {first.get('start_time')}–{first.get('end_time')}."
             )
-            if send_push_to_user(staff_rec["account_email"], {
-                "title": "New rota published",
-                "body": body_text,
-                "tag": f"shift-publish-{body.start_date}",
-                "url": "/jkhive/shifts",
-            }):
+            # Push (existing)
+            if staff_rec.get("account_email") and send_push_to_user(
+                staff_rec["account_email"], {
+                    "title": "New rota published",
+                    "body": body_text,
+                    "tag": f"shift-publish-{body.start_date}",
+                    "url": "/jkhive/shifts",
+                },
+            ):
                 notified += 1
+            # Email — send to `email` (personal) if present, else `account_email`.
+            recipient = (staff_rec.get("email") or staff_rec.get("account_email") or "").strip()
+            if recipient and _send_rota_email(
+                to_email=recipient,
+                staff_name=staff_rec.get("name") or "",
+                location_name=loc_name,
+                start_date=body.start_date,
+                end_date=body.end_date,
+                shifts=shifts,
+            ):
+                emailed += 1
 
-    return {"published": published_count, "notified": notified}
+    return {"published": published_count, "notified": notified, "emailed": emailed}
+
+
+@router.get("/print")
+async def print_rota(
+    location_id: str = Query(..., description="Site id"),
+    start_date: str = Query(..., description="Week start (YYYY-MM-DD)"),
+    end_date: str = Query(..., description="Week end (YYYY-MM-DD)"),
+    include_drafts: bool = Query(True, description="Include unpublished drafts"),
+    user: dict = Depends(get_admin_user),
+):
+    """Return a landscape A4 PDF of the weekly rota — one row per staff
+    member, one column per day, times printed inside each cell. Suitable
+    for pinning up in the kitchen."""
+    import io
+    from fastapi.responses import StreamingResponse
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.platypus import (
+        SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer,
+    )
+
+    # Load week window
+    try:
+        d0 = _date.fromisoformat(start_date)
+        d1 = _date.fromisoformat(end_date)
+    except ValueError:
+        raise HTTPException(400, "Invalid date format; expected YYYY-MM-DD")
+    if d1 < d0:
+        raise HTTPException(400, "end_date is before start_date")
+    days = []
+    d = d0
+    while d <= d1:
+        days.append(d)
+        d += _td(days=1)
+
+    # Location + shifts
+    loc_rec = locations_collection.find_one(
+        {"id": location_id}, {"_id": 0, "name": 1},
+    ) or {}
+    loc_name = loc_rec.get("name") or location_id
+
+    q: dict = {
+        "location_id": location_id,
+        "date": {"$gte": start_date, "$lte": end_date},
+    }
+    if not include_drafts:
+        q["published"] = True
+    rows = list(shifts_collection.find(q, {"_id": 0}))
+
+    # Group: staff_id → {name, per-day list of shifts, total_hours}
+    grouped: dict = {}
+    for r in rows:
+        sid = r.get("staff_id") or "_unassigned"
+        entry = grouped.setdefault(sid, {
+            "staff_name": r.get("staff_name") or "Unassigned",
+            "cells": {d.isoformat(): [] for d in days},
+            "total_hours": 0.0,
+            "any_draft": False,
+        })
+        dt = r.get("date")
+        if dt in entry["cells"]:
+            entry["cells"][dt].append(r)
+            entry["total_hours"] += float(r.get("hours") or 0)
+            if not r.get("published"):
+                entry["any_draft"] = True
+
+    ordered = sorted(grouped.values(), key=lambda e: e["staff_name"].lower())
+
+    # PDF build
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=landscape(A4),
+        leftMargin=12*mm, rightMargin=12*mm, topMargin=14*mm, bottomMargin=12*mm,
+        title=f"Rota — {loc_name} {start_date} to {end_date}",
+    )
+    styles = getSampleStyleSheet()
+    hdr_style = ParagraphStyle(
+        name="hdr", parent=styles["Normal"], fontName="Helvetica-Bold",
+        fontSize=9, textColor=colors.white, alignment=TA_CENTER, leading=11,
+    )
+    hdr_left = ParagraphStyle(name="hdrL", parent=hdr_style, alignment=TA_LEFT)
+    cell_style = ParagraphStyle(
+        name="cell", parent=styles["Normal"], fontName="Helvetica",
+        fontSize=8, leading=10, alignment=TA_CENTER,
+    )
+    name_style = ParagraphStyle(
+        name="name", parent=styles["Normal"], fontName="Helvetica-Bold",
+        fontSize=9, leading=11, alignment=TA_LEFT,
+    )
+
+    story: list = []
+    story.append(Paragraph(
+        f"<font size=16><b>Rota — {loc_name}</b></font>", styles["Normal"],
+    ))
+    story.append(Paragraph(
+        f"<font size=10 color='#86868B'>"
+        f"{d0.strftime('%a %d %b %Y')} — {d1.strftime('%a %d %b %Y')} · "
+        f"Generated {datetime.now().strftime('%d %b %Y %H:%M')}"
+        f"</font>",
+        styles["Normal"],
+    ))
+    story.append(Spacer(1, 8))
+
+    # Header row: Staff / each day / Total
+    header = [Paragraph("Staff", hdr_left)]
+    for d in days:
+        header.append(Paragraph(d.strftime("%a<br/>%d %b"), hdr_style))
+    header.append(Paragraph("Total", hdr_style))
+
+    table_rows = [header]
+    for entry in ordered:
+        row = [Paragraph(
+            entry["staff_name"] + (" *" if entry["any_draft"] else ""),
+            name_style,
+        )]
+        for d in days:
+            cell_shifts = entry["cells"][d.isoformat()]
+            if not cell_shifts:
+                row.append(Paragraph("<font color='#C7C7CC'>—</font>", cell_style))
+                continue
+            parts = []
+            for s in sorted(cell_shifts, key=lambda x: x.get("start_time", "")):
+                bit = f"{s.get('start_time','')}–{s.get('end_time','')}"
+                if s.get("role"):
+                    bit += f"<br/><font size=7 color='#86868B'>{s['role']}</font>"
+                if not s.get("published"):
+                    bit += "<br/><font size=6 color='#A35E00'>DRAFT</font>"
+                parts.append(bit)
+            row.append(Paragraph("<br/>".join(parts), cell_style))
+        row.append(Paragraph(
+            f"<b>{entry['total_hours']:.1f}h</b>", cell_style,
+        ))
+        table_rows.append(row)
+
+    if not ordered:
+        table_rows.append([
+            Paragraph("<i>No shifts scheduled for this week.</i>", cell_style),
+            *[Paragraph("", cell_style) for _ in days],
+            Paragraph("", cell_style),
+        ])
+
+    # Column widths — staff col wider, day cols share the rest, total col fixed.
+    n_days = len(days)
+    page_w = landscape(A4)[0] - 24*mm  # minus margins
+    staff_w = 38*mm
+    total_w = 18*mm
+    day_w = max(20*mm, (page_w - staff_w - total_w) / n_days)
+    col_widths = [staff_w] + [day_w] * n_days + [total_w]
+
+    table = Table(table_rows, colWidths=col_widths, repeatRows=1)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1D1D1F")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#E5E5EA")),
+        ("BACKGROUND", (0, 1), (0, -1), colors.HexColor("#FAFAFC")),
+        ("ROWBACKGROUNDS", (1, 1), (-1, -1), [colors.white, colors.HexColor("#FBFBFD")]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    story.append(table)
+
+    # Footnote if any drafts present
+    if any(e["any_draft"] for e in ordered):
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(
+            "<font size=8 color='#86868B'>* indicates the staff member has at least one DRAFT shift in this window "
+            "(not yet published to staff).</font>",
+            styles["Normal"],
+        ))
+
+    doc.build(story)
+    buf.seek(0)
+
+    safe_loc = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in location_id)[:40]
+    filename = f"rota_{safe_loc}_{start_date}_to_{end_date}.pdf"
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 class CopyWeekBody(BaseModel):

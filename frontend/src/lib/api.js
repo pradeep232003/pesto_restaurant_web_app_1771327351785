@@ -836,6 +836,22 @@ class ApiService {
   async shiftPublishWeek(body) {
     return this.fetch('/api/admin/shifts/publish-week', { method: 'POST', body: JSON.stringify(body) });
   }
+  async shiftPrintDownload({ location_id, start_date, end_date, include_drafts = true }) {
+    // Auth'd binary download — uses the same token pattern as this.fetch.
+    const qs = new URLSearchParams({ location_id, start_date, end_date, include_drafts: String(include_drafts) }).toString();
+    const headers = {};
+    const token = localStorage.getItem('access_token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE_URL}/api/admin/shifts/print?${qs}`, {
+      credentials: API_BASE_URL ? 'include' : 'same-origin',
+      headers,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(text || `Failed to fetch rota PDF (${res.status})`);
+    }
+    return res.blob();
+  }
   async shiftAiSuggestWeek(body) {
     return this.fetch('/api/admin/shifts/ai-suggest-week', { method: 'POST', body: JSON.stringify(body) });
   }
