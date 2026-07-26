@@ -37,8 +37,14 @@ SMTP_EMAIL = os.environ.get("SMTP_EMAIL", "")
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 
 # Resend (primary transport — HTTPS on port 443, always open on PaaS).
-RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
-RESEND_FROM = os.environ.get("RESEND_FROM", "Jolly's Kafe Rotas <onboarding@resend.dev>")
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "").strip()
+# Defensive: Railway/other PaaS sometimes preserve wrapping quotes when a
+# value contains apostrophes. Strip them + fall back to a safe default
+# that Resend's `from` field validator accepts (no apostrophe).
+_RESEND_FROM_RAW = os.environ.get("RESEND_FROM", "").strip()
+if len(_RESEND_FROM_RAW) >= 2 and _RESEND_FROM_RAW[0] == _RESEND_FROM_RAW[-1] and _RESEND_FROM_RAW[0] in ('"', "'"):
+    _RESEND_FROM_RAW = _RESEND_FROM_RAW[1:-1].strip()
+RESEND_FROM = _RESEND_FROM_RAW or "Jollys Kafe Rotas <onboarding@resend.dev>"
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
 
@@ -230,8 +236,8 @@ def _send_rota_email(
                       to_email, (res or {}).get("id"))
             return True
         except Exception as ex:
-            _log.warning("shifts.email: Resend send failed to %s: %s — falling back to SMTP",
-                         to_email, ex)
+            _log.warning("shifts.email: Resend send failed to %s (from=%r): %s — falling back to SMTP",
+                         to_email, RESEND_FROM, ex)
 
     # 2) SMTP fallback. 465 → implicit SSL, else STARTTLS. 20s timeout.
     if not (SMTP_HOST and SMTP_EMAIL and SMTP_PASSWORD):
