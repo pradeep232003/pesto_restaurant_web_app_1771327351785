@@ -130,19 +130,34 @@ const Allergens = () => {
     );
   }, [items, q]);
 
-  const saveItem = async (itemId, newAllergens) => {
+  const saveItem = async (itemId, newAllergens, newMayContain) => {
     setSavingIds((prev) => new Set(prev).add(itemId));
     // Optimistic update — the flag pip must reflect the new state
     // immediately.
-    setItems((prev) => prev.map((r) => (r.id === itemId
-      ? { ...r, allergens: newAllergens, has_allergens: Object.keys(newAllergens || {}).length > 0 }
-      : r)));
+    setItems((prev) => prev.map((r) => {
+      if (r.id !== itemId) return r;
+      const mc = Array.isArray(newMayContain) ? newMayContain : (r.may_contain || []);
+      return {
+        ...r,
+        allergens: newAllergens,
+        may_contain: mc,
+        has_allergens: Object.keys(newAllergens || {}).length > 0 || mc.length > 0,
+      };
+    }));
     try {
-      const res = await api.allergensSetItem(itemId, newAllergens);
+      const res = await api.allergensSetItem(itemId, newAllergens, newMayContain);
       const cleaned = res.allergens || {};
-      setItems((prev) => prev.map((r) => (r.id === itemId
-        ? { ...r, allergens: cleaned, has_allergens: Object.keys(cleaned).length > 0 }
-        : r)));
+      const cleanedMay = Array.isArray(res.may_contain) ? res.may_contain : undefined;
+      setItems((prev) => prev.map((r) => {
+        if (r.id !== itemId) return r;
+        const mc = cleanedMay !== undefined ? cleanedMay : (r.may_contain || []);
+        return {
+          ...r,
+          allergens: cleaned,
+          may_contain: mc,
+          has_allergens: Object.keys(cleaned).length > 0 || mc.length > 0,
+        };
+      }));
     } catch (e) {
       setErr(e.message || 'Save failed');
       await load(); // Roll back to server state
@@ -303,6 +318,15 @@ const Allergens = () => {
                       {SHORT_LABEL[c.id] || c.label}
                     </th>
                   ))}
+                  <th
+                    style={{
+                      ...thStyle, textAlign: 'center', minWidth: 110,
+                      borderTop: '3px solid #A35E00',
+                    }}
+                    title="Cross-contamination advisory (allergens not intentionally used but that may be present)"
+                  >
+                    May contain
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -378,6 +402,47 @@ const Allergens = () => {
                           </td>
                         );
                       })}
+                      {/* May-contain cell — opens the drawer to edit. Shows either
+                          nothing (empty), a short pill list, or a compact "+N" pill
+                          when there are more than 3 selections. */}
+                      {(() => {
+                        const may = it.may_contain || [];
+                        const shortFor = (id) => (SHORT_LABEL[id] || (catalog.find(cc => cc.id === id)?.label) || id);
+                        return (
+                          <td
+                            data-testid={`allergens-may-${it.id}`}
+                            onClick={() => setDrawer({ itemId: it.id })}
+                            title={may.length ? `May contain: ${may.map(shortFor).join(', ')}` : (editable ? 'Tap the item name to add a "May contain" advisory' : 'No advisory')}
+                            style={{
+                              ...tdStyle, textAlign: 'left', padding: '6px 8px',
+                              cursor: 'pointer',
+                              background: may.length ? 'rgba(163,94,0,0.06)' : 'transparent',
+                            }}
+                          >
+                            {may.length === 0 ? (
+                              <span style={{ color: '#C7C7CC', fontSize: 11 }}>—</span>
+                            ) : (
+                              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                {may.slice(0, 3).map((mid) => (
+                                  <span
+                                    key={mid}
+                                    style={{
+                                      padding: '2px 7px', borderRadius: 999,
+                                      background: '#FFF3E0', color: '#A35E00',
+                                      fontSize: 10, fontWeight: 700,
+                                    }}
+                                  >{shortFor(mid)}</span>
+                                ))}
+                                {may.length > 3 && (
+                                  <span style={{ padding: '2px 7px', borderRadius: 999, background: '#F5F5F7', color: '#3A3A3C', fontSize: 10, fontWeight: 700 }}>
+                                    +{may.length - 3}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })()}
                     </tr>
                   );
                 })}
@@ -403,11 +468,11 @@ const Allergens = () => {
           item={items.find((i) => i.id === drawer.itemId)}
           catalog={catalog}
           onClose={() => setDrawer(null)}
-          onSave={async (nextAllergens) => {
+          onSave={async (nextAllergens, nextMayContain) => {
             // Auto-save from the drawer — persist without closing so
             // the user can keep toggling sub-items. Close is via the
             // header X or the footer Close button.
-            await saveItem(drawer.itemId, nextAllergens);
+            await saveItem(drawer.itemId, nextAllergens, nextMayContain);
           }}
           editable={editable}
         />
@@ -428,15 +493,16 @@ const SubItemDrawer = ({ item, catalog, onClose, onSave, editable }) => {
   // button to forget — matches the auto-save behaviour of the matrix
   // cell taps on the main page.
   const [draft, setDraft] = useState(() => ({ ...(item?.allergens || {}) }));
+  const [mayDraft, setMayDraft] = useState(() => [...(item?.may_contain || [])]);
   const [savingCount, setSavingCount] = useState(0);
 
   if (!item) return null;
 
-  const commit = async (next) => {
+  const commit = async (nextAllergens, nextMay) => {
     if (!editable) return;
     setSavingCount((c) => c + 1);
     try {
-      await onSave(next);
+      await onSave(nextAllergens, nextMay);
     } finally {
       setSavingCount((c) => c - 1);
     }
@@ -452,7 +518,7 @@ const SubItemDrawer = ({ item, catalog, onClose, onSave, editable }) => {
       else next[catId] = [...cur];
       // Fire-and-forget commit; the parent's optimistic UI reflects
       // it instantly. Runs after React schedules the state update.
-      commit(next);
+      commit(next, mayDraft);
       return next;
     });
   };
@@ -461,7 +527,7 @@ const SubItemDrawer = ({ item, catalog, onClose, onSave, editable }) => {
     if (!editable) return;
     setDraft((p) => {
       const next = { ...p, [cat.id]: [...cat.items] };
-      commit(next);
+      commit(next, mayDraft);
       return next;
     });
   };
@@ -469,8 +535,25 @@ const SubItemDrawer = ({ item, catalog, onClose, onSave, editable }) => {
     if (!editable) return;
     setDraft((p) => {
       const next = { ...p }; delete next[cat.id];
-      commit(next);
+      commit(next, mayDraft);
       return next;
+    });
+  };
+
+  const toggleMay = (catId) => {
+    if (!editable) return;
+    setMayDraft((prev) => {
+      const has = prev.includes(catId);
+      const next = has ? prev.filter((c) => c !== catId) : [...prev, catId];
+      commit(draft, next);
+      return next;
+    });
+  };
+  const clearMay = () => {
+    if (!editable) return;
+    setMayDraft(() => {
+      commit(draft, []);
+      return [];
     });
   };
 
@@ -514,6 +597,56 @@ const SubItemDrawer = ({ item, catalog, onClose, onSave, editable }) => {
         </div>
 
         <div style={{ padding: 14, overflowY: 'auto', flex: 1 }}>
+          {/* May contain — cross-contamination advisory. Sits at the
+              top so it's obvious and doesn't get lost below the 14
+              detailed categories. */}
+          <section
+            data-testid="allergens-drawer-may-contain"
+            style={{
+              marginBottom: 16, padding: 12, background: '#FFF6E8',
+              borderRadius: 12, borderLeft: '4px solid #A35E00',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              <div>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1D1D1F' }}>May contain</p>
+                <p style={{ margin: '2px 0 0', fontSize: 11, color: '#86868B' }}>
+                  Cross-contamination advisory (not intentionally used)
+                </p>
+              </div>
+              {editable && mayDraft.length > 0 && (
+                <button
+                  data-testid="allergens-drawer-may-clear"
+                  onClick={clearMay}
+                  style={{ background: 'none', border: 0, color: '#86868B', fontSize: 11, cursor: 'pointer' }}
+                >Clear</button>
+              )}
+            </div>
+            <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {catalog.map((c) => {
+                const on = mayDraft.includes(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    data-testid={`allergens-drawer-may-${c.id}`}
+                    disabled={!editable}
+                    onClick={() => toggleMay(c.id)}
+                    title={c.label}
+                    style={{
+                      padding: '5px 10px', borderRadius: 999,
+                      background: on ? '#A35E00' : '#FFFFFF',
+                      color: on ? '#FFFFFF' : '#1D1D1F',
+                      border: on ? 0 : '1px solid #F2D9B8',
+                      fontSize: 11, fontWeight: 700, cursor: editable ? 'pointer' : 'not-allowed',
+                      ...FONT,
+                    }}
+                  >
+                    {c.label.split(' (')[0]}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
           {catalog.map((c) => {
             const selected = new Set(draft[c.id] || []);
             return (

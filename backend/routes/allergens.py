@@ -93,6 +93,7 @@ CATALOG: List[Dict] = [
 ]
 
 _VALID_IDS = {c["id"]: {s for s in c["items"]} for c in CATALOG}
+_VALID_CAT_IDS = set(_VALID_IDS.keys())
 
 
 def _sanitise(allergens: Dict[str, List[str]]) -> Dict[str, List[str]]:
@@ -109,6 +110,18 @@ def _sanitise(allergens: Dict[str, List[str]]) -> Dict[str, List[str]]:
     return out
 
 
+def _sanitise_may_contain(vals: List[str]) -> List[str]:
+    """Deduplicate + drop unknown ids from the `may contain` list.
+    Preserves insertion order so admin-set order shows on the print."""
+    seen: set = set()
+    out: List[str] = []
+    for v in (vals or []):
+        if v in _VALID_CAT_IDS and v not in seen:
+            seen.add(v)
+            out.append(v)
+    return out
+
+
 # ------------------------ Endpoints ------------------------
 @router.get("/catalog")
 async def get_catalog(user: dict = Depends(get_staff_or_above)):
@@ -119,6 +132,10 @@ async def get_catalog(user: dict = Depends(get_staff_or_above)):
 
 class AllergenPayload(BaseModel):
     allergens: Dict[str, List[str]] = Field(default_factory=dict)
+    # Optional "may contain" — cross-contamination advisory, list of
+    # top-level allergen ids (subset of _VALID_CAT_IDS). Shown on the
+    # matrix + printed on the Word export as e.g. "May contain: Milk, Eggs".
+    may_contain: Optional[List[str]] = None
 
 
 @router.put("/matrix/{item_id}")
@@ -131,16 +148,27 @@ async def set_item_allergens(
     if not existing:
         raise HTTPException(404, "Menu item not found")
     clean = _sanitise(payload.allergens)
+    update: dict = {"allergens": clean}
+    # `may_contain=None` means "don't touch" — the client didn't send it.
+    # `may_contain=[]` explicitly clears the list. Sanitise either way.
+    if payload.may_contain is not None:
+        update["may_contain"] = _sanitise_may_contain(payload.may_contain)
     menu_items_collection.update_one(
         {"id": item_id},
-        {"$set": {"allergens": clean}},
+        {"$set": update},
     )
     _log.info(
-        "allergens: item=%s (%s) categories=%d subitems=%d by=%s",
+        "allergens: item=%s (%s) categories=%d subitems=%d may_contain=%d by=%s",
         item_id, existing.get("name", ""),
-        len(clean), sum(len(v) for v in clean.values()), user.get("email"),
+        len(clean), sum(len(v) for v in clean.values()),
+        len(update.get("may_contain") or existing.get("may_contain") or []),
+        user.get("email"),
     )
-    return {"id": item_id, "allergens": clean}
+    return {
+        "id": item_id,
+        "allergens": clean,
+        "may_contain": update.get("may_contain", _sanitise_may_contain(existing.get("may_contain") or [])),
+    }
 
 
 @router.get("/matrix")
@@ -152,22 +180,24 @@ async def get_matrix(
     allergen selections — one round-trip powers the whole matrix."""
     rows = list(menu_items_collection.find(
         {"location_id": location_id},
-        {"id": 1, "name": 1, "category": 1, "allergens": 1, "is_available": 1},
+        {"id": 1, "name": 1, "category": 1, "allergens": 1, "may_contain": 1, "is_available": 1},
     ).sort([("category", 1), ("name", 1)]).limit(2000))
     items = []
     for r in rows:
         r.pop("_id", None)
         clean = _sanitise(r.get("allergens") or {})
+        may = _sanitise_may_contain(r.get("may_contain") or [])
         items.append({
             "id": r.get("id"),
             "name": r.get("name", ""),
             "category": r.get("category", ""),
             "is_available": bool(r.get("is_available", True)),
             "allergens": clean,
+            "may_contain": may,
             # Convenience flag consumed by the UI to render the
             # "declared" pip on each row — saves clients from
             # counting the dict server-side on every render.
-            "has_allergens": bool(clean),
+            "has_allergens": bool(clean) or bool(may),
         })
     return {"location_id": location_id, "items": items}
 
@@ -196,7 +226,7 @@ async def print_matrix(
     # Pull items via the same projection used by the matrix endpoint.
     rows = list(menu_items_collection.find(
         {"location_id": location_id},
-        {"id": 1, "name": 1, "category": 1, "allergens": 1},
+        {"id": 1, "name": 1, "category": 1, "allergens": 1, "may_contain": 1},
     ).sort([("category", 1), ("name", 1)]).limit(2000))
 
     doc = Document()
@@ -224,8 +254,8 @@ async def print_matrix(
     stamp_run.font.size = Pt(9)
     stamp_run.font.color.rgb = RGBColor(0x86, 0x86, 0x8B)
 
-    # Matrix table: rows = items, columns = Item | Category | 14 allergen category cells.
-    header = ["Item", "Category"] + [c["label"].split(" (")[0] for c in CATALOG]
+    # Matrix table: rows = items, columns = Item | Category | 14 allergen category cells | May contain.
+    header = ["Item", "Category"] + [c["label"].split(" (")[0] for c in CATALOG] + ["May contain"]
     table = doc.add_table(rows=1, cols=len(header))
     table.style = "Light Grid Accent 1"
 
@@ -237,11 +267,15 @@ async def print_matrix(
         r.bold = True
         r.font.size = Pt(8)
 
+    # Precompute label lookup for the May-contain column.
+    cat_label = {c["id"]: c["label"].split(" (")[0] for c in CATALOG}
+
     # One row per menu item with the actual sub-items listed in
     # each cell (or blank if the category isn't declared).
     for item in rows:
         item.pop("_id", None)
         allergens = _sanitise(item.get("allergens") or {})
+        may = _sanitise_may_contain(item.get("may_contain") or [])
         row = table.add_row().cells
         row[0].text = ""
         row[0].paragraphs[0].add_run(item.get("name", "")).bold = True
@@ -256,6 +290,8 @@ async def print_matrix(
                     row[i].text = ", ".join(_humanise(s) for s in subs)
             else:
                 row[i].text = ""
+        # May-contain column — rightmost.
+        row[-1].text = ", ".join(cat_label.get(m, m) for m in may) if may else ""
 
     for tbl_row in table.rows[1:]:
         for cell in tbl_row.cells:
@@ -274,7 +310,8 @@ async def print_matrix(
 
     for item in rows:
         allergens = _sanitise(item.get("allergens") or {})
-        if not allergens:
+        may = _sanitise_may_contain(item.get("may_contain") or [])
+        if not allergens and not may:
             continue
         para = doc.add_paragraph()
         para.paragraph_format.space_after = Pt(2)
@@ -296,6 +333,16 @@ async def print_matrix(
                 "All sub-items" if len(subs) == len(cat["items"]) else names
             )
             r2.font.size = Pt(9)
+        if may:
+            may_para = doc.add_paragraph(style="List Bullet")
+            may_para.paragraph_format.space_after = Pt(0)
+            mr1 = may_para.add_run("May contain: ")
+            mr1.bold = True
+            mr1.font.size = Pt(9)
+            mr1.font.color.rgb = RGBColor(0xA3, 0x5E, 0x00)
+            mr2 = may_para.add_run(", ".join(cat_label.get(m, m) for m in may))
+            mr2.font.size = Pt(9)
+            mr2.font.color.rgb = RGBColor(0xA3, 0x5E, 0x00)
 
     buf = io.BytesIO()
     doc.save(buf)

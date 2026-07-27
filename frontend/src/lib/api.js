@@ -1495,10 +1495,14 @@ class ApiService {
     const qs = new URLSearchParams({ location_id }).toString();
     return this.fetch(`/api/allergens/matrix?${qs}`);
   }
-  async allergensSetItem(item_id, allergens) {
+  async allergensSetItem(item_id, allergens, may_contain) {
+    const body = { allergens: allergens || {} };
+    // `may_contain=undefined` means "leave unchanged"; only send it
+    // when the caller supplied an array (empty [] explicitly clears).
+    if (Array.isArray(may_contain)) body.may_contain = may_contain;
     return this.fetch(`/api/allergens/matrix/${item_id}`, {
       method: 'PUT',
-      body: JSON.stringify({ allergens: allergens || {} }),
+      body: JSON.stringify(body),
     });
   }
   async allergensPrintUrl(location_id) {
