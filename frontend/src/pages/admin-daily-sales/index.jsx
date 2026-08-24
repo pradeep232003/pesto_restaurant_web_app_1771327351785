@@ -178,17 +178,32 @@ const AdminDailySales = () => {
     return () => { cancelled = true; };
   }, [selectedLocation, entryDate, locations]);
 
-  // Load the staff permitted at this site so we can flag anyone who
-  // still hasn't been clocked in/out. Empty `location_ids` on a staff
-  // record means "all sites".
+  // Load the staff rostered on this site FOR THIS DATE — used to
+  // flag anyone who's been scheduled but not yet clocked in/out on
+  // the form. Empty on days off / no rota = no reminder.
   useEffect(() => {
-    if (!selectedLocation) { setSiteStaff([]); return; }
+    if (!selectedLocation || !entryDate) { setSiteStaff([]); return; }
     let cancelled = false;
-    api.payrollStaff({ location_id: selectedLocation })
-      .then((res) => { if (!cancelled) setSiteStaff(res?.items || []); })
+    api.shiftsList({
+      location_id: selectedLocation,
+      start_date: entryDate,
+      end_date: entryDate,
+    })
+      .then((rows) => {
+        if (cancelled) return;
+        // Dedupe by staff_id (or by staff_name if id missing) — a
+        // manager may split one person's shift across two rows.
+        const seen = new Map();
+        for (const r of (rows || [])) {
+          const key = r.staff_id || (r.staff_name || '').trim().toLowerCase();
+          if (!key || seen.has(key)) continue;
+          seen.set(key, { id: r.staff_id || key, name: r.staff_name || '' });
+        }
+        setSiteStaff([...seen.values()].filter(s => s.name));
+      })
       .catch(() => { if (!cancelled) setSiteStaff([]); });
     return () => { cancelled = true; };
-  }, [selectedLocation]);
+  }, [selectedLocation, entryDate]);
 
   // Names present in the current entry (case-insensitive, name-only).
   const clockedInSet = new Set(
@@ -744,7 +759,7 @@ const AdminDailySales = () => {
                 </span>
               </div>
               <p className="text-[11px] mb-2" style={{ color: '#86868B', ...font }}>
-                Reminder — the following {missingClockIns.length === 1 ? 'person is' : 'people are'} rostered at this site but no hours have been entered yet:
+                Reminder — the following {missingClockIns.length === 1 ? 'person is' : 'people are'} rostered on today&apos;s rota for this site but no hours have been entered yet:
               </p>
               <div className="flex flex-wrap gap-1.5" data-testid="clock-in-reminder-list">
                 {missingClockIns.map(s => (
