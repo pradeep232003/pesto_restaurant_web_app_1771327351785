@@ -141,9 +141,9 @@ const Payroll = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, color: '#86868B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
           <Filter size={12} /> Filters
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
-          <div className="payroll-date-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, gridColumn: '1 / -1' }}>
-            <div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: 10 }}>
+          <div className="payroll-date-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 8, gridColumn: '1 / -1', minWidth: 0 }}>
+            <div style={{ minWidth: 0 }}>
               <label style={{ fontSize: 11, color: '#86868B', display: 'block', marginBottom: 3 }}>From</label>
               <input
                 data-testid="payroll-start"
@@ -153,7 +153,7 @@ const Payroll = () => {
                 style={dateInputStyle}
               />
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <label style={{ fontSize: 11, color: '#86868B', display: 'block', marginBottom: 3 }}>To</label>
               <input
                 data-testid="payroll-end"
@@ -293,12 +293,17 @@ const Payroll = () => {
 
 const inputStyle = {
   width: '100%', padding: '8px 10px', borderRadius: 10, border: '1px solid #E5E5EA',
-  fontSize: 12, background: '#FFFFFF', color: '#1D1D1F', ...FONT,
+  fontSize: 12, background: '#FFFFFF', color: '#1D1D1F', boxSizing: 'border-box',
+  minWidth: 0, ...FONT,
 };
 // Narrower date inputs so mobile Safari's native picker doesn't blow
-// out the row width. Uses `min-width: 0` so the wrapper grid can
-// actually shrink the field.
-const dateInputStyle = { ...inputStyle, minWidth: 0, width: '100%', padding: '8px 8px' };
+// out the row width. `box-sizing: border-box` + `min-width: 0` on
+// both the input and its wrapping grid track lets the field actually
+// shrink below the browser's default intrinsic minimum.
+const dateInputStyle = {
+  ...inputStyle, padding: '8px 6px', fontSize: 11,
+  WebkitAppearance: 'none', appearance: 'none',
+};
 const thStyle = { padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' };
 const tdStyle = { padding: '10px 12px', color: '#1D1D1F' };
 

@@ -127,6 +127,9 @@ const AdminDailySales = () => {
   // logic used by the JKHive DailyCheckTile.
   const [checkStatus, setCheckStatus] = useState({ done: 0, total: 0, missing: [], loaded: false });
   const [checkLoading, setCheckLoading] = useState(false);
+  // Clock-in reminder — soft warning listing staff assigned to this
+  // location whose name doesn't yet appear in `staffHours`. Non-blocking.
+  const [siteStaff, setSiteStaff] = useState([]);
 
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -174,6 +177,28 @@ const AdminDailySales = () => {
       .finally(() => { if (!cancelled) setCheckLoading(false); });
     return () => { cancelled = true; };
   }, [selectedLocation, entryDate, locations]);
+
+  // Load the staff permitted at this site so we can flag anyone who
+  // still hasn't been clocked in/out. Empty `location_ids` on a staff
+  // record means "all sites".
+  useEffect(() => {
+    if (!selectedLocation) { setSiteStaff([]); return; }
+    let cancelled = false;
+    api.payrollStaff({ location_id: selectedLocation })
+      .then((res) => { if (!cancelled) setSiteStaff(res?.items || []); })
+      .catch(() => { if (!cancelled) setSiteStaff([]); });
+    return () => { cancelled = true; };
+  }, [selectedLocation]);
+
+  // Names present in the current entry (case-insensitive, name-only).
+  const clockedInSet = new Set(
+    (staffHours || [])
+      .map(sh => (sh?.name || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
+  const missingClockIns = siteStaff.filter(
+    s => !clockedInSet.has((s.name || '').trim().toLowerCase())
+  );
 
   useEffect(() => {
     if (activeTab === 'history' && isAdmin) fetchHistory();
@@ -695,6 +720,50 @@ const AdminDailySales = () => {
               ))}
             </div>
           </div>
+
+          {/* Clock-in reminder — non-blocking warning listing staff at
+              this location whose name isn't in the current entry yet.
+              Hides itself once every site staff has been added. */}
+          {selectedLocation && missingClockIns.length > 0 && (
+            <div
+              data-testid="clock-in-reminder"
+              className="p-3.5 rounded-2xl mb-1"
+              style={{
+                background: 'rgba(255,149,0,0.08)',
+                border: '1px solid rgba(255,149,0,0.25)',
+              }}
+            >
+              <div className="flex items-center gap-2 mb-1.5">
+                <Clock size={16} strokeWidth={2.4} style={{ color: '#A35E00' }} />
+                <span
+                  className="text-[13px] font-semibold"
+                  style={{ color: '#A35E00', ...font }}
+                  data-testid="clock-in-reminder-summary"
+                >
+                  {missingClockIns.length} staff not clocked in/out yet
+                </span>
+              </div>
+              <p className="text-[11px] mb-2" style={{ color: '#86868B', ...font }}>
+                Reminder — the following {missingClockIns.length === 1 ? 'person is' : 'people are'} rostered at this site but no hours have been entered yet:
+              </p>
+              <div className="flex flex-wrap gap-1.5" data-testid="clock-in-reminder-list">
+                {missingClockIns.map(s => (
+                  <span
+                    key={s.id}
+                    className="text-[11px] font-semibold"
+                    style={{
+                      padding: '3px 9px', borderRadius: 999,
+                      background: '#FFFFFF', color: '#A35E00',
+                      border: '1px solid rgba(255,149,0,0.3)',
+                      ...font,
+                    }}
+                  >
+                    {s.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Daily-check gate — save is blocked until every applicable
               routine for this site + date is complete. Empty state (no
