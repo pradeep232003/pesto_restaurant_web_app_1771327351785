@@ -205,15 +205,22 @@ const AdminDailySales = () => {
     return () => { cancelled = true; };
   }, [selectedLocation, entryDate]);
 
-  // Names present in the current entry (case-insensitive, name-only).
-  const clockedInSet = new Set(
+  // Map rostered staff → their staff_hours row (if any) so we can tell
+  // "never clocked in" from "clocked in but forgot to clock out".
+  const staffHoursByName = new Map(
     (staffHours || [])
-      .map(sh => (sh?.name || '').trim().toLowerCase())
-      .filter(Boolean)
+      .filter(sh => sh?.name)
+      .map(sh => [sh.name.trim().toLowerCase(), sh])
   );
-  const missingClockIns = siteStaff.filter(
-    s => !clockedInSet.has((s.name || '').trim().toLowerCase())
-  );
+  const missingClockIn = siteStaff.filter(s => {
+    const row = staffHoursByName.get((s.name || '').trim().toLowerCase());
+    return !row || !row.start_time;
+  });
+  const missingClockOut = siteStaff.filter(s => {
+    const row = staffHoursByName.get((s.name || '').trim().toLowerCase());
+    return row && row.start_time && !row.end_time;
+  });
+  const missingTotal = missingClockIn.length + missingClockOut.length;
 
   useEffect(() => {
     if (activeTab === 'history' && isAdmin) fetchHistory();
@@ -736,10 +743,11 @@ const AdminDailySales = () => {
             </div>
           </div>
 
-          {/* Clock-in reminder — non-blocking warning listing staff at
-              this location whose name isn't in the current entry yet.
-              Hides itself once every site staff has been added. */}
-          {selectedLocation && missingClockIns.length > 0 && (
+          {/* Clock-in/out reminder — non-blocking warning showing two
+              separate groups: staff never clocked in vs. clocked in but
+              forgot to clock out. Hides itself once every rostered
+              person has a complete In/Out pair. */}
+          {selectedLocation && missingTotal > 0 && (
             <div
               data-testid="clock-in-reminder"
               className="p-3.5 rounded-2xl mb-1"
@@ -755,28 +763,58 @@ const AdminDailySales = () => {
                   style={{ color: '#A35E00', ...font }}
                   data-testid="clock-in-reminder-summary"
                 >
-                  {missingClockIns.length} staff not clocked in/out yet
+                  {missingClockIn.length} In outstanding · {missingClockOut.length} Out outstanding
                 </span>
               </div>
               <p className="text-[11px] mb-2" style={{ color: '#86868B', ...font }}>
-                Reminder — the following {missingClockIns.length === 1 ? 'person is' : 'people are'} rostered on today&apos;s rota for this site but no hours have been entered yet:
+                Reminder — rostered staff for today with missing clock times:
               </p>
-              <div className="flex flex-wrap gap-1.5" data-testid="clock-in-reminder-list">
-                {missingClockIns.map(s => (
-                  <span
-                    key={s.id}
-                    className="text-[11px] font-semibold"
-                    style={{
-                      padding: '3px 9px', borderRadius: 999,
-                      background: '#FFFFFF', color: '#A35E00',
-                      border: '1px solid rgba(255,149,0,0.3)',
-                      ...font,
-                    }}
-                  >
-                    {s.name}
-                  </span>
-                ))}
-              </div>
+              {missingClockIn.length > 0 && (
+                <div className="mb-2" data-testid="missing-clock-in-group">
+                  <div className="text-[11px] font-semibold mb-1" style={{ color: '#A35E00', ...font }}>
+                    In outstanding
+                  </div>
+                  <div className="flex flex-wrap gap-1.5" data-testid="missing-clock-in-list">
+                    {missingClockIn.map(s => (
+                      <span
+                        key={`in-${s.id}`}
+                        className="text-[11px] font-semibold"
+                        style={{
+                          padding: '3px 9px', borderRadius: 999,
+                          background: '#FFFFFF', color: '#A35E00',
+                          border: '1px solid rgba(255,149,0,0.3)',
+                          ...font,
+                        }}
+                      >
+                        {s.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {missingClockOut.length > 0 && (
+                <div data-testid="missing-clock-out-group">
+                  <div className="text-[11px] font-semibold mb-1" style={{ color: '#A35E00', ...font }}>
+                    Out outstanding
+                  </div>
+                  <div className="flex flex-wrap gap-1.5" data-testid="missing-clock-out-list">
+                    {missingClockOut.map(s => (
+                      <span
+                        key={`out-${s.id}`}
+                        className="text-[11px] font-semibold"
+                        style={{
+                          padding: '3px 9px', borderRadius: 999,
+                          background: '#FFFFFF', color: '#A35E00',
+                          border: '1px solid rgba(255,149,0,0.3)',
+                          ...font,
+                        }}
+                      >
+                        {s.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
