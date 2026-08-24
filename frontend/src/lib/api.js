@@ -869,6 +869,26 @@ class ApiService {
     return this.fetch('/api/admin/shifts/week-budget', { method: 'PUT', body: JSON.stringify(body) });
   }
 
+  // Payroll — per-staff hours × hourly_rate summary + CSV export.
+  async payrollSummary({ start_date, end_date, location_id, staff_id, include_drafts = false } = {}) {
+    const qs = new URLSearchParams({ start_date, end_date, include_drafts: String(include_drafts) });
+    if (location_id) qs.set('location_id', location_id);
+    if (staff_id) qs.set('staff_id', staff_id);
+    return this.fetch(`/api/admin/payroll?${qs.toString()}`);
+  }
+  async payrollCsvDownload({ start_date, end_date, location_id, staff_id, include_drafts = false } = {}) {
+    const qs = new URLSearchParams({ start_date, end_date, include_drafts: String(include_drafts) });
+    if (location_id) qs.set('location_id', location_id);
+    if (staff_id) qs.set('staff_id', staff_id);
+    const token = localStorage.getItem('access_token');
+    const res = await fetch(`${API_BASE_URL}/api/admin/payroll/export.csv?${qs.toString()}`, {
+      credentials: API_BASE_URL ? 'include' : 'same-origin',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`Payroll CSV failed (${res.status})`);
+    return res.blob();
+  }
+
   // Invoices — supplier delivery invoices scanned by staff.
   async invoicesList({ location_id, supplier, category, start_date, end_date } = {}) {
     const qs = new URLSearchParams();

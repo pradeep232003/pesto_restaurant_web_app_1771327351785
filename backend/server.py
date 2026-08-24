@@ -117,6 +117,7 @@ from routes.inspection import router as inspection_router
 from routes.documents import router as documents_router
 from routes.ai_settings import router as ai_settings_router
 from routes.shifts import router as shifts_router
+from routes.payroll import router as payroll_router
 from routes.invoices import router as invoices_router
 from routes.clock import router as clock_router
 from routes.sales_training import router as sales_training_router
@@ -173,6 +174,7 @@ app.include_router(inspection_router)
 app.include_router(documents_router)
 app.include_router(ai_settings_router)
 app.include_router(shifts_router)
+app.include_router(payroll_router)
 app.include_router(invoices_router)
 app.include_router(clock_router)
 app.include_router(sales_training_router)
