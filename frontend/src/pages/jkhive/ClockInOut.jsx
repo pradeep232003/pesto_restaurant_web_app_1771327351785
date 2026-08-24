@@ -43,7 +43,7 @@ const readGPS = () => new Promise((resolve) => {
 
 const ClockInOut = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, loading: authLoading, isAdmin } = useAuth();
   const { adminLocationId, setAdminLocationId, locations } = useLocation2();
 
   const [status, setStatus] = useState({ clocked_in: false, event: null });
@@ -52,6 +52,13 @@ const ClockInOut = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+
+  // Admin-only History tab: browse every clock event across staff.
+  const [tab, setTab] = useState('recent'); // 'recent' | 'history'
+  const [adminEvents, setAdminEvents] = useState([]);
+  const [adminStaff, setAdminStaff] = useState([]);
+  const [adminFilters, setAdminFilters] = useState({ staff: 'all', location: 'all', days: 30 });
+  const [adminLoading, setAdminLoading] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) navigate('/admin-login');
@@ -72,6 +79,35 @@ const ClockInOut = () => {
     }
   };
   useEffect(() => { refresh(); }, []);
+
+  // Admin: load the staff dropdown once when the History tab is opened
+  // and re-run the events query whenever a filter changes. Kept as
+  // a separate hook from the "Recent" personal history so staff-only
+  // users never pay for the aggregate query.
+  useEffect(() => {
+    if (!isAdmin || tab !== 'history') return;
+    if (adminStaff.length === 0) {
+      api.adminGetClockStaff().then((res) => setAdminStaff(res?.items || [])).catch(() => {});
+    }
+  }, [isAdmin, tab, adminStaff.length]);
+
+  useEffect(() => {
+    if (!isAdmin || tab !== 'history') return;
+    let cancelled = false;
+    setAdminLoading(true);
+    const target = adminStaff.find(s => s.account_email === adminFilters.staff);
+    api.adminGetClockEvents({
+      locationId: adminFilters.location === 'all' ? undefined : adminFilters.location,
+      accountEmail: adminFilters.staff === 'all' ? undefined : adminFilters.staff,
+      days: adminFilters.days,
+      limit: 500,
+    })
+      .then((rows) => { if (!cancelled) setAdminEvents(Array.isArray(rows) ? rows : []); })
+      .catch(() => { if (!cancelled) setAdminEvents([]); })
+      .finally(() => { if (!cancelled) setAdminLoading(false); });
+    void target;
+    return () => { cancelled = true; };
+  }, [isAdmin, tab, adminFilters, adminStaff]);
 
   // For clock-in we use the picked JKHive location; for clock-out we use
   // whichever location the open event was tied to so staff can't "drift"
@@ -245,59 +281,164 @@ const ClockInOut = () => {
         </div>
       )}
 
-      {/* Recent history */}
+      {/* History section — tabs for admin, single Recent list for staff */}
       <div style={{ marginTop: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-          <History size={14} color="#86868B" />
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#86868B' }}>
-            Recent
-          </span>
-        </div>
-        {loading && history.length === 0 ? (
-          <div style={{ color: '#86868B', fontSize: 13 }}>Loading…</div>
-        ) : history.length === 0 ? (
-          <div data-testid="clock-history-empty" style={{ color: '#86868B', fontSize: 13 }}>No events yet.</div>
-        ) : (
-          <div data-testid="clock-history" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {history.map(evt => (
-              <div
-                key={evt.id}
+        {isAdmin ? (
+          <div
+            data-testid="clock-history-tabs"
+            style={{ display: 'inline-flex', gap: 4, padding: 3, borderRadius: 999, background: '#F5F5F7', marginBottom: 12, ...FONT }}
+          >
+            {[
+              { id: 'recent', label: 'My activity' },
+              { id: 'history', label: 'History (all staff)' },
+            ].map(t => (
+              <button
+                key={t.id}
+                data-testid={`clock-history-tab-${t.id}`}
+                onClick={() => setTab(t.id)}
                 style={{
-                  background: '#FFFFFF', borderRadius: 14, padding: '10px 14px',
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                  padding: '6px 12px', borderRadius: 999, border: 0,
+                  background: tab === t.id ? '#1D1D1F' : 'transparent',
+                  color: tab === t.id ? '#FFFFFF' : '#3A3A3C',
+                  fontSize: 11, fontWeight: 700, cursor: 'pointer',
                 }}
-              >
-                <div style={{
-                  width: 36, height: 36, borderRadius: 12,
-                  background: evt.type === 'in' ? 'rgba(52,199,89,0.12)' : 'rgba(255,149,0,0.12)',
-                  color: evt.type === 'in' ? '#34C759' : '#FF9500',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 800, letterSpacing: '0.04em',
-                }}>{evt.type === 'in' ? 'IN' : 'OUT'}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1D1D1F' }}>
-                    {evt.location_name || 'Site'}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#86868B' }}>
-                    {fmtTime(evt.created_at)}
-                    {evt.hours != null && evt.type === 'out' ? ` · ${fmtHours(evt.hours)}` : ''}
-                    {evt.distance_m != null ? ` · ${Math.round(evt.distance_m)}m` : ''}
-                  </div>
-                </div>
-                {!evt.verified && (
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 999,
-                    background: 'rgba(255,149,0,0.12)', color: '#FF9500', letterSpacing: '0.04em',
-                  }}>UNVERIFIED</span>
-                )}
-              </div>
+              >{t.label}</button>
             ))}
           </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <History size={14} color="#86868B" />
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#86868B' }}>
+              Recent
+            </span>
+          </div>
+        )}
+
+        {tab === 'recent' && (
+          loading && history.length === 0 ? (
+            <div style={{ color: '#86868B', fontSize: 13 }}>Loading…</div>
+          ) : history.length === 0 ? (
+            <div data-testid="clock-history-empty" style={{ color: '#86868B', fontSize: 13 }}>No events yet.</div>
+          ) : (
+            <div data-testid="clock-history" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {history.map(evt => <ClockEventRow key={evt.id} evt={evt} />)}
+            </div>
+          )
+        )}
+
+        {tab === 'history' && isAdmin && (
+          <>
+            {/* Admin filters row */}
+            <div
+              data-testid="clock-history-filters"
+              style={{
+                background: '#FFFFFF', borderRadius: 14, padding: 12, marginBottom: 10,
+                display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: 8,
+                boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+              }}
+            >
+              <div>
+                <label style={filterLabel}>Staff</label>
+                <select
+                  data-testid="clock-history-staff"
+                  value={adminFilters.staff}
+                  onChange={(e) => setAdminFilters(f => ({ ...f, staff: e.target.value }))}
+                  style={filterInput}
+                >
+                  <option value="all">All staff ({adminStaff.length})</option>
+                  {adminStaff.map(s => (
+                    <option key={s.account_email} value={s.account_email}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={filterLabel}>Site</label>
+                <select
+                  data-testid="clock-history-location"
+                  value={adminFilters.location}
+                  onChange={(e) => setAdminFilters(f => ({ ...f, location: e.target.value }))}
+                  style={filterInput}
+                >
+                  <option value="all">All sites</option>
+                  {(locations || []).map(l => (
+                    <option key={l.id} value={l.id}>{l.name || l.id}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={filterLabel}>Window</label>
+                <select
+                  data-testid="clock-history-days"
+                  value={adminFilters.days}
+                  onChange={(e) => setAdminFilters(f => ({ ...f, days: Number(e.target.value) }))}
+                  style={filterInput}
+                >
+                  <option value={7}>Last 7 days</option>
+                  <option value={30}>Last 30 days</option>
+                  <option value={90}>Last 90 days</option>
+                  <option value={365}>Last year</option>
+                </select>
+              </div>
+            </div>
+            {adminLoading ? (
+              <div style={{ color: '#86868B', fontSize: 13 }}>Loading…</div>
+            ) : adminEvents.length === 0 ? (
+              <div data-testid="clock-history-admin-empty" style={{ color: '#86868B', fontSize: 13 }}>
+                No clock events for these filters.
+              </div>
+            ) : (
+              <div data-testid="clock-history-admin" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {adminEvents.map(evt => <ClockEventRow key={evt.id} evt={evt} showUser />)}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
   );
 };
+
+const filterLabel = { fontSize: 10, color: '#86868B', textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700, display: 'block', marginBottom: 4, ...FONT };
+const filterInput = { width: '100%', padding: '6px 8px', borderRadius: 8, border: '1px solid #E5E5EA', fontSize: 12, background: '#FFFFFF', color: '#1D1D1F', boxSizing: 'border-box', minWidth: 0, ...FONT };
+
+/**
+ * Single clock-event row. Reused by both the personal "Recent" list
+ * and the admin History tab; `showUser` toggles the staff-name line
+ * so admins can see who the event belongs to.
+ */
+const ClockEventRow = ({ evt, showUser = false }) => (
+  <div
+    style={{
+      background: '#FFFFFF', borderRadius: 14, padding: '10px 14px',
+      display: 'flex', alignItems: 'center', gap: 12,
+      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+    }}
+  >
+    <div style={{
+      width: 36, height: 36, borderRadius: 12,
+      background: evt.type === 'in' ? 'rgba(52,199,89,0.12)' : 'rgba(255,149,0,0.12)',
+      color: evt.type === 'in' ? '#34C759' : '#FF9500',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: 11, fontWeight: 800, letterSpacing: '0.04em',
+    }}>{evt.type === 'in' ? 'IN' : 'OUT'}</div>
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: '#1D1D1F' }}>
+        {showUser ? (evt.user_name || evt.account_email || 'Unknown') : (evt.location_name || 'Site')}
+      </div>
+      <div style={{ fontSize: 11, color: '#86868B' }}>
+        {showUser && evt.location_name ? `${evt.location_name} · ` : ''}
+        {fmtTime(evt.created_at)}
+        {evt.hours != null && evt.type === 'out' ? ` · ${fmtHours(evt.hours)}` : ''}
+        {evt.distance_m != null ? ` · ${Math.round(evt.distance_m)}m` : ''}
+      </div>
+    </div>
+    {!evt.verified && (
+      <span style={{
+        fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 999,
+        background: 'rgba(255,149,0,0.12)', color: '#FF9500', letterSpacing: '0.04em',
+      }}>UNVERIFIED</span>
+    )}
+  </div>
+);
 
 export default ClockInOut;

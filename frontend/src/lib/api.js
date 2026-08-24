@@ -1487,10 +1487,15 @@ class ApiService {
   async getMyClockHistory(limit = 50) {
     return this.fetch(`/api/clock/history?limit=${limit}`);
   }
-  async adminGetClockEvents({ locationId, days = 7 } = {}) {
-    const qs = [`days=${days}`];
+  async adminGetClockEvents({ locationId, days = 7, accountEmail, staffId, limit = 500 } = {}) {
+    const qs = [`days=${days}`, `limit=${limit}`];
     if (locationId) qs.push(`location_id=${encodeURIComponent(locationId)}`);
+    if (accountEmail) qs.push(`account_email=${encodeURIComponent(accountEmail)}`);
+    if (staffId) qs.push(`staff_id=${encodeURIComponent(staffId)}`);
     return this.fetch(`/api/clock/admin/events?${qs.join('&')}`);
+  }
+  async adminGetClockStaff() {
+    return this.fetch('/api/clock/admin/staff');
   }
 
   // ---- Restock (per-location shopping list) ----

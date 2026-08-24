@@ -237,13 +237,52 @@ async def my_clock_history(limit: int = 50, user: dict = Depends(get_current_use
 async def admin_clock_events(
     location_id: Optional[str] = None,
     days: int = 7,
+    account_email: Optional[str] = None,
+    staff_id: Optional[str] = None,
+    limit: int = 500,
     user: dict = Depends(get_admin_user),
 ):
-    """Admin: list recent clock events for review."""
+    """Admin: list recent clock events for review, optionally scoped to
+    one staff member (via `account_email` or `staff_id`) so the Clock
+    In/Out History tab can drill down per person."""
     from datetime import timedelta
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=max(1, min(days, 90)))).isoformat()
-    query = {"created_at": {"$gte": cutoff}}
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=max(1, min(days, 365)))).isoformat()
+    query: dict = {"created_at": {"$gte": cutoff}}
     if location_id:
         query["location_id"] = location_id
-    docs = list(clock_events_collection.find(query).sort("created_at", -1).limit(500))
+    if account_email:
+        query["account_email"] = account_email.strip().lower()
+    if staff_id:
+        query["staff_id"] = staff_id
+    lim = max(1, min(limit, 2000))
+    docs = list(clock_events_collection.find(query).sort("created_at", -1).limit(lim))
     return [_strip(d) for d in docs]
+
+
+@router.get("/admin/staff")
+async def admin_clock_staff(user: dict = Depends(get_admin_user)):
+    """Return the list of distinct staff who have ever clocked in/out.
+    Used to populate the History-tab staff filter without pulling the
+    entire staff table (only shows people with clock activity)."""
+    pipeline = [
+        {"$match": {"account_email": {"$exists": True, "$ne": None}}},
+        {"$group": {
+            "_id": "$account_email",
+            "name": {"$last": "$user_name"},
+            "staff_id": {"$last": "$staff_id"},
+            "last_event_at": {"$max": "$created_at"},
+        }},
+        {"$sort": {"name": 1}},
+    ]
+    rows = list(clock_events_collection.aggregate(pipeline))
+    return {
+        "items": [
+            {
+                "account_email": r["_id"],
+                "name": r.get("name") or r["_id"],
+                "staff_id": r.get("staff_id"),
+                "last_event_at": r.get("last_event_at"),
+            }
+            for r in rows
+        ]
+    }
