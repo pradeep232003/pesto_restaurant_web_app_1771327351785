@@ -218,7 +218,7 @@ const AdminDailySales = () => {
   });
   const missingClockOut = siteStaff.filter(s => {
     const row = staffHoursByName.get((s.name || '').trim().toLowerCase());
-    return row && row.start_time && !row.end_time;
+    return !row || !row.end_time;
   });
   const missingTotal = missingClockIn.length + missingClockOut.length;
 
