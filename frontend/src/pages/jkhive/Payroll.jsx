@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Wallet, Download, Loader2, Filter } from 'lucide-react';
 import api from '../../lib/api';
@@ -39,7 +39,6 @@ const Payroll = () => {
   });
   const [locFilter, setLocFilter] = useState(() => adminLocationId || 'all');
   const [staffFilter, setStaffFilter] = useState('all');
-  const [includeDrafts, setIncludeDrafts] = useState(false);
 
   const [staffList, setStaffList] = useState([]);
   const [data, setData] = useState(null);
@@ -51,17 +50,26 @@ const Payroll = () => {
   // the pill re-scopes the page instantly.
   useEffect(() => { if (adminLocationId) setLocFilter(adminLocationId); }, [adminLocationId]);
 
-  // Load staff list once for the dropdown. Only active staff appear.
+  // Load the staff dropdown from the dedicated payroll endpoint — it
+  // filters by permitted location and hides inactive records so the
+  // dropdown never contains people who shouldn't be picked here.
   useEffect(() => {
     let cancelled = false;
-    api.staffList?.().catch(() => api.fetch('/api/admin/staff'))
-      .then((rows) => {
+    api.payrollStaff({ location_id: locFilter === 'all' ? undefined : locFilter })
+      .then((res) => {
         if (cancelled) return;
-        setStaffList((rows || []).filter((s) => s.active !== false));
+        const items = res?.items || [];
+        setStaffList(items);
+        // If the currently-picked staff isn't in the new list, reset
+        // to "All" so the query stays consistent with the dropdown.
+        if (staffFilter !== 'all' && !items.some((s) => s.id === staffFilter)) {
+          setStaffFilter('all');
+        }
       })
-      .catch(() => { /* silent — dropdown falls back to "All" */ });
+      .catch(() => { if (!cancelled) setStaffList([]); });
     return () => { cancelled = true; };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locFilter]);
 
   const load = useCallback(async () => {
     setLoading(true); setErr('');
@@ -71,7 +79,6 @@ const Payroll = () => {
         end_date: range.end,
         location_id: locFilter === 'all' ? undefined : locFilter,
         staff_id: staffFilter === 'all' ? undefined : staffFilter,
-        include_drafts: includeDrafts,
       });
       setData(res);
     } catch (e) {
@@ -80,7 +87,7 @@ const Payroll = () => {
     } finally {
       setLoading(false);
     }
-  }, [range.start, range.end, locFilter, staffFilter, includeDrafts]);
+  }, [range.start, range.end, locFilter, staffFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -92,7 +99,6 @@ const Payroll = () => {
         end_date: range.end,
         location_id: locFilter === 'all' ? undefined : locFilter,
         staff_id: staffFilter === 'all' ? undefined : staffFilter,
-        include_drafts: includeDrafts,
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -106,7 +112,6 @@ const Payroll = () => {
   };
 
   const results = data?.results || [];
-  const anyDraft = useMemo(() => results.some((r) => r.any_draft), [results]);
 
   return (
     <div data-testid="jkhive-payroll" style={{ paddingBottom: 20, ...FONT }}>
@@ -128,7 +133,7 @@ const Payroll = () => {
         </div>
       </div>
       <p style={{ margin: '4px 0 12px', color: '#86868B', fontSize: 12 }}>
-        Hours from Shifts × <Link to="/admin/staff" style={{ color: '#007AFF' }}>staff pay rates</Link>.
+        Hours from Daily Sales × <Link to="/admin/staff" style={{ color: '#007AFF' }}>staff pay rates</Link>.
       </p>
 
       {/* Filters card */}
@@ -137,25 +142,27 @@ const Payroll = () => {
           <Filter size={12} /> Filters
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
-          <div>
-            <label style={{ fontSize: 11, color: '#86868B', display: 'block', marginBottom: 3 }}>From</label>
-            <input
-              data-testid="payroll-start"
-              type="date"
-              value={range.start}
-              onChange={(e) => setRange((r) => ({ ...r, start: e.target.value }))}
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <label style={{ fontSize: 11, color: '#86868B', display: 'block', marginBottom: 3 }}>To</label>
-            <input
-              data-testid="payroll-end"
-              type="date"
-              value={range.end}
-              onChange={(e) => setRange((r) => ({ ...r, end: e.target.value }))}
-              style={inputStyle}
-            />
+          <div className="payroll-date-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, gridColumn: '1 / -1' }}>
+            <div>
+              <label style={{ fontSize: 11, color: '#86868B', display: 'block', marginBottom: 3 }}>From</label>
+              <input
+                data-testid="payroll-start"
+                type="date"
+                value={range.start}
+                onChange={(e) => setRange((r) => ({ ...r, start: e.target.value }))}
+                style={dateInputStyle}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#86868B', display: 'block', marginBottom: 3 }}>To</label>
+              <input
+                data-testid="payroll-end"
+                type="date"
+                value={range.end}
+                onChange={(e) => setRange((r) => ({ ...r, end: e.target.value }))}
+                style={dateInputStyle}
+              />
+            </div>
           </div>
           <div>
             <label style={{ fontSize: 11, color: '#86868B', display: 'block', marginBottom: 3 }}>Site</label>
@@ -179,7 +186,7 @@ const Payroll = () => {
               onChange={(e) => setStaffFilter(e.target.value)}
               style={inputStyle}
             >
-              <option value="all">All staff</option>
+              <option value="all">All staff ({staffList.length})</option>
               {staffList.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
@@ -187,15 +194,6 @@ const Payroll = () => {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#3A3A3C' }}>
-            <input
-              data-testid="payroll-include-drafts"
-              type="checkbox"
-              checked={includeDrafts}
-              onChange={(e) => setIncludeDrafts(e.target.checked)}
-            />
-            Include unpublished (draft) shifts
-          </label>
           <button
             data-testid="payroll-csv"
             onClick={downloadCsv}
@@ -235,19 +233,13 @@ const Payroll = () => {
         </div>
       </div>
 
-      {anyDraft && (
-        <div style={{ background: 'rgba(255,149,0,0.10)', color: '#A35E00', padding: 8, borderRadius: 10, fontSize: 11, marginBottom: 10 }}>
-          ⚠︎ Some rows include unpublished draft shifts — these figures are forecasts, not final.
-        </div>
-      )}
-
       {loading ? (
         <div style={{ ...CARD, textAlign: 'center', color: '#86868B' }}>
           <Loader2 size={16} className="animate-spin" style={{ verticalAlign: 'middle', marginRight: 6 }} /> Loading…
         </div>
       ) : results.length === 0 ? (
         <div data-testid="payroll-empty" style={{ ...CARD, textAlign: 'center', color: '#86868B', fontSize: 13 }}>
-          No shifts in this window for the current filters.
+          No Daily Sales entries with staff hours in this window for the current filters.
         </div>
       ) : (
         <div style={{ ...CARD, padding: 0, overflow: 'hidden' }}>
@@ -268,11 +260,6 @@ const Payroll = () => {
                     <td style={{ ...tdStyle }}>
                       <div style={{ fontWeight: 700, color: '#1D1D1F' }}>
                         {r.staff_name}
-                        {r.any_draft && (
-                          <span style={{ marginLeft: 6, padding: '1px 6px', background: '#FFF3E0', color: '#A35E00', fontSize: 10, borderRadius: 999, fontWeight: 700 }}>
-                            DRAFT
-                          </span>
-                        )}
                       </div>
                       {r.employee_no && (
                         <div style={{ fontSize: 10, color: '#86868B' }}>#{r.employee_no}</div>
@@ -308,6 +295,10 @@ const inputStyle = {
   width: '100%', padding: '8px 10px', borderRadius: 10, border: '1px solid #E5E5EA',
   fontSize: 12, background: '#FFFFFF', color: '#1D1D1F', ...FONT,
 };
+// Narrower date inputs so mobile Safari's native picker doesn't blow
+// out the row width. Uses `min-width: 0` so the wrapper grid can
+// actually shrink the field.
+const dateInputStyle = { ...inputStyle, minWidth: 0, width: '100%', padding: '8px 8px' };
 const thStyle = { padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' };
 const tdStyle = { padding: '10px 12px', color: '#1D1D1F' };
 

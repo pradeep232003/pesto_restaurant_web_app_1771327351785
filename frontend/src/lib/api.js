@@ -870,14 +870,20 @@ class ApiService {
   }
 
   // Payroll — per-staff hours × hourly_rate summary + CSV export.
-  async payrollSummary({ start_date, end_date, location_id, staff_id, include_drafts = false } = {}) {
-    const qs = new URLSearchParams({ start_date, end_date, include_drafts: String(include_drafts) });
+  async payrollSummary({ start_date, end_date, location_id, staff_id } = {}) {
+    const qs = new URLSearchParams({ start_date, end_date });
     if (location_id) qs.set('location_id', location_id);
     if (staff_id) qs.set('staff_id', staff_id);
     return this.fetch(`/api/admin/payroll?${qs.toString()}`);
   }
-  async payrollCsvDownload({ start_date, end_date, location_id, staff_id, include_drafts = false } = {}) {
-    const qs = new URLSearchParams({ start_date, end_date, include_drafts: String(include_drafts) });
+  async payrollStaff({ location_id } = {}) {
+    const qs = new URLSearchParams();
+    if (location_id) qs.set('location_id', location_id);
+    const s = qs.toString();
+    return this.fetch(`/api/admin/payroll/staff${s ? '?' + s : ''}`);
+  }
+  async payrollCsvDownload({ start_date, end_date, location_id, staff_id } = {}) {
+    const qs = new URLSearchParams({ start_date, end_date });
     if (location_id) qs.set('location_id', location_id);
     if (staff_id) qs.set('staff_id', staff_id);
     const token = localStorage.getItem('access_token');

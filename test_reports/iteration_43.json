@@ -1,0 +1,32 @@
+{
+  "summary": "Verified /jkhive/payroll fixes: backend Daily Sales-sourced hours, /staff dropdown endpoint, CSV export, and frontend mobile date sizing + location-scoped staff dropdown re-fetch. Backend 4/4 pytest passed. Frontend UI verifications all passed on 390x844 viewport.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_payroll.py",
+    "/app/test_reports/pytest/payroll_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "payroll.py: sync pymongo calls (find/find_one) used inside async endpoints — non-blocking small collections so fine, but consider motor for scale.",
+    "Payroll.jsx: staffFilter reset side-effect lives inside a useEffect deps=[locFilter]; when staffFilter changes independently the effect re-runs but references stale closure of staffFilter via eslint-disable — acceptable given intent, but noting.",
+    "Payroll.jsx: `All staff (N)` counter shows active staff scoped to location, correctly updates on loc change."
+  ],
+  "updated_files": ["/app/backend/tests/test_payroll.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@jollys.com / Admin123! (via /admin-login, NOT /login)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Payroll page is at /jkhive/payroll and requires admin auth via /admin-login. A location picker modal may show on first visit (LocationContext). Backend hours source is Daily Sales staff_hours[] matched by lowercase name. Test data has ~46h/5 names in 2025-01-01..2027-12-31 window. Staff dropdown endpoint respects staff_members.location_ids (empty=all sites).",
+  "verifications": {
+    "backend_staff_no_filter": "items array with 3 entries",
+    "backend_staff_by_location_timperley": "items array returned OK",
+    "backend_summary_hours": "total_hours>0, results have hours>0, no include_drafts/any_draft keys",
+    "backend_csv_export": "200 text/csv with 'Payroll summary' header",
+    "frontend_dropdown_populated": "4 options (All staff (3) + Alice Brown, Bob Carter, Jane Doe)",
+    "frontend_dropdown_rescope_on_loc_change": "GET /api/admin/payroll/staff?location_id=timperley-altrincham fired on change",
+    "frontend_mobile_date_widths": "start=157px, end=157px, same row y=228, both <=200",
+    "regression_page_load": "No payroll-error, totals strip (Hours/Gross/Staff) all visible"
+  }
+}

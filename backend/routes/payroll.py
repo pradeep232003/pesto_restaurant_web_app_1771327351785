@@ -1,17 +1,25 @@
 """
 Payroll — computes what each staff member is owed for a given
-window based on their scheduled shifts × their hourly_rate.
+window based on the actual hours logged on the Daily Sales page.
 
-Read-only aggregation: pay data comes from `staff_members.hourly_rate`
-(kept editable on /admin/staff), hours from `shifts.hours` in the
-range. Only published shifts are counted so drafts don't inflate
-figures accidentally. Admins can pass `include_drafts=true` to
-preview forecast pay for a draft week.
+Data model:
+  • Daily Sales entries hold `staff_hours: [{name, start_time, end_time}]`
+    — the ground-truth clock-in/out figures written by the manager
+    at the end of every trading day.
+  • `staff_members.hourly_rate` provides the pay rate.
+  • Match is by NAME (case-insensitive) because Daily Sales stores
+    only a text name, not a staff_id.
 
 Filters: location_id (single site or omit for every accessible site),
 start_date / end_date (inclusive YYYY-MM-DD), staff_id (single person).
 
-Endpoint: GET /api/admin/payroll — admin & super_admin only.
+Endpoints:
+  GET /api/admin/payroll               — JSON summary
+  GET /api/admin/payroll/export.csv    — bookkeeper-friendly CSV
+  GET /api/admin/payroll/staff         — staff dropdown, optionally
+                                          filtered by location
+
+All admin & super_admin only.
 """
 from datetime import datetime, timezone
 from typing import Optional
@@ -28,54 +36,81 @@ from auth import get_admin_user
 router = APIRouter(prefix="/api/admin/payroll", tags=["payroll"])
 
 _log = logging.getLogger("payroll")
-shifts_col = db["shifts"]
+daily_sales_col = db["daily_sales"]
 staff_col = db["staff_members"]
 locations_col = db["locations"]
 
 
-def _load_data(location_id: Optional[str], start_date: str, end_date: str,
-               staff_id: Optional[str], include_drafts: bool):
-    q: dict = {"date": {"$gte": start_date, "$lte": end_date}}
-    if location_id:
-        q["location_id"] = location_id
-    if staff_id:
-        q["staff_id"] = staff_id
-    if not include_drafts:
-        q["published"] = True
-    shifts = list(shifts_col.find(q, {"_id": 0}))
-
-    # Rate lookup — join by staff_id. Cache each staff record once.
-    staff_ids = {s.get("staff_id") for s in shifts if s.get("staff_id")}
-    staff_map = {
-        s["id"]: s for s in staff_col.find(
-            {"id": {"$in": list(staff_ids)}} if staff_ids else {"id": None},
-            {"_id": 0, "id": 1, "name": 1, "hourly_rate": 1, "employee_no": 1, "ni_number": 1},
-        )
-    }
-    return shifts, staff_map
+def _hours_between(start: str, end: str) -> float:
+    """Compute hours between two HH:MM strings; 0 on any parse failure."""
+    if not (start and end):
+        return 0.0
+    try:
+        st = datetime.strptime(start, "%H:%M")
+        et = datetime.strptime(end, "%H:%M")
+        diff = (et - st).total_seconds() / 3600.0
+        return round(diff, 2) if diff > 0 else 0.0
+    except ValueError:
+        return 0.0
 
 
-def _summarise(shifts, staff_map):
-    """Group shifts by staff_id and compute hours + gross pay."""
+def _load_staff():
+    """Return list of staff dicts + a lowercase-name → record map."""
+    rows = list(staff_col.find(
+        {},
+        {"_id": 0, "id": 1, "name": 1, "hourly_rate": 1,
+         "employee_no": 1, "location_ids": 1, "active": 1},
+    ).sort("name", 1))
+    by_name = {(r.get("name") or "").strip().lower(): r for r in rows}
+    return rows, by_name
+
+
+def _staff_for_location(all_staff, location_id: Optional[str]):
+    """Filter staff by permitted location — empty `location_ids` means
+    "all sites" (legacy records)."""
+    if not location_id:
+        return all_staff
+    return [
+        s for s in all_staff
+        if not s.get("location_ids") or location_id in s.get("location_ids", [])
+    ]
+
+
+def _summarise(entries, staff_by_name, staff_id_filter: Optional[str]):
+    """Group Daily Sales staff_hours entries by staff member."""
+    # If a staff_id filter is set, resolve their name once so we can
+    # gate the loop by name (Daily Sales rows don't carry staff_id).
+    target_name = None
+    if staff_id_filter:
+        for s in staff_by_name.values():
+            if s.get("id") == staff_id_filter:
+                target_name = (s.get("name") or "").strip().lower()
+                break
+
     grouped: dict = {}
-    for s in shifts:
-        sid = s.get("staff_id") or "_unknown"
-        row = grouped.setdefault(sid, {
-            "staff_id": sid,
-            "staff_name": (staff_map.get(sid) or {}).get("name") or s.get("staff_name") or "Unassigned",
-            "employee_no": (staff_map.get(sid) or {}).get("employee_no") or "",
-            "hourly_rate": float((staff_map.get(sid) or {}).get("hourly_rate") or 0),
-            "hours": 0.0,
-            "shift_count": 0,
-            "any_draft": False,
-            "locations": set(),
-        })
-        row["hours"] += float(s.get("hours") or 0)
-        row["shift_count"] += 1
-        if not s.get("published"):
-            row["any_draft"] = True
-        if s.get("location_id"):
-            row["locations"].add(s["location_id"])
+    for e in entries:
+        loc = e.get("location_id", "")
+        for sh in (e.get("staff_hours") or []):
+            name = (sh.get("name") or "").strip()
+            if not name:
+                continue
+            key = name.lower()
+            if target_name and key != target_name:
+                continue
+            rec = staff_by_name.get(key) or {}
+            row = grouped.setdefault(key, {
+                "staff_id": rec.get("id") or "",
+                "staff_name": rec.get("name") or name,
+                "employee_no": rec.get("employee_no") or "",
+                "hourly_rate": float(rec.get("hourly_rate") or 0),
+                "hours": 0.0,
+                "shift_count": 0,
+                "locations": set(),
+            })
+            row["hours"] += _hours_between(sh.get("start_time"), sh.get("end_time"))
+            row["shift_count"] += 1
+            if loc:
+                row["locations"].add(loc)
 
     results = []
     total_hours = 0.0
@@ -92,20 +127,46 @@ def _summarise(shifts, staff_map):
     return results, round(total_hours, 2), round(total_gross, 2)
 
 
+def _load_entries(location_id: Optional[str], start_date: str, end_date: str):
+    q: dict = {"date": {"$gte": start_date, "$lte": end_date}}
+    if location_id:
+        q["location_id"] = location_id
+    return list(daily_sales_col.find(q, {"_id": 0}))
+
+
+@router.get("/staff")
+async def payroll_staff(
+    location_id: Optional[str] = Query(None),
+    user: dict = Depends(get_admin_user),
+):
+    """Return the staff dropdown for the payroll page. Scoped to a
+    site when `location_id` is passed; empty `location_ids` on a staff
+    record is treated as 'permitted at all sites' (legacy behaviour)."""
+    all_staff, _ = _load_staff()
+    filtered = _staff_for_location(all_staff, location_id)
+    active_only = [s for s in filtered if s.get("active") is not False]
+    return {
+        "items": [
+            {"id": s.get("id"), "name": s.get("name"), "employee_no": s.get("employee_no") or ""}
+            for s in active_only
+        ]
+    }
+
+
 @router.get("")
 async def payroll_summary(
     start_date: str = Query(...),
     end_date: str = Query(...),
     location_id: Optional[str] = Query(None, description="Omit for every site"),
     staff_id: Optional[str] = Query(None),
-    include_drafts: bool = Query(False),
     user: dict = Depends(get_admin_user),
 ):
     """Return per-staff hours + gross-pay totals for the window."""
     if start_date > end_date:
         raise HTTPException(400, "start_date is after end_date")
-    shifts, staff_map = _load_data(location_id, start_date, end_date, staff_id, include_drafts)
-    results, total_hours, total_gross = _summarise(shifts, staff_map)
+    entries = _load_entries(location_id, start_date, end_date)
+    _, staff_by_name = _load_staff()
+    results, total_hours, total_gross = _summarise(entries, staff_by_name, staff_id)
 
     loc_name = None
     if location_id:
@@ -118,7 +179,6 @@ async def payroll_summary(
         "location_id": location_id,
         "location_name": loc_name,
         "staff_id": staff_id,
-        "include_drafts": include_drafts,
         "total_hours": total_hours,
         "total_gross": total_gross,
         "staff_count": len(results),
@@ -133,33 +193,32 @@ async def payroll_csv(
     end_date: str = Query(...),
     location_id: Optional[str] = Query(None),
     staff_id: Optional[str] = Query(None),
-    include_drafts: bool = Query(False),
     user: dict = Depends(get_admin_user),
 ):
     """CSV export suitable for handing to a bookkeeper or importing
     into external payroll software."""
     if start_date > end_date:
         raise HTTPException(400, "start_date is after end_date")
-    shifts, staff_map = _load_data(location_id, start_date, end_date, staff_id, include_drafts)
-    results, total_hours, total_gross = _summarise(shifts, staff_map)
+    entries = _load_entries(location_id, start_date, end_date)
+    _, staff_by_name = _load_staff()
+    results, total_hours, total_gross = _summarise(entries, staff_by_name, staff_id)
 
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["Payroll summary"])
     w.writerow(["Window", f"{start_date} to {end_date}"])
     w.writerow(["Site", location_id or "All sites"])
-    w.writerow(["Includes drafts", "yes" if include_drafts else "no"])
+    w.writerow(["Source", "Daily Sales staff_hours"])
     w.writerow([])
-    w.writerow(["Staff", "Employee no.", "Hours", "Rate £/h", "Gross £", "Shifts", "Sites", "Has draft?"])
+    w.writerow(["Staff", "Employee no.", "Hours", "Rate £/h", "Gross £", "Shifts", "Sites"])
     for r in results:
         w.writerow([
             r["staff_name"], r["employee_no"], f"{r['hours']:.2f}",
             f"{r['hourly_rate']:.2f}", f"{r['gross_pay']:.2f}",
             r["shift_count"], ", ".join(r["locations"]),
-            "yes" if r["any_draft"] else "",
         ])
     w.writerow([])
-    w.writerow(["", "TOTAL", f"{total_hours:.2f}", "", f"{total_gross:.2f}", "", "", ""])
+    w.writerow(["", "TOTAL", f"{total_hours:.2f}", "", f"{total_gross:.2f}", "", ""])
     buf.seek(0)
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
