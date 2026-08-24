@@ -483,7 +483,7 @@ const AdminDailySales = () => {
   const labelStyle = { color: '#86868B', ...font };
 
   return (
-    <div className={isJkhive ? "px-4 sm:px-6 lg:px-8 pt-2 pb-4 max-w-5xl mx-auto overflow-hidden" : "p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto overflow-hidden"} data-testid="admin-daily-sales-page">
+    <div className={isJkhive ? "px-4 sm:px-6 lg:px-8 pt-2 pb-4 max-w-5xl mx-auto" : "p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto"} data-testid="admin-daily-sales-page">
       {isJkhive ? (
         <Link
           to="/jkhive"

@@ -4,6 +4,7 @@ import { Brain, ClipboardCheck, Users, Settings2, MapPin, X, Check } from 'lucid
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
 import { installSwMessageBridge } from './cooling/webpush';
+import A2hsPrompt from './A2hsPrompt';
 
 const ALL_TABS = [
   { to: '/jkhive',           label: 'Intelligence', icon: Brain,          adminOnly: false },
@@ -137,6 +138,7 @@ const JKHiveLayout = () => {
           {TABS.map(t => <FooterTab key={t.to} tab={t} isActive={isTabActive(t.to)} />)}
         </div>
       </nav>
+      <A2hsPrompt />
     </div>
   );
 };
