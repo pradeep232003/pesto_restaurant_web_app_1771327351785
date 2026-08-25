@@ -130,6 +130,15 @@ const AdminDailySales = () => {
   // Clock-in reminder — soft warning listing staff assigned to this
   // location whose name doesn't yet appear in `staffHours`. Non-blocking.
   const [siteStaff, setSiteStaff] = useState([]);
+  // Actual clock events for the selected site + date, so a person who
+  // has clocked in via /jkhive/clock this morning is no longer flagged
+  // as "In outstanding" — even if the manager hasn't typed their hours
+  // into the daily-sales form yet. Same for Out.
+  const [clockEvents, setClockEvents] = useState([]);
+  // Full staff-table roster (id → account_email) so we can match clock
+  // events to rostered staff via email when `staff_id` is missing on
+  // legacy events.
+  const [staffRoster, setStaffRoster] = useState([]);
 
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -205,6 +214,35 @@ const AdminDailySales = () => {
     return () => { cancelled = true; };
   }, [selectedLocation, entryDate]);
 
+  // Load the staff-table roster once so we can resolve every rostered
+  // person to their `account_email` for email-based clock-event matching.
+  useEffect(() => {
+    let cancelled = false;
+    api.adminListStaff()
+      .then(rows => { if (!cancelled) setStaffRoster(Array.isArray(rows) ? rows : []); })
+      .catch(() => { if (!cancelled) setStaffRoster([]); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Load today's actual clock events for the selected site so the
+  // outstanding reminder reflects real-world clock-ins, not just what
+  // the manager has typed into the form.
+  useEffect(() => {
+    if (!selectedLocation || !entryDate) { setClockEvents([]); return; }
+    let cancelled = false;
+    const target = new Date(`${entryDate}T00:00:00`);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const daysAgo = Math.max(1, Math.ceil((today - target) / 86400000) + 1);
+    api.adminGetClockEvents({ locationId: selectedLocation, days: daysAgo, limit: 1000 })
+      .then(rows => {
+        if (cancelled) return;
+        const dateStr = entryDate;
+        setClockEvents((rows || []).filter(e => (e.created_at || '').slice(0, 10) === dateStr));
+      })
+      .catch(() => { if (!cancelled) setClockEvents([]); });
+    return () => { cancelled = true; };
+  }, [selectedLocation, entryDate]);
+
   // Map rostered staff → their staff_hours row (if any) so we can tell
   // "never clocked in" from "clocked in but forgot to clock out".
   const staffHoursByName = new Map(
@@ -212,13 +250,58 @@ const AdminDailySales = () => {
       .filter(sh => sh?.name)
       .map(sh => [sh.name.trim().toLowerCase(), sh])
   );
+
+  // Build id→record and name→record maps so we can resolve a rostered
+  // shift row to its staff record (and therefore its account_email).
+  const staffRecordById = new Map();
+  const staffRecordByName = new Map();
+  for (const s of staffRoster) {
+    if (s?.id) staffRecordById.set(s.id, s);
+    if (s?.name) staffRecordByName.set(s.name.trim().toLowerCase(), s);
+  }
+  const emailForRostered = (rs) => {
+    const rec = staffRecordById.get(rs.id) || staffRecordByName.get((rs.name || '').trim().toLowerCase());
+    return (rec?.account_email || '').trim().toLowerCase();
+  };
+
+  // Aggregate clock events into id/email sets per type so the check is
+  // O(1) per rostered person.
+  const clockedInIds = new Set();
+  const clockedInEmails = new Set();
+  const clockedOutIds = new Set();
+  const clockedOutEmails = new Set();
+  for (const e of clockEvents) {
+    const email = (e.account_email || '').trim().toLowerCase();
+    if (e.type === 'in') {
+      if (e.staff_id) clockedInIds.add(e.staff_id);
+      if (email) clockedInEmails.add(email);
+    } else if (e.type === 'out') {
+      if (e.staff_id) clockedOutIds.add(e.staff_id);
+      if (email) clockedOutEmails.add(email);
+    }
+  }
+  const hasClockedIn = (s) => {
+    if (clockedInIds.has(s.id)) return true;
+    const em = emailForRostered(s);
+    return !!em && clockedInEmails.has(em);
+  };
+  const hasClockedOut = (s) => {
+    if (clockedOutIds.has(s.id)) return true;
+    const em = emailForRostered(s);
+    return !!em && clockedOutEmails.has(em);
+  };
+
   const missingClockIn = siteStaff.filter(s => {
     const row = staffHoursByName.get((s.name || '').trim().toLowerCase());
-    return !row || !row.start_time;
+    if (row?.start_time) return false;
+    if (hasClockedIn(s)) return false;
+    return true;
   });
   const missingClockOut = siteStaff.filter(s => {
     const row = staffHoursByName.get((s.name || '').trim().toLowerCase());
-    return !row || !row.end_time;
+    if (row?.end_time) return false;
+    if (hasClockedOut(s)) return false;
+    return true;
   });
   const missingTotal = missingClockIn.length + missingClockOut.length;
 
