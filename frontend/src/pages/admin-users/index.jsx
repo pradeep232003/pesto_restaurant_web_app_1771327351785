@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Users, Shield, ShieldCheck, UserCog, Search } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -36,6 +36,7 @@ const AdminUsers = () => {
   const navigate = useNavigate();
   const { isAuthenticated, isSuperAdmin, loading: authLoading } = useAuth();
   const [customers, setCustomers] = useState([]);
+  const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [updating, setUpdating] = useState(null);
@@ -46,6 +47,7 @@ const AdminUsers = () => {
 
   useEffect(() => {
     fetchCustomers();
+    fetchStaff();
   }, []);
 
   const fetchCustomers = async () => {
@@ -58,6 +60,28 @@ const AdminUsers = () => {
       setLoading(false);
     }
   };
+
+  // Load the staff roster so we can show which login is linked to which
+  // employee record (edit remains on /admin/staff).
+  const fetchStaff = async () => {
+    try {
+      const data = await api.adminListStaff();
+      setStaff(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('admin-users: failed to load staff for link column', err);
+    }
+  };
+
+  // Map lower-cased account_email → staff record for O(1) lookup while
+  // rendering each row.
+  const staffByEmail = React.useMemo(() => {
+    const m = new Map();
+    for (const s of staff) {
+      const e = (s.account_email || '').trim().toLowerCase();
+      if (e) m.set(e, s);
+    }
+    return m;
+  }, [staff]);
 
   const handleRoleChange = async (customerId, newRole) => {
     setUpdating(customerId);
@@ -130,6 +154,7 @@ const AdminUsers = () => {
                 <th className="text-left px-5 py-3.5 text-xs font-medium uppercase tracking-wider" style={{ color: '#86868B' }}>Email</th>
                 <th className="text-left px-5 py-3.5 text-xs font-medium uppercase tracking-wider hidden sm:table-cell" style={{ color: '#86868B' }}>Phone</th>
                 <th className="text-left px-5 py-3.5 text-xs font-medium uppercase tracking-wider" style={{ color: '#86868B' }}>Current Role</th>
+                <th className="text-left px-5 py-3.5 text-xs font-medium uppercase tracking-wider hidden lg:table-cell" style={{ color: '#86868B' }}>Linked Staff</th>
                 <th className="text-left px-5 py-3.5 text-xs font-medium uppercase tracking-wider hidden md:table-cell" style={{ color: '#86868B' }}>Last Login</th>
                 <th className="text-left px-5 py-3.5 text-xs font-medium uppercase tracking-wider" style={{ color: '#86868B' }}>Action</th>
               </tr>
@@ -137,7 +162,7 @@ const AdminUsers = () => {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center" style={{ color: '#86868B' }}>
+                  <td colSpan={7} className="px-5 py-12 text-center" style={{ color: '#86868B' }}>
                     {search ? 'No customers match your search.' : 'No registered customers yet.'}
                   </td>
                 </tr>
@@ -153,6 +178,28 @@ const AdminUsers = () => {
                       <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium" style={{ background: rc.bg, color: rc.color }}>
                         {rc.label}
                       </span>
+                    </td>
+                    <td className="px-5 py-3.5 hidden lg:table-cell" data-testid={`linked-staff-${customer.id}`}>
+                      {(() => {
+                        const linked = staffByEmail.get((customer.email || '').trim().toLowerCase());
+                        if (linked) {
+                          return (
+                            <Link
+                              to="/admin/staff"
+                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-medium active:scale-95"
+                              style={{ background: 'rgba(52,199,89,0.12)', color: '#1F7A3A' }}
+                              title="Open staff table"
+                            >
+                              <Shield size={11} /> {linked.name}
+                            </Link>
+                          );
+                        }
+                        return (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium" style={{ background: 'rgba(142,142,147,0.15)', color: '#6E6E73' }}>
+                            Not linked
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-5 py-3.5 hidden md:table-cell" data-testid={`last-login-${customer.id}`} style={{ color: customer.last_login_at ? '#3A3A3C' : '#C7C7CC', fontVariantNumeric: 'tabular-nums' }}>
                       {formatLastLogin(customer.last_login_at)}

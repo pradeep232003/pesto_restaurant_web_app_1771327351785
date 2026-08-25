@@ -17,7 +17,6 @@ const FIELDS = [
   { key: 'start_date',   label: 'Start Date',  type: 'date' },
   { key: 'hourly_rate',  label: 'Hourly Rate (£)', type: 'number', placeholder: '12.50' },
   { key: 'weekly_hours_target', label: 'Weekly Hours Target', type: 'number', placeholder: '32 (0 = flexible)' },
-  { key: 'account_email', label: 'Login email', type: 'email', placeholder: 'staff@example.com (links their account to this rota)' },
 ];
 
 const AdminStaff = () => {
@@ -25,6 +24,8 @@ const AdminStaff = () => {
   const { isAuthenticated, isAdmin, loading: authLoading } = useAuth();
   const [staff, setStaff] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [userSearch, setUserSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(null); // staff object or 'new'
   const [form, setForm] = useState(EMPTY);
@@ -34,7 +35,7 @@ const AdminStaff = () => {
     if (!authLoading && (!isAuthenticated || !isAdmin)) navigate('/admin-login');
   }, [authLoading, isAuthenticated, isAdmin, navigate]);
 
-  useEffect(() => { if (isAdmin) { fetchStaff(); fetchLocations(); } }, [isAdmin]);
+  useEffect(() => { if (isAdmin) { fetchStaff(); fetchLocations(); fetchUsers(); } }, [isAdmin]);
 
   const fetchStaff = async () => {
     setLoading(true);
@@ -49,9 +50,16 @@ const AdminStaff = () => {
     catch (err) { console.warn('admin-staff: failed to load locations', err); }
   };
 
-  const openNew = () => { setForm({ ...EMPTY, location_ids: [], active: true }); setEditing('new'); };
-  const openEdit = (s) => { setForm({ ...EMPTY, ...s, location_ids: Array.isArray(s.location_ids) ? s.location_ids : [], active: s.active !== false }); setEditing(s); };
-  const closeForm = () => { setEditing(null); setForm(EMPTY); };
+  // Load registered users (email accounts) so the admin can link a
+  // staff record to a login account instead of typing an email by hand.
+  const fetchUsers = async () => {
+    try { setUsers(await api.adminGetCustomers()); }
+    catch (err) { console.warn('admin-staff: failed to load users', err); }
+  };
+
+  const openNew = () => { setForm({ ...EMPTY, location_ids: [], active: true }); setUserSearch(''); setEditing('new'); };
+  const openEdit = (s) => { setForm({ ...EMPTY, ...s, location_ids: Array.isArray(s.location_ids) ? s.location_ids : [], active: s.active !== false }); setUserSearch(''); setEditing(s); };
+  const closeForm = () => { setEditing(null); setForm(EMPTY); setUserSearch(''); };
 
   const toggleLocation = (locId) => {
     setForm(prev => {
@@ -144,6 +152,7 @@ const AdminStaff = () => {
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>Start Date</th>
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>£/hr</th>
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>Locations</th>
+                  <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>Login</th>
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>Status</th>
                   <th className="px-3 py-2.5 text-right text-[11px] font-semibold" style={{ color: '#86868B', ...font }}>Actions</th>
                 </tr>
@@ -181,6 +190,22 @@ const AdminStaff = () => {
                           </div>
                         );
                       })()}
+                    </td>
+                    <td className="px-3 py-2.5 text-sm" data-testid={`staff-login-${s.id}`}>
+                      {s.account_email ? (
+                        <div className="flex flex-col" style={{ maxWidth: 200 }}>
+                          <span className="text-[12px] font-medium truncate" style={{ color: '#1D1D1F', ...font }}>
+                            {users.find(u => (u.email || '').toLowerCase() === (s.account_email || '').toLowerCase())?.name || s.account_email}
+                          </span>
+                          <span className="text-[10px] truncate" style={{ color: '#86868B', ...font }}>
+                            {s.account_email}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ background: 'rgba(142,142,147,0.15)', color: '#6E6E73', ...font }}>
+                          Not linked
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2.5">
                       <button
@@ -324,6 +349,118 @@ const AdminStaff = () => {
                   </div>
                 )}
               </div>
+
+              {/* Linked login account — picks from the registered users
+                  (Admin → Users). Storing the account email here makes
+                  clock-in/out, shift-visibility and payroll all resolve
+                  to the same person regardless of role. */}
+              {(() => {
+                const currentEmail = (form.account_email || '').trim().toLowerCase();
+                const q = userSearch.trim().toLowerCase();
+                const linkedByOther = staff.find(
+                  s => (s.account_email || '').trim().toLowerCase() === currentEmail
+                    && currentEmail
+                    && s.id !== (editing?.id)
+                );
+                const filteredUsers = (users || []).filter(u => {
+                  if (!q) return true;
+                  return (u.name || '').toLowerCase().includes(q)
+                    || (u.email || '').toLowerCase().includes(q);
+                }).slice(0, 30);
+                return (
+                  <div data-testid="staff-field-account-link">
+                    <label className="block text-[11px] font-medium mb-1" style={{ color: '#86868B', ...font }}>
+                      Linked login account <span className="font-normal">(matches clock-in / shift visibility to this user)</span>
+                    </label>
+                    <div className="rounded-lg" style={{ background: '#FFFFFF', boxShadow: '0 0 0 1px rgba(0,0,0,0.08)' }}>
+                      <div className="p-2 flex items-center justify-between gap-2" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                        <div className="text-sm truncate" style={{ color: currentEmail ? '#1D1D1F' : '#86868B', ...font }}>
+                          {currentEmail ? (
+                            <>
+                              <span className="font-semibold">
+                                {users.find(u => (u.email || '').toLowerCase() === currentEmail)?.name || 'Unknown user'}
+                              </span>
+                              <span className="ml-1" style={{ color: '#86868B' }}>{currentEmail}</span>
+                            </>
+                          ) : '— Not linked —'}
+                        </div>
+                        {currentEmail && (
+                          <button
+                            type="button"
+                            data-testid="staff-clear-account-link"
+                            onClick={() => setForm(prev => ({ ...prev, account_email: '' }))}
+                            className="px-2 py-1 rounded text-[11px] font-semibold active:scale-95"
+                            style={{ background: 'rgba(255,59,48,0.1)', color: '#FF3B30', ...font }}
+                          >Clear</button>
+                        )}
+                      </div>
+                      {linkedByOther && (
+                        <div className="px-3 py-1.5 text-[11px]" style={{ background: 'rgba(255,149,0,0.1)', color: '#A35E00', ...font }}>
+                          Already linked to <strong>{linkedByOther.name}</strong> — saving will move the link here.
+                        </div>
+                      )}
+                      <input
+                        type="text"
+                        data-testid="staff-account-search"
+                        value={userSearch}
+                        onChange={e => setUserSearch(e.target.value)}
+                        placeholder="Search users by name or email…"
+                        className="w-full px-3 py-2 text-sm border-0 outline-none"
+                        style={{ background: '#F5F5F7', color: '#1D1D1F', ...font }}
+                      />
+                      <div style={{ maxHeight: 180, overflowY: 'auto' }}>
+                        {users.length === 0 ? (
+                          <div className="px-3 py-3 text-xs" style={{ color: '#86868B', ...font }}>
+                            No users found. Ensure the person has registered at /admin/users.
+                          </div>
+                        ) : filteredUsers.length === 0 ? (
+                          <div className="px-3 py-3 text-xs" style={{ color: '#86868B', ...font }}>
+                            No users match &quot;{userSearch}&quot;.
+                          </div>
+                        ) : (
+                          filteredUsers.map(u => {
+                            const uEmail = (u.email || '').toLowerCase();
+                            const isCurrent = uEmail === currentEmail;
+                            const takenBy = staff.find(
+                              s => (s.account_email || '').trim().toLowerCase() === uEmail
+                                && s.id !== (editing?.id)
+                            );
+                            return (
+                              <button
+                                key={u.id || u.email}
+                                type="button"
+                                data-testid={`staff-account-option-${u.id || u.email}`}
+                                onClick={() => setForm(prev => ({ ...prev, account_email: u.email }))}
+                                className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left active:scale-[0.99]"
+                                style={{
+                                  background: isCurrent ? 'rgba(52,199,89,0.10)' : 'transparent',
+                                  borderTop: '1px solid rgba(0,0,0,0.04)',
+                                  ...font,
+                                }}
+                              >
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold truncate" style={{ color: '#1D1D1F' }}>{u.name || u.email}</div>
+                                  <div className="text-[11px] truncate" style={{ color: '#86868B' }}>
+                                    {u.email}{u.role ? ` · ${u.role}` : ''}
+                                  </div>
+                                </div>
+                                {takenBy && !isCurrent && (
+                                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,149,0,0.15)', color: '#A35E00' }}>
+                                    linked: {takenBy.name}
+                                  </span>
+                                )}
+                                {isCurrent && (
+                                  <Check size={13} style={{ color: '#34C759', flexShrink: 0 }} />
+                                )}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="flex gap-2 pt-3">
                 <button data-testid="save-staff-btn" disabled={saving} onClick={handleSave}
