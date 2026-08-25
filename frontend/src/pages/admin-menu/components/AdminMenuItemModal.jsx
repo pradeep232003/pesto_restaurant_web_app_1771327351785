@@ -165,6 +165,111 @@ const SpecPhotos = ({ itemId, urls, onChange }) => {
   );
 };
 
+/**
+ * Prep-technique video — accepts either a direct upload (mp4/webm/mov,
+ * capped at 25 MB by the backend) or a pasted external URL (YouTube,
+ * Vimeo, Loom, direct .mp4). One video per dish; uploading a new one
+ * replaces the previous. URL edits persist on save with the item.
+ */
+const SpecVideo = ({ itemId, url, onChange }) => {
+  const inputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState('');
+
+  const handlePick = async (file) => {
+    if (!file || !itemId) return;
+    setErr('');
+    setUploading(true);
+    try {
+      const res = await api.adminUploadSpecVideo(itemId, file);
+      if (res?.video_url) onChange(res.video_url);
+    } catch (e) {
+      setErr(e.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  };
+
+  const handleClear = async () => {
+    if (!itemId) { onChange(''); return; }
+    setErr('');
+    try {
+      // Only call the backend when it's an uploaded video — pasted URLs
+      // are cleared client-side and persisted on save.
+      if ((url || '').startsWith('/api/images/')) {
+        await api.adminDeleteSpecVideo(itemId);
+      }
+      onChange('');
+    } catch (e) {
+      setErr(e.message || 'Remove failed');
+    }
+  };
+
+  const disabled = !itemId || uploading;
+
+  return (
+    <div className="mt-4" data-testid="spec-video">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Prep video <span className="normal-case font-normal">(one per dish)</span>
+        </span>
+        <div className="flex items-center gap-2">
+          {url && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-destructive hover:bg-destructive/10 transition-all"
+              data-testid="spec-video-clear"
+            >
+              <Icon name="Trash2" size={11} /> Remove
+            </button>
+          )}
+          <button
+            type="button"
+            data-testid="spec-video-upload"
+            disabled={disabled}
+            onClick={() => inputRef.current?.click()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-all disabled:opacity-50"
+            title={!itemId ? 'Save the item first to attach a video' : ''}
+          >
+            <Icon name={uploading ? 'Loader2' : 'Video'} size={12} />
+            {uploading ? 'Uploading…' : 'Upload'}
+          </button>
+        </div>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="video/mp4,video/webm,video/quicktime"
+        className="hidden"
+        onChange={(e) => handlePick(e?.target?.files?.[0])}
+      />
+      {!itemId && (
+        <p className="text-[11px] text-muted-foreground italic mb-2">
+          Save the item first to upload a video (external URLs can be pasted below).
+        </p>
+      )}
+      <input
+        type="text"
+        value={url || ''}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Paste a YouTube, Vimeo or Loom URL — or leave blank and upload above"
+        className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+        data-testid="spec-video-url"
+      />
+      {err && <p className="text-xs text-destructive mt-1">{err}</p>}
+      {url && !url.startsWith('/api/images/') && !/youtu|vimeo|loom/i.test(url) && (
+        <p className="text-[11px] text-muted-foreground italic mt-1">
+          Not a known video host — the viewer will attempt a generic HTML5 player.
+        </p>
+      )}
+    </div>
+  );
+};
+
+
+
 const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
   const [form, setForm] = useState({
     name: '',
@@ -184,7 +289,7 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
     isAvailable: true,
     showImage: true,
     recipe: [],
-    spec: { prep_steps: [], plating_notes: '', temps: '', times: '', portion: '', garnish: '', photo_urls: [] },
+    spec: { prep_steps: [], plating_notes: '', temps: '', times: '', portion: '', garnish: '', photo_urls: [], video_url: '' },
   });
   const [errors, setErrors] = useState({});
 
@@ -220,6 +325,7 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
           portion: item?.spec?.portion || '',
           garnish: item?.spec?.garnish || '',
           photo_urls: Array.isArray(item?.spec?.photo_urls) ? [...item.spec.photo_urls] : [],
+          video_url: item?.spec?.video_url || '',
         },
       });
     }
@@ -258,6 +364,7 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
         portion: (form?.spec?.portion || '').trim(),
         garnish: (form?.spec?.garnish || '').trim(),
         photo_urls: Array.isArray(form?.spec?.photo_urls) ? form.spec.photo_urls : [],
+        video_url: (form?.spec?.video_url || '').trim(),
       },
     });
   };
@@ -715,6 +822,14 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
               itemId={item?.id}
               urls={form?.spec?.photo_urls || []}
               onChange={(urls) => setForm(prev => ({ ...prev, spec: { ...(prev.spec || {}), photo_urls: urls } }))}
+            />
+
+            {/* Prep video — one per dish. Accepts a direct upload (mp4/webm/mov)
+                or an external URL (YouTube, Loom, Vimeo). */}
+            <SpecVideo
+              itemId={item?.id}
+              url={form?.spec?.video_url || ''}
+              onChange={(url) => setForm(prev => ({ ...prev, spec: { ...(prev.spec || {}), video_url: url } }))}
             />
           </div>
 

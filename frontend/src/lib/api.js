@@ -266,6 +266,31 @@ class ApiService {
     });
   }
 
+  // Upload a short prep-technique video for the menu item spec
+  async adminUploadSpecVideo(itemId, file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    const headers = {};
+    const t = localStorage.getItem('access_token');
+    if (t) headers['Authorization'] = `Bearer ${t}`;
+    const res = await fetch(`${API_BASE_URL}/api/admin/menu-items/${itemId}/spec-video`, {
+      method: 'POST',
+      credentials: API_BASE_URL ? 'include' : 'same-origin',
+      headers,
+      body: fd,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Upload failed: ${res.status}`);
+    }
+    return res.json();
+  }
+
+  // Remove the prep-technique video from a menu item
+  async adminDeleteSpecVideo(itemId) {
+    return this.fetch(`/api/admin/menu-items/${itemId}/spec-video`, { method: 'DELETE' });
+  }
+
   // Toggle image visibility for a menu item
   async adminToggleImageVisibility(itemId) {
     return this.fetch(`/api/admin/menu-items/${itemId}/toggle-image`, {

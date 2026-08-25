@@ -72,6 +72,8 @@ class MenuSpec(BaseModel):
     portion: str = ""
     garnish: str = ""
     photo_urls: List[str] = []   # max 4 — enforced client-side + endpoint
+    video_url: str = ""          # /api/images/{id} for uploads or an
+                                 # external YouTube/Vimeo/Loom URL. Empty = none.
 
 
 class MenuItem(BaseModel):

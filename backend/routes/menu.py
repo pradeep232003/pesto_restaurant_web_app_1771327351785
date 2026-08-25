@@ -277,3 +277,67 @@ async def admin_delete_spec_photo(item_id: str, image_url: str, user: dict = Dep
         {"$set": {"spec": spec, "updated_at": datetime.now(timezone.utc).isoformat()}},
     )
     return {"photo_urls": urls}
+
+
+# ============== SPEC-SHEET VIDEO UPLOAD ==============
+# One prep-technique video per dish. Stored base64 in `images_collection`
+# for consistency with the photo path (served via /api/images/{id}).
+# Managers can also paste an external YouTube/Loom URL via the PATCH
+# endpoint below without touching the storage layer.
+
+MAX_SPEC_VIDEO_MB = 25
+
+
+@router.post("/api/admin/menu-items/{item_id}/spec-video")
+async def admin_upload_spec_video(item_id: str, file: UploadFile = File(...), user: dict = Depends(get_admin_user)):
+    """Admin: upload a short prep-technique video (single per item)."""
+    existing = menu_items_collection.find_one({"id": item_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+
+    allowed_types = ["video/mp4", "video/webm", "video/quicktime", "video/x-m4v"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail=f"Invalid type {file.content_type}. Allowed: mp4, webm, mov")
+
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_SPEC_VIDEO_MB * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"Video too large. Max {MAX_SPEC_VIDEO_MB} MB.")
+
+    spec = existing.get("spec") or {}
+    # Delete previous uploaded video (if any) so we don't accumulate orphans.
+    prev = spec.get("video_url") or ""
+    if prev.startswith("/api/images/"):
+        images_collection.delete_one({"image_id": prev.rsplit("/", 1)[-1]})
+
+    video_id = f"{item_id}_video_{uuid.uuid4().hex[:8]}"
+    images_collection.insert_one({
+        "image_id": video_id, "item_id": item_id,
+        "content_type": file.content_type,
+        "data": base64.b64encode(file_bytes).decode("utf-8"),
+        "type": "spec_video",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    spec["video_url"] = f"/api/images/{video_id}"
+    menu_items_collection.update_one(
+        {"id": item_id},
+        {"$set": {"spec": spec, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"video_url": spec["video_url"]}
+
+
+@router.delete("/api/admin/menu-items/{item_id}/spec-video")
+async def admin_delete_spec_video(item_id: str, user: dict = Depends(get_admin_user)):
+    """Admin: clear the prep video for a dish."""
+    existing = menu_items_collection.find_one({"id": item_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+    spec = existing.get("spec") or {}
+    prev = spec.get("video_url") or ""
+    if prev.startswith("/api/images/"):
+        images_collection.delete_one({"image_id": prev.rsplit("/", 1)[-1]})
+    spec["video_url"] = ""
+    menu_items_collection.update_one(
+        {"id": item_id},
+        {"$set": {"spec": spec, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"video_url": ""}
