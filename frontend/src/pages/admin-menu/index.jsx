@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useLocation2 } from '../../contexts/LocationContext';
 import AdminMenuItemModal from './components/AdminMenuItemModal';
 import AdminMenuTable from './components/AdminMenuTable';
+import MenuItemSpecViewer from './components/MenuItemSpecViewer';
 
 const MENU_CATEGORIES = [
   { id: 'breakfast', name: 'Breakfast', icon: 'Sunrise' },
@@ -36,6 +37,7 @@ const AdminMenuManagement = () => {
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [specItem, setSpecItem] = useState(null);
 
   // Redirect to login if not authenticated as admin
   useEffect(() => {
@@ -105,6 +107,7 @@ const AdminMenuManagement = () => {
         is_available: formData?.isAvailable !== false,
         show_image: formData?.showImage !== false,
         recipe: formData?.recipe || [],
+        spec: formData?.spec || null,
       };
 
       let savedItem;
@@ -335,6 +338,7 @@ const AdminMenuManagement = () => {
               onUploadImage={handleUploadImage}
               onToggleImage={handleToggleImage}
               onAddNew={handleAddNew}
+              onViewSpec={(it) => setSpecItem(it)}
               categories={MENU_CATEGORIES}
             />
           </div>
@@ -349,6 +353,11 @@ const AdminMenuManagement = () => {
           onClose={() => { setIsModalOpen(false); setEditingItem(null); }}
           saving={saving}
         />
+      )}
+
+      {/* Recipe & Spec viewer (staff read-only) */}
+      {specItem && (
+        <MenuItemSpecViewer item={specItem} onClose={() => setSpecItem(null)} />
       )}
 
       {/* Delete Confirmation Modal */}

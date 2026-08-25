@@ -239,11 +239,37 @@ class ApiService {
     return response.json();
   }
 
+  // Upload a photo for the menu-item spec sheet (max 4 per item)
+  async adminUploadSpecPhoto(itemId, file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    const headers = {};
+    const t = localStorage.getItem('access_token');
+    if (t) headers['Authorization'] = `Bearer ${t}`;
+    const res = await fetch(`${API_BASE_URL}/api/admin/menu-items/${itemId}/spec-photos`, {
+      method: 'POST',
+      credentials: API_BASE_URL ? 'include' : 'same-origin',
+      headers,
+      body: fd,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Upload failed: ${res.status}`);
+    }
+    return res.json();
+  }
+
+  // Remove a spec-sheet photo by its image URL
+  async adminDeleteSpecPhoto(itemId, imageUrl) {
+    return this.fetch(`/api/admin/menu-items/${itemId}/spec-photos?image_url=${encodeURIComponent(imageUrl)}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Toggle image visibility for a menu item
   async adminToggleImageVisibility(itemId) {
     return this.fetch(`/api/admin/menu-items/${itemId}/toggle-image`, {
-      method: 'PATCH',
-    });
+      method: 'PATCH',    });
   }
 
   // ============== RESIDENT PREPAID BALANCE ENDPOINTS ==============

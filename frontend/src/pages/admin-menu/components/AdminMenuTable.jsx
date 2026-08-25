@@ -15,7 +15,7 @@ const CATEGORY_LABELS = {
   beverages: 'Beverages',
 };
 
-const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability, onUploadImage, onToggleImage, onAddNew, categories }) => {
+const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability, onUploadImage, onToggleImage, onAddNew, onViewSpec, categories }) => {
   const fileInputRef = useRef(null);
   const [uploadingId, setUploadingId] = useState(null);
 
@@ -200,6 +200,16 @@ const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end space-x-2">
+                    {onViewSpec && (
+                      <button
+                        onClick={() => onViewSpec(item)}
+                        data-testid={`view-spec-${item?.id}`}
+                        className="p-2 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-all duration-200"
+                        title="View recipe & spec"
+                      >
+                        <Icon name="BookOpen" size={16} />
+                      </button>
+                    )}
                     <button
                       onClick={() => onEdit(item)}
                       className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all duration-200"
@@ -250,6 +260,11 @@ const AdminMenuTable = ({ items, loading, onEdit, onDelete, onToggleAvailability
                     </div>
                   </div>
                   <div className="flex items-center space-x-1 ml-2">
+                    {onViewSpec && (
+                      <button onClick={() => onViewSpec(item)} data-testid={`view-spec-mobile-${item?.id}`} className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-all duration-200" title="View spec">
+                        <Icon name="BookOpen" size={14} />
+                      </button>
+                    )}
                     <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all duration-200">
                       <Icon name="Pencil" size={14} />
                     </button>

@@ -61,6 +61,19 @@ class RecipeLine(BaseModel):
     unit_cost: float = 0.0   # £ per unit
 
 
+class MenuSpec(BaseModel):
+    """Recipe & prep spec sheet followed by kitchen staff. Free-text
+    fields kept intentionally loose so the workflow can be tuned per
+    site without a migration."""
+    prep_steps: List[str] = []
+    plating_notes: str = ""
+    temps: str = ""
+    times: str = ""
+    portion: str = ""
+    garnish: str = ""
+    photo_urls: List[str] = []   # max 4 — enforced client-side + endpoint
+
+
 class MenuItem(BaseModel):
     id: str
     location_id: str
@@ -81,6 +94,7 @@ class MenuItem(BaseModel):
     prep_time: int = 0
     is_available: bool = True
     recipe: List[RecipeLine] = []
+    spec: Optional[MenuSpec] = None
 
 class MenuItemCreate(BaseModel):
     location_id: str
@@ -99,6 +113,7 @@ class MenuItemCreate(BaseModel):
     prep_time: int = 0
     is_available: bool = True
     recipe: List[RecipeLine] = []
+    spec: Optional[MenuSpec] = None
 
 class MenuItemUpdate(BaseModel):
     name: Optional[str] = None
@@ -116,6 +131,7 @@ class MenuItemUpdate(BaseModel):
     prep_time: Optional[int] = None
     is_available: Optional[bool] = None
     recipe: Optional[List[RecipeLine]] = None
+    spec: Optional[MenuSpec] = None
 
 
 # ============== AUTH MODELS ==============

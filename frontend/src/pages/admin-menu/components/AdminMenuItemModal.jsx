@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Icon from '../../../components/AppIcon';
-import { resolveImageUrl } from '../../../lib/api';
+import api, { resolveImageUrl } from '../../../lib/api';
 
 const DIETARY_OPTIONS = ['vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'keto'];
 
@@ -69,6 +69,102 @@ const ImageUploadField = ({ currentUrl, onFileSelect, selectedFile }) => {
   );
 };
 
+/**
+ * Spec-sheet photo uploader (max 4). Uploads on-pick so the persisted
+ * URL is stable across form saves; the parent only tracks the array.
+ * `itemId` is null when creating a fresh item — in that case the upload
+ * button is disabled with a helpful hint (save the item first, then
+ * come back to add photos).
+ */
+const SpecPhotos = ({ itemId, urls, onChange }) => {
+  const inputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState('');
+
+  const handlePick = async (file) => {
+    if (!file || !itemId) return;
+    setErr('');
+    setUploading(true);
+    try {
+      const res = await api.adminUploadSpecPhoto(itemId, file);
+      if (res?.photo_urls) onChange(res.photo_urls);
+    } catch (e) {
+      setErr(e.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  };
+
+  const handleRemove = async (u) => {
+    if (!itemId) { onChange((urls || []).filter(x => x !== u)); return; }
+    setErr('');
+    try {
+      const res = await api.adminDeleteSpecPhoto(itemId, u);
+      if (res?.photo_urls) onChange(res.photo_urls);
+    } catch (e) {
+      setErr(e.message || 'Remove failed');
+    }
+  };
+
+  const canAdd = (urls || []).length < 4;
+  const disabled = !itemId || !canAdd || uploading;
+
+  return (
+    <div data-testid="spec-photos">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reference photos <span className="normal-case font-normal">({(urls || []).length}/4)</span></span>
+        <button
+          type="button"
+          data-testid="spec-photo-add-btn"
+          disabled={disabled}
+          onClick={() => inputRef.current?.click()}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-all disabled:opacity-50"
+          title={!itemId ? 'Save the item first to attach photos' : ''}
+        >
+          <Icon name={uploading ? 'Loader2' : 'ImagePlus'} size={12} />
+          {uploading ? 'Uploading…' : 'Add photo'}
+        </button>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => handlePick(e?.target?.files?.[0])}
+      />
+      {!itemId && (
+        <p className="text-[11px] text-muted-foreground italic mb-2">
+          Save the item once, then reopen to attach reference photos for staff.
+        </p>
+      )}
+      {err && <p className="text-xs text-destructive mb-2">{err}</p>}
+      {(urls || []).length === 0 ? (
+        <div className="rounded-lg border-2 border-dashed border-border bg-muted/40 p-4 text-center text-xs text-muted-foreground">
+          No photos yet.
+        </div>
+      ) : (
+        <div className="grid grid-cols-4 gap-2">
+          {(urls || []).map((u) => (
+            <div key={u} className="relative rounded-lg overflow-hidden border border-border bg-muted/40 aspect-square group">
+              <img src={resolveImageUrl(u)} alt="Spec" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={() => handleRemove(u)}
+                className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/70 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                title="Remove"
+                data-testid={`spec-photo-remove-${u}`}
+              >
+                <Icon name="X" size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
   const [form, setForm] = useState({
     name: '',
@@ -88,6 +184,7 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
     isAvailable: true,
     showImage: true,
     recipe: [],
+    spec: { prep_steps: [], plating_notes: '', temps: '', times: '', portion: '', garnish: '', photo_urls: [] },
   });
   const [errors, setErrors] = useState({});
 
@@ -115,6 +212,15 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
           unit: r?.unit || '',
           unit_cost: r?.unit_cost != null ? String(r.unit_cost) : '',
         })),
+        spec: {
+          prep_steps: Array.isArray(item?.spec?.prep_steps) ? [...item.spec.prep_steps] : [],
+          plating_notes: item?.spec?.plating_notes || '',
+          temps: item?.spec?.temps || '',
+          times: item?.spec?.times || '',
+          portion: item?.spec?.portion || '',
+          garnish: item?.spec?.garnish || '',
+          photo_urls: Array.isArray(item?.spec?.photo_urls) ? [...item.spec.photo_urls] : [],
+        },
       });
     }
   }, [item]);
@@ -144,6 +250,15 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
           unit_cost: parseFloat(r?.unit_cost) || 0,
         }))
         .filter(r => r.ingredient),
+      spec: {
+        prep_steps: (form?.spec?.prep_steps || []).map(s => (s || '').trim()).filter(Boolean),
+        plating_notes: (form?.spec?.plating_notes || '').trim(),
+        temps: (form?.spec?.temps || '').trim(),
+        times: (form?.spec?.times || '').trim(),
+        portion: (form?.spec?.portion || '').trim(),
+        garnish: (form?.spec?.garnish || '').trim(),
+        photo_urls: Array.isArray(form?.spec?.photo_urls) ? form.spec.photo_urls : [],
+      },
     });
   };
 
@@ -485,6 +600,122 @@ const AdminMenuItemModal = ({ item, categories, onSave, onClose, saving }) => {
                 })()}
               </div>
             )}
+          </div>
+
+          {/* Spec Sheet — Recipe & prep workflow followed by kitchen staff.
+              Ordered prep steps, plating notes, key temps/times, portion,
+              garnish and up to 4 reference photos. Allergen callouts are
+              auto-derived from the item's allergen matrix, not typed here. */}
+          <div className="border-t border-border pt-5" data-testid="spec-section">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <label className="block text-sm font-body font-semibold text-foreground">Spec Sheet (prep & plating)</label>
+                <p className="text-xs text-muted-foreground mt-0.5">Kitchen workflow — every station follows this at the pass.</p>
+              </div>
+            </div>
+
+            {/* Prep steps — ordered list. */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prep steps</span>
+                <button
+                  type="button"
+                  data-testid="spec-add-step-btn"
+                  onClick={() => setForm(prev => ({
+                    ...prev,
+                    spec: { ...(prev.spec || {}), prep_steps: [...(prev.spec?.prep_steps || []), ''] },
+                  }))}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-all"
+                >
+                  <Icon name="Plus" size={12} /> Add step
+                </button>
+              </div>
+              {(form?.spec?.prep_steps?.length || 0) === 0 ? (
+                <p className="text-xs text-muted-foreground italic py-3 text-center bg-muted/40 rounded-lg">No steps yet — staff will only see plating notes.</p>
+              ) : (
+                <div className="space-y-2">
+                  {form.spec.prep_steps.map((step, idx) => (
+                    <div key={idx} className="flex items-start gap-2" data-testid={`spec-step-${idx}`}>
+                      <div className="w-7 h-7 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center flex-shrink-0 mt-1">
+                        {idx + 1}
+                      </div>
+                      <textarea
+                        value={step}
+                        onChange={(e) => setForm(prev => ({
+                          ...prev,
+                          spec: {
+                            ...(prev.spec || {}),
+                            prep_steps: (prev.spec?.prep_steps || []).map((s, i) => i === idx ? e.target.value : s),
+                          },
+                        }))}
+                        placeholder="e.g. Heat the pan to 180°C and add 15g of butter"
+                        rows={2}
+                        className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+                        data-testid={`spec-step-input-${idx}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => ({
+                          ...prev,
+                          spec: {
+                            ...(prev.spec || {}),
+                            prep_steps: (prev.spec?.prep_steps || []).filter((_, i) => i !== idx),
+                          },
+                        }))}
+                        className="w-9 h-9 rounded-lg text-destructive hover:bg-destructive/10 transition-all flex items-center justify-center flex-shrink-0 mt-0.5"
+                        data-testid={`spec-step-remove-${idx}`}
+                        title="Remove step"
+                      >
+                        <Icon name="Trash2" size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Grid of short spec fields. */}
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              {[
+                { key: 'temps', label: 'Key temps', placeholder: 'Fry 180°C · Core 75°C' },
+                { key: 'times', label: 'Cook times', placeholder: '4 min sear · 8 min oven' },
+                { key: 'portion', label: 'Portion size', placeholder: '220g cooked / 1 bowl' },
+                { key: 'garnish', label: 'Garnish', placeholder: 'Chopped parsley + lemon wedge' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">{f.label}</label>
+                  <input
+                    type="text"
+                    value={form?.spec?.[f.key] || ''}
+                    onChange={(e) => setForm(prev => ({ ...prev, spec: { ...(prev.spec || {}), [f.key]: e.target.value } }))}
+                    placeholder={f.placeholder}
+                    className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    data-testid={`spec-${f.key}`}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Plating notes — free text. */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Plating notes</label>
+              <textarea
+                value={form?.spec?.plating_notes || ''}
+                onChange={(e) => setForm(prev => ({ ...prev, spec: { ...(prev.spec || {}), plating_notes: e.target.value } }))}
+                placeholder="Warm bowl. Sauce base, then noodles nested with tongs, protein on top, garnish last."
+                rows={3}
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-vertical"
+                data-testid="spec-plating"
+              />
+            </div>
+
+            {/* Photo uploader — up to 4. Uploads immediately so the URL
+                is stable on save (matches the existing menu-image flow). */}
+            <SpecPhotos
+              itemId={item?.id}
+              urls={form?.spec?.photo_urls || []}
+              onChange={(urls) => setForm(prev => ({ ...prev, spec: { ...(prev.spec || {}), photo_urls: urls } }))}
+            />
           </div>
 
           {/* Toggles */}

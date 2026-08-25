@@ -212,3 +212,68 @@ async def get_image(image_id: str):
         raise HTTPException(status_code=404, detail="Image not found")
     image_bytes = base64.b64decode(doc["data"])
     return Response(content=image_bytes, media_type=doc.get("content_type", "image/jpeg"), headers={"Cache-Control": "public, max-age=31536000"})
+
+
+# ============== SPEC-SHEET PHOTO UPLOAD ==============
+# Photos attached to a menu item's `spec.photo_urls` — kitchen staff
+# reference them at the pass. Reuses the base64-in-Mongo pattern used
+# by the main menu image so the /api/images/{id} serve path is shared.
+
+MAX_SPEC_PHOTOS = 4
+
+
+@router.post("/api/admin/menu-items/{item_id}/spec-photos")
+async def admin_upload_spec_photo(item_id: str, file: UploadFile = File(...), user: dict = Depends(get_admin_user)):
+    """Admin: upload a spec-sheet photo (max 4 per item)."""
+    existing = menu_items_collection.find_one({"id": item_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Invalid file type. Allowed: JPEG, PNG, WebP, GIF")
+
+    spec = existing.get("spec") or {}
+    urls = list(spec.get("photo_urls") or [])
+    if len(urls) >= MAX_SPEC_PHOTOS:
+        raise HTTPException(status_code=400, detail=f"Maximum {MAX_SPEC_PHOTOS} spec photos allowed. Remove one first.")
+
+    file_bytes = await file.read()
+    image_id = f"{item_id}_spec_{uuid.uuid4().hex[:8]}"
+    images_collection.insert_one({
+        "image_id": image_id, "item_id": item_id,
+        "content_type": file.content_type,
+        "data": base64.b64encode(file_bytes).decode("utf-8"),
+        "type": "spec",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    image_url = f"/api/images/{image_id}"
+    urls.append(image_url)
+    spec["photo_urls"] = urls
+    menu_items_collection.update_one(
+        {"id": item_id},
+        {"$set": {"spec": spec, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"image_url": image_url, "photo_urls": urls}
+
+
+@router.delete("/api/admin/menu-items/{item_id}/spec-photos")
+async def admin_delete_spec_photo(item_id: str, image_url: str, user: dict = Depends(get_admin_user)):
+    """Admin: remove a specific spec-sheet photo by its URL."""
+    existing = menu_items_collection.find_one({"id": item_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+    spec = existing.get("spec") or {}
+    urls = list(spec.get("photo_urls") or [])
+    if image_url not in urls:
+        raise HTTPException(status_code=404, detail="Spec photo not found on this item")
+    urls.remove(image_url)
+    spec["photo_urls"] = urls
+    # Also purge the underlying image row so orphans don't pile up.
+    image_id = image_url.rsplit("/", 1)[-1]
+    images_collection.delete_one({"image_id": image_id})
+    menu_items_collection.update_one(
+        {"id": item_id},
+        {"$set": {"spec": spec, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"photo_urls": urls}
