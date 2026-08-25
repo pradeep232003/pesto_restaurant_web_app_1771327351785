@@ -256,7 +256,31 @@ async def admin_clock_events(
         query["staff_id"] = staff_id
     lim = max(1, min(limit, 2000))
     docs = list(clock_events_collection.find(query).sort("created_at", -1).limit(lim))
-    return [_strip(d) for d in docs]
+    # Enrich each event with the linked staff record's name so the
+    # History tab shows the same name as Daily Sales / Shift Mgmt (staff
+    # table), not the customer/user account's display name.
+    emails = {(d.get("account_email") or "").strip().lower() for d in docs if d.get("account_email")}
+    staff_ids = {d.get("staff_id") for d in docs if d.get("staff_id")}
+    staff_map: dict = {}
+    if emails:
+        for s in staff_collection.find({"account_email": {"$in": list(emails)}}, {"_id": 0, "account_email": 1, "name": 1, "id": 1}):
+            key = (s.get("account_email") or "").strip().lower()
+            if key:
+                staff_map[key] = s.get("name") or ""
+    id_map: dict = {}
+    if staff_ids:
+        for s in staff_collection.find({"id": {"$in": list(staff_ids)}}, {"_id": 0, "id": 1, "name": 1}):
+            id_map[s["id"]] = s.get("name") or ""
+    out = []
+    for d in docs:
+        e = _strip(d)
+        e["staff_name"] = (
+            id_map.get(d.get("staff_id"))
+            or staff_map.get((d.get("account_email") or "").strip().lower())
+            or ""
+        )
+        out.append(e)
+    return out
 
 
 @router.get("/admin/staff")
@@ -275,11 +299,18 @@ async def admin_clock_staff(user: dict = Depends(get_admin_user)):
         {"$sort": {"name": 1}},
     ]
     rows = list(clock_events_collection.aggregate(pipeline))
+    emails = [(r["_id"] or "").strip().lower() for r in rows if r.get("_id")]
+    staff_name_map: dict = {}
+    if emails:
+        for s in staff_collection.find({"account_email": {"$in": emails}}, {"_id": 0, "account_email": 1, "name": 1}):
+            key = (s.get("account_email") or "").strip().lower()
+            if key:
+                staff_name_map[key] = s.get("name") or ""
     return {
         "items": [
             {
                 "account_email": r["_id"],
-                "name": r.get("name") or r["_id"],
+                "name": staff_name_map.get((r["_id"] or "").strip().lower()) or r.get("name") or r["_id"],
                 "staff_id": r.get("staff_id"),
                 "last_event_at": r.get("last_event_at"),
             }

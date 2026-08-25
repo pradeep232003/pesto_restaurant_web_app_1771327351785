@@ -399,7 +399,7 @@ const ClockEventRow = ({ evt, showUser = false }) => (
     }}>{evt.type === 'in' ? 'IN' : 'OUT'}</div>
     <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: '#1D1D1F' }}>
-        {showUser ? (evt.user_name || evt.account_email || 'Unknown') : (evt.location_name || 'Site')}
+        {showUser ? (evt.staff_name || evt.user_name || evt.account_email || 'Unknown') : (evt.location_name || 'Site')}
       </div>
       <div style={{ fontSize: 11, color: '#86868B' }}>
         {showUser && evt.location_name ? `${evt.location_name} · ` : ''}
