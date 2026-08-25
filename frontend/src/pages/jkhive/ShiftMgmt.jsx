@@ -140,6 +140,45 @@ const BudgetBar = ({ locationId, weekStart, weekCost }) => {
           <div style={{ fontSize: 10, color: '#86868B', marginTop: 2 }}>
             {data.last_week_start?.slice(5)} – {data.last_week_end?.slice(5)}
           </div>
+          {/* Mon–Sun mini bar chart — quickly shows which days spike so
+              the rota can be weighted accordingly. Skipped when no
+              revenue at all so we don't render an empty grid. */}
+          {Array.isArray(data.last_week_daily) && data.last_week_daily.some(d => (d.sales || 0) > 0) && (() => {
+            const days = data.last_week_daily;
+            const peak = Math.max(...days.map(d => Number(d.sales) || 0), 1);
+            const [hoveredDay, setHovered] = [null, null]; // no state — hover uses native title
+            void hoveredDay; void setHovered;
+            return (
+              <div data-testid="budget-lastweek-daily" style={{ marginTop: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, alignItems: 'end', height: 44 }}>
+                  {days.map(d => {
+                    const val = Number(d.sales) || 0;
+                    const hPct = peak > 0 ? Math.max(4, (val / peak) * 100) : 4;
+                    const isPeak = val === peak && val > 0;
+                    return (
+                      <div key={d.date} title={`${d.day} · ${d.date}: £${val.toFixed(2)}`}
+                        style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'stretch', height: '100%' }}
+                      >
+                        <div style={{
+                          height: `${hPct}%`,
+                          background: val === 0 ? '#F5F5F7' : isPeak ? '#34C759' : '#0A84C9',
+                          borderRadius: 3,
+                          transition: 'height 0.2s',
+                        }} />
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, marginTop: 4 }}>
+                  {days.map(d => (
+                    <div key={`${d.date}-lbl`} style={{ textAlign: 'center', fontSize: 9, color: '#86868B', fontWeight: 600 }}>
+                      {d.day[0]}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Forecast — editable */}

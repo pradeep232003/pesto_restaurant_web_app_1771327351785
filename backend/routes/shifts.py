@@ -1193,6 +1193,33 @@ def _sum_revenue(location_id: str, start_iso: str, end_iso: str) -> float:
     return round(sum(float(r.get("sales") or 0) for r in rows), 2)
 
 
+def _daily_revenue(location_id: str, start_iso: str, end_iso: str) -> list:
+    """Return Mon–Sun revenue for one location inside [start, end] inclusive.
+
+    Fills gaps with 0.0 so the frontend can render a full 7-bar chart
+    even when a site closed on a Tuesday or hasn't filed sales yet.
+    """
+    rows = daily_sales_collection.find(
+        {"location_id": location_id, "date": {"$gte": start_iso, "$lte": end_iso}},
+        {"_id": 0, "date": 1, "sales": 1},
+    )
+    # Sum defensively in case a manager filed two entries for the same day.
+    totals: dict = {}
+    for r in rows:
+        d = r.get("date")
+        if not d:
+            continue
+        totals[d] = totals.get(d, 0.0) + float(r.get("sales") or 0)
+
+    day_labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    start = datetime.strptime(start_iso, "%Y-%m-%d").date()
+    out = []
+    for i in range(7):
+        d = (start + _td(days=i)).isoformat()
+        out.append({"date": d, "day": day_labels[i], "sales": round(totals.get(d, 0.0), 2)})
+    return out
+
+
 class WageBudgetPut(BaseModel):
     location_id: str
     week_start: str  # YYYY-MM-DD (Monday)
@@ -1218,6 +1245,7 @@ async def get_week_budget(
     last_week_end = _iso_minus(week_start, -1)
 
     last_week_revenue = _sum_revenue(location_id, last_week_start, last_week_end)
+    last_week_daily = _daily_revenue(location_id, last_week_start, last_week_end)
 
     saved = shift_budgets_collection.find_one(
         {"location_id": location_id, "week_start": week_start}, {"_id": 0},
@@ -1234,6 +1262,7 @@ async def get_week_budget(
         "last_week_start": last_week_start,
         "last_week_end": last_week_end,
         "last_week_revenue": last_week_revenue,
+        "last_week_daily": last_week_daily,
         "forecast": round(forecast, 2),
         "forecast_overridden": forecast_override is not None,
         "target_pct": target_pct,
