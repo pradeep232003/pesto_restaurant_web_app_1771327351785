@@ -44,7 +44,7 @@ const readGPS = () => new Promise((resolve) => {
 const ClockInOut = () => {
   const navigate = useNavigate();
   const { isAuthenticated, loading: authLoading, isAdmin } = useAuth();
-  const { adminLocationId, setAdminLocationId, locations } = useLocation2();
+  const { adminLocationId, locations } = useLocation2();
 
   const [status, setStatus] = useState({ clocked_in: false, event: null });
   const [history, setHistory] = useState([]);
@@ -185,33 +185,9 @@ const ClockInOut = () => {
         Geo-verified time tracking. Your location is checked against the site you&apos;re assigned to.
       </p>
 
-      {/* Site picker — single row, pill chips */}
-      {!status.clocked_in && (
-        <div style={{ marginBottom: 14 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#86868B', margin: '0 0 6px' }}>Site</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {locations.map(loc => {
-              const active = loc.id === adminLocationId;
-              return (
-                <button
-                  key={loc.id}
-                  data-testid={`clock-site-${loc.id}`}
-                  onClick={() => setAdminLocationId(loc.id)}
-                  style={{
-                    padding: '6px 12px', borderRadius: 999,
-                    border: `1px solid ${active ? '#007AFF' : '#E5E5EA'}`,
-                    background: active ? 'rgba(0,122,255,0.08)' : '#FFFFFF',
-                    color: active ? '#007AFF' : '#1D1D1F',
-                    fontSize: 12, fontWeight: 600, cursor: 'pointer', ...FONT,
-                  }}
-                >
-                  {loc.name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Site is picked in the JKHive header switcher — no need for
+          a second picker here. `adminLocationId` from LocationContext
+          drives everything below. */}
 
       {/* Big status card */}
       <div
