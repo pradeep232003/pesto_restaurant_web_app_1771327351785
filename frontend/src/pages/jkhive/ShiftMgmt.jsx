@@ -1003,6 +1003,21 @@ const ShiftGrid = ({ weekStart, staffList, shifts, staffFilter, locationId, onCh
     return out;
   }, [shifts]);
 
+  // Per-day totals (hours) — powers the footer row so managers can see
+  // which days are heavy or light without adding them up in their head.
+  const totalsByDay = useMemo(() => {
+    const out = {};
+    for (const s of shifts) {
+      if (!s.date) continue;
+      out[s.date] = (out[s.date] || 0) + (s.hours || 0);
+    }
+    return out;
+  }, [shifts]);
+  const grandTotal = useMemo(
+    () => Object.values(totalsByStaff).reduce((a, b) => a + (b || 0), 0),
+    [totalsByStaff],
+  );
+
   // Inline quick-add popover state. Anchored to the clicked cell so the
   // editor never covers the cell itself.
   const [popover, setPopover] = useState(null); // { staffId, date, anchor }
@@ -1242,6 +1257,49 @@ const ShiftGrid = ({ weekStart, staffList, shifts, staffFilter, locationId, onCh
               </div>
             </div>
           ))}
+
+          {/* Footer — per-day totals + grand total. Sits under the last
+              staff row and mirrors the header column widths so the
+              numbers line up under their day header. */}
+          <div
+            data-testid="shifts-grid-day-totals"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '180px repeat(7, minmax(110px, 1fr)) 84px',
+              borderTop: '2px solid #ECECEF',
+              background: '#FAFAFC',
+              ...FONT,
+            }}
+          >
+            <div style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: '#86868B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Day total
+            </div>
+            {days.map((d) => {
+              const iso = toIso(d);
+              const isToday = iso === todayIso;
+              const hrs = totalsByDay[iso] || 0;
+              return (
+                <div
+                  key={`total-${iso}`}
+                  data-testid={`shifts-grid-day-total-${iso}`}
+                  style={{
+                    padding: '10px 8px',
+                    textAlign: 'center',
+                    borderLeft: '1px solid #ECECEF',
+                    background: isToday ? 'rgba(0,122,255,0.06)' : 'transparent',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: hrs > 0 ? (isToday ? '#007AFF' : '#1D1D1F') : '#C7C7CC',
+                  }}
+                >
+                  {hrs > 0 ? `${hrs.toFixed(1)}h` : '—'}
+                </div>
+              );
+            })}
+            <div style={{ borderLeft: '1px solid #ECECEF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#1D1D1F' }}>
+              {grandTotal.toFixed(1)}h
+            </div>
+          </div>
         </div>
       </div>
 
