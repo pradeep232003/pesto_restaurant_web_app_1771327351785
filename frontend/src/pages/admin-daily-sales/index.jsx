@@ -1263,7 +1263,7 @@ const AdminDailySales = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {activeLocations.map(loc => (
+                      {activeLocations.map((loc, locIdx) => (
                         <tr key={loc.id} style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
                           <td className="sticky left-0 z-10 px-3 py-2 text-xs font-medium truncate" style={{ background: '#FFFFFF', color: '#1D1D1F', ...font, maxWidth: 140 }}>{loc.name}</td>
                           {days.map(d => {
@@ -1272,6 +1272,11 @@ const AdminDailySales = () => {
                             const cellData = gridData.grid[key];
                             const isFuture = dateStr > todayStr;
                             const cellId = `${loc.id}-${d}`;
+                            // Top row's tooltip renders below the cell — the
+                            // outer wrapper uses `overflow-hidden` for its
+                            // rounded corners, which was clipping the
+                            // bottom-full tooltip on the first location.
+                            const tooltipBelow = locIdx === 0;
                             return (
                               <td key={d} className="px-0.5 py-2 text-center relative"
                                 onMouseEnter={() => cellData && setHoveredCell(cellId)}
@@ -1284,14 +1289,22 @@ const AdminDailySales = () => {
                                   <span className="inline-block w-5 h-5 rounded-md" style={{ background: '#FF3B30', opacity: 0.25 }} />
                                 )}
                                 {hoveredCell === cellId && cellData && (
-                                  <div className="absolute z-20 bottom-full left-1/2 -translate-x-1/2 mb-1 p-2.5 rounded-xl text-left whitespace-nowrap" style={{ background: '#1D1D1F', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: 130 }}>
+                                  <div
+                                    className={`absolute z-20 left-1/2 -translate-x-1/2 p-2.5 rounded-xl text-left whitespace-nowrap ${tooltipBelow ? 'top-full mt-1' : 'bottom-full mb-1'}`}
+                                    style={{ background: '#1D1D1F', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: 130 }}
+                                  >
                                     <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>{dateStr}</p>
                                     <p className="text-xs font-bold text-white" style={font}>{'\u00A3'}{cellData.sales?.toFixed(2)}</p>
                                     <div className="flex gap-3 mt-1">
                                       <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.6)' }}>Cash: {'\u00A3'}{cellData.cash_taken?.toFixed(2)}</span>
                                     </div>
                                     <p className="text-[9px] mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{cellData.updated_by}</p>
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0" style={{ borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #1D1D1F' }} />
+                                    <div
+                                      className={`absolute left-1/2 -translate-x-1/2 w-0 h-0 ${tooltipBelow ? 'bottom-full' : 'top-full'}`}
+                                      style={tooltipBelow
+                                        ? { borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderBottom: '5px solid #1D1D1F' }
+                                        : { borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #1D1D1F' }}
+                                    />
                                   </div>
                                 )}
                               </td>

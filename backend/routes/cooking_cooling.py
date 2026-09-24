@@ -102,7 +102,7 @@ DEFAULT_CATALOG = {
     "Prepared Shellfish":      {"icon": "🦪", "section": "Prepared", "items": ["Cooked mussels", "Cooked clams", "Cooked oysters", "Cooked scallops", "Cooked squid", "Cooked octopus"]},
     "Prepped Vegetables":      {"icon": "🥗", "section": "Prepared", "items": ["Diced onion", "Sliced peppers", "Roasted vegetables", "Mashed potato", "Blanched greens", "Shredded carrot", "Stir-fry mix"]},
     "Purees and Gels":         {"icon": "🧪", "section": "Prepared", "items": ["Pea purée", "Carrot purée", "Beetroot purée", "Cauliflower purée", "Fruit gel", "Reduction gel", "Coulis"]},
-    "Salad":                   {"icon": "🥗", "section": "Prepared", "items": ["Coleslaw", "Pasta salad", "Potato salad", "Caesar salad", "Greek salad", "Quinoa salad", "Couscous salad"]},
+    "Prepared Salad":          {"icon": "🥗", "section": "Prepared", "items": ["Coleslaw", "Pasta salad", "Potato salad", "Caesar salad", "Greek salad", "Quinoa salad", "Couscous salad"]},
     "Sauces":                  {"icon": "🥫", "section": "Prepared", "items": ["Tomato sauce", "Béchamel", "Hollandaise", "Bolognese", "Curry sauce", "Pesto", "Gravy", "Bbq sauce"]},
     "Sides":                   {"icon": "🍟", "section": "Prepared", "items": ["Chips", "Roast potatoes", "Mash", "Rice (cooked)", "Pasta (cooked)", "Bread basket", "Garlic bread", "Onion rings"]},
     "Soups":                   {"icon": "🍲", "section": "Prepared", "items": ["Tomato soup", "Chicken soup", "Vegetable soup", "Lentil soup", "Mushroom soup", "Minestrone", "Bisque", "Broth"]},
