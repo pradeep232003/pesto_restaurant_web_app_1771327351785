@@ -11,7 +11,7 @@ export const PettySummary = ({ data, sites, isAdmin }) => {
     <div data-testid="petty-summary" style={cardStyle}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
         <p style={{ ...labelStyle, margin: 0 }}>{isAdmin ? 'Total spent' : 'Your spends'}</p>
-        <span style={{ fontSize: 12, color: '#86868B' }} data-testid="petty-summary-count">{data.count || 0} entries</span>
+        <span style={{ fontSize: 12, color: '#86868B' }} data-testid="petty-summary-count">{data.count || 0} {data.count === 1 ? 'entry' : 'entries'}</span>
       </div>
       <p data-testid="petty-summary-total" style={{ margin: '4px 0 10px', fontSize: 34, fontWeight: 800, color: '#1D1D1F', letterSpacing: '-0.02em' }}>
         {gbp(total)}

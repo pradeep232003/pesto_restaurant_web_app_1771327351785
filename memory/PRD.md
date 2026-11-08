@@ -9,6 +9,8 @@ Full-stack restaurant ops platform: Apple-inspired UX, multi-location, role-gate
 - **Staff** — execute routines on mobile
 
 ## 3. Recently completed
+- (Jun 2026) **Petty Cash** tile under Intelligence → Operate (`/jkhive/petty-cash`, `routes/petty_cash.py`, collection `petty_cash`): staff log spends (amount, date, category, site, description, optional receipt photo) and see only their own; admins see/edit/delete all; filters by date presets/range, site, category; totals by category & site; soft delete. Tested (iteration_44).
+- Menu Recipes & Specs (`/jkhive/recipes`), Shift revenue Mon–Sun chart + daily hours footer, user↔staff linking, clock history staff names, Daily Sales outstanding fix
 - BI dashboard (labour, food cost, wastage); recipe→inventory auto-deduction; staff `hourly_rate`
 - JKHive Income & Expenses native wrappers with `?back=` deep links
 - Weekly Check hub (Probes, Legionella, Weekly Checklist) with 3-state pills

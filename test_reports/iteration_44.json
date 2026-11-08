@@ -1,0 +1,37 @@
+{
+  "summary": "Petty Cash feature tested E2E. Backend: 15/16 pytest pass (create, validation, filters, aggregates by_category/by_location, staff isolation, 403 on cross-user edit/delete, admin edit/delete any, soft delete, receipt upload + image fetch, 401 unauth). Frontend: tile in Operate navigates to /jkhive/petty-cash; add spend with receipt photo, list + total + category chips update; all presets, custom from/to, site & category filters correct; edit loads into form and saves; delete with confirm removes row; staff sees only own entries with 'Your spends' copy; mobile 390px has no horizontal overflow. No console/page errors.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST/PATCH /api/petty-cash", "issue": "Whitespace-only description ('   ') passes min_length=1 then is stripped and saved as empty string (200). Validate after strip (field_validator) to reject with 422."},
+      {"endpoint": "POST/PATCH /api/petty-cash", "issue": "location_id is not validated against existing locations (e.g. 'TEST_locA' accepted); staff can post to any site id."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Petty Cash summary", "issues": ["Count label not pluralised correctly: shows '1 entries' (petty-summary-count)"]},
+      {"screen": "Petty Cash (JKHive layout)", "issues": ["On first visit the pre-existing JKHive 'Pick a location' sheet overlays the page until a site is chosen - expected layout behavior, not a petty cash bug"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_petty_cash.py", "/app/backend/tests/seed_petty_staff.py", "/app/test_reports/pytest/petty_cash_results.xml"],
+  "action_items": [
+    "Reject whitespace-only description on create/update (validate after strip)",
+    "Optional: validate location_id exists in locations collection",
+    "Fix '1 entries' pluralisation in PettySummary"
+  ],
+  "critical_code_review_comments": [
+    "routes/petty_cash.py uses sync pymongo calls inside async def handlers (blocks event loop) - consistent with rest of codebase but worth noting",
+    "Backend 'managers see all' is implemented as admin/super_admin only (no separate manager role) - matches auth roles in auth.py",
+    "PettyForm useEffect depends on defaultLocationId; if locations load after the user starts typing, the form is reset to blank (edge case)",
+    "PATCH allows receipt_url to be any arbitrary string up to 300 chars (not restricted to /api/images/)"
+  ],
+  "updated_files": ["/app/backend/tests/test_petty_cash.py", "/app/backend/tests/seed_petty_staff.py"],
+  "success_rate": {"backend": "94% (15/16)", "frontend": "100%"},
+  "test_credentials": "Super admin admin@jollys.com / Admin123!. Created staff users (role staff, in users collection): test_petty_staff1@jollys.com / TestStaff123! and test_petty_staff2@jollys.com / TestStaff123!",
+  "seed_data_creation": "Two TEST staff users created via /app/backend/tests/seed_petty_staff.py (idempotent). All petty cash entries created by tests/UI were soft-deleted afterwards; pre-existing '4 pints milk' entry untouched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: python /app/backend/tests/seed_petty_staff.py then pytest /app/backend/tests/test_petty_cash.py. Browser clock is Nov 2026 so 'This month' excludes the June 2026 seed entry. On /jkhive pages click [data-testid=jkhive-loc-timperley-altrincham] to dismiss the site picker sheet. Login via /admin-login (data-testid admin-login-submit)."
+}

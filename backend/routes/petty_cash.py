@@ -7,13 +7,15 @@ import base64
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Optional, Literal
+from typing import Optional, Literal, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
-from db import db, images_collection
+from db import db, images_collection, locations_collection
 from auth import get_staff_or_above
+
+Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)]
 
 _log = logging.getLogger("petty_cash")
 router = APIRouter(prefix="/api/petty-cash", tags=["petty-cash"])
@@ -34,7 +36,7 @@ class PettyCreate(BaseModel):
     date: str = Field(..., pattern=DATE_RE)
     amount: float = Field(..., gt=0, le=10000)
     category: Category
-    description: str = Field(..., min_length=1, max_length=300)
+    description: Text
     receipt_url: Optional[str] = Field(None, max_length=300)
 
 
@@ -43,12 +45,17 @@ class PettyUpdate(BaseModel):
     date: Optional[str] = Field(None, pattern=DATE_RE)
     amount: Optional[float] = Field(None, gt=0, le=10000)
     category: Optional[Category] = None
-    description: Optional[str] = Field(None, min_length=1, max_length=300)
+    description: Optional[Text] = None
     receipt_url: Optional[str] = Field(None, max_length=300)
 
 
 def _is_admin(user: dict) -> bool:
     return user.get("role") in ("admin", "super_admin")
+
+
+def _check_location(location_id: str) -> None:
+    if not locations_collection.find_one({"id": location_id.strip()}, {"_id": 1}):
+        raise HTTPException(400, "Unknown site")
 
 
 def _get_editable(entry_id: str, user: dict) -> dict:
@@ -103,6 +110,7 @@ async def list_entries(
 
 @router.post("")
 async def create_entry(payload: PettyCreate, user: dict = Depends(get_staff_or_above)):
+    _check_location(payload.location_id)
     doc = {
         "id": str(uuid.uuid4()),
         "location_id": payload.location_id.strip(),
@@ -124,6 +132,8 @@ async def create_entry(payload: PettyCreate, user: dict = Depends(get_staff_or_a
 @router.patch("/{entry_id}")
 async def update_entry(entry_id: str, payload: PettyUpdate, user: dict = Depends(get_staff_or_above)):
     _get_editable(entry_id, user)
+    if payload.location_id:
+        _check_location(payload.location_id)
     updates = {k: (v.strip() if isinstance(v, str) else v) for k, v in payload.model_dump(exclude_none=True).items()}
     if "amount" in updates:
         updates["amount"] = round(updates["amount"], 2)
