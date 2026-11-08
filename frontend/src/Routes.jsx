@@ -57,6 +57,7 @@ import JKHiveSalesTraining from './pages/jkhive/SalesTraining';
 import JKHiveSliceAndDice from './pages/jkhive/SliceAndDice';
 import JKHiveBankStatements from './pages/jkhive/BankStatements';
 import JKHiveRestock from './pages/jkhive/Restock';
+import JKHivePettyCash from './pages/jkhive/PettyCash';
 import JKHiveAllergens from './pages/jkhive/Allergens';
 import JKHiveCorrectiveActions from './pages/jkhive/CorrectiveActions';
 import JKHivePayroll from './pages/jkhive/Payroll';
@@ -314,6 +315,7 @@ const AppRouter = () => {
         <Route path="slice-and-dice" element={<AdminOnly><JKHiveSliceAndDice /></AdminOnly>} />
         <Route path="bank-statements" element={<AdminOnly><JKHiveBankStatements /></AdminOnly>} />
         <Route path="restock" element={<JKHiveRestock />} />
+        <Route path="petty-cash" element={<JKHivePettyCash />} />
         <Route path="allergens" element={<JKHiveAllergens />} />
         <Route path="corrective-actions" element={<JKHiveCorrectiveActions />} />
         <Route path="payroll" element={<AdminOnly><JKHivePayroll /></AdminOnly>} />

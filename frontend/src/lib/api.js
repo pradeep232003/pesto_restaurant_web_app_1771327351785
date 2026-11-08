@@ -1569,6 +1569,38 @@ class ApiService {
     return this.fetch(`/api/restock/${id}/reopen`, { method: 'POST' });
   }
 
+  // ---- Petty cash ----
+  async pettyCashList(filters = {}) {
+    const qs = new URLSearchParams();
+    Object.entries(filters).forEach(([k, v]) => { if (v) qs.set(k, v); });
+    return this.fetch(`/api/petty-cash?${qs.toString()}`);
+  }
+  async pettyCashCategories() {
+    return this.fetch('/api/petty-cash/categories');
+  }
+  async pettyCashCreate(payload) {
+    return this.fetch('/api/petty-cash', { method: 'POST', body: JSON.stringify(payload) });
+  }
+  async pettyCashUpdate(id, payload) {
+    return this.fetch(`/api/petty-cash/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+  }
+  async pettyCashDelete(id) {
+    return this.fetch(`/api/petty-cash/${id}`, { method: 'DELETE' });
+  }
+  async pettyCashUploadReceipt(file) {
+    const form = new FormData();
+    form.append('file', file);
+    const headers = {};
+    const t = localStorage.getItem('access_token');
+    if (t) headers['Authorization'] = `Bearer ${t}`;
+    const res = await fetch(`${API_BASE_URL}/api/petty-cash/upload-receipt`, {
+      method: 'POST', body: form, headers,
+      credentials: API_BASE_URL ? 'include' : 'same-origin',
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || 'Upload failed');
+    return res.json();
+  }
+
   // ---- Allergens ----
   async allergensCatalog() {
     return this.fetch('/api/allergens/catalog');
